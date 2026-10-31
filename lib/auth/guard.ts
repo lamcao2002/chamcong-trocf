@@ -1,6 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { redirect } from 'next/navigation';
+import { ApiError } from '@/lib/api/errors';
 import { ADMIN_NAV, type AdminNavKey } from '@/lib/navigation/admin';
 import { hasRole, type AuthContext } from './policy';
 import type { Role } from './roles';
@@ -36,7 +37,18 @@ export function withAuth<Route>(
         { status: 403 },
       );
     }
-    return handler(ctx, request, route);
+    try {
+      return await handler(ctx, request, route);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        return NextResponse.json(
+          { ok: false, error: error.message, fields: error.fields },
+          { status: error.status },
+        );
+      }
+      console.error('API lỗi:', error instanceof Error ? error.message : error);
+      return NextResponse.json({ ok: false, error: 'Có lỗi xảy ra, vui lòng thử lại' }, { status: 500 });
+    }
   };
 }
 

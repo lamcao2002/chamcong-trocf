@@ -34,7 +34,7 @@ export function UnsavedBar({
   if (count <= 0) return null;
 
   const discard = async () => {
-    if (await confirmDiscard(count)) onDiscard();
+    if (await confirmDiscard({ count })) onDiscard();
   };
 
   return (

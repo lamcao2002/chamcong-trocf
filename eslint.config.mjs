@@ -18,6 +18,11 @@ const eslintConfig = [
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     },
   },
+  {
+    // Test đọc JSON tuỳ ý từ API
+    files: ['tests/**'],
+    rules: { '@typescript-eslint/no-explicit-any': 'off' },
+  },
 ];
 
 export default eslintConfig;

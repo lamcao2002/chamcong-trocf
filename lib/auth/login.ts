@@ -1,7 +1,8 @@
 import 'server-only';
 import { and, eq, lt } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { auditLogs, companies, employees, sessions } from '@/lib/db/schema';
+import { writeAudit } from '@/lib/audit';
+import { companies, employees, sessions } from '@/lib/db/schema';
 import type { LoginInput } from '@/lib/validation/auth';
 import { hashPin, verifyPin } from './pin';
 import {
@@ -62,14 +63,11 @@ export async function login(kind: SessionKind, input: LoginInput): Promise<Login
         expiresAt,
       })
       .returning({ id: sessions.id });
-    await tx.insert(auditLogs).values({
-      companyId: company.id,
-      actorId: employee.id,
-      action: 'auth.login',
-      entity: 'session',
-      entityId: session!.id,
-      after: { kind },
-    });
+    await writeAudit(
+      tx,
+      { companyId: company.id, actorId: employee.id },
+      { action: 'auth.login', entity: 'session', entityId: session!.id, after: { kind } },
+    );
   });
 
   return {
@@ -88,13 +86,10 @@ export async function logout(token: string): Promise<void> {
       .where(eq(sessions.tokenHash, hashSessionToken(token)))
       .returning();
     if (!session) return;
-    await tx.insert(auditLogs).values({
-      companyId: session.companyId,
-      actorId: session.employeeId,
-      action: 'auth.logout',
-      entity: 'session',
-      entityId: session.id,
-      before: { kind: session.kind },
-    });
+    await writeAudit(
+      tx,
+      { companyId: session.companyId, actorId: session.employeeId },
+      { action: 'auth.logout', entity: 'session', entityId: session.id, before: { kind: session.kind } },
+    );
   });
 }

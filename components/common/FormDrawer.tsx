@@ -13,6 +13,8 @@ type FormDrawerProps = {
   dirty?: boolean;
   saving?: boolean;
   submitLabel?: string;
+  /** Chỉ xem: ẩn nút lưu. */
+  readOnly?: boolean;
   /** Nút phụ bên trái chân drawer, vd "Xoá vị trí". */
   footerExtra?: ReactNode;
   onClose: () => void;
@@ -27,6 +29,7 @@ export function FormDrawer({
   dirty = false,
   saving = false,
   submitLabel = 'Lưu',
+  readOnly = false,
   footerExtra,
   onClose,
   onSubmit,
@@ -64,9 +67,11 @@ export function FormDrawer({
             <Button disabled={saving} onClick={() => void requestClose()}>
               Huỷ
             </Button>
-            <Button type="primary" loading={saving} onClick={onSubmit}>
-              {submitLabel}
-            </Button>
+            {readOnly ? null : (
+              <Button type="primary" loading={saving} onClick={onSubmit}>
+                {submitLabel}
+              </Button>
+            )}
           </Flex>
         </Flex>
       }
