@@ -15,7 +15,7 @@ cp .env.example .env.local
 npm run db:up               # PostgreSQL 16 trong docker, cổng 5432
 npm run db:migrate          # tạo 21 bảng
 npm run db:seed             # công ty mẫu PHONHO, đăng nhập ha@phonho.vn, PIN 1234
-npm run dev                 # http://localhost:3000 → chuyển tới /app
+npm run dev                 # http://localhost:3000/app → mã PHONHO, ha@phonho.vn, PIN 1234
 ```
 
 Kiểm tra kết nối: `curl http://localhost:3000/api/v1/health` → `{"ok":true,"db":"up",...}`.

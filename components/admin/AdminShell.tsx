@@ -19,6 +19,7 @@ import {
   SettingOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
+import { useToast } from '@/components/common/useToast';
 import { ROLE_LABELS, type Role } from '@/lib/auth/roles';
 import {
   activeNavKey,
@@ -89,6 +90,7 @@ function writeCollapsed(collapsed: boolean) {
 /** Khung trang quản trị: menu trái từ 992px, thanh dưới + drawer "Thêm" dưới 992px. */
 export function AdminShell({ viewer, children }: AdminShellProps) {
   const pathname = usePathname();
+  const toast = useToast();
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -98,6 +100,16 @@ export function AdminShell({ viewer, children }: AdminShellProps) {
   const toggleCollapsed = () => {
     writeCollapsed(!collapsed);
     setCollapsed(!collapsed);
+  };
+
+  const logout = async () => {
+    const response = await fetch('/api/v1/auth/logout', { method: 'POST' }).catch(() => null);
+    if (response?.ok) {
+      // Tải lại hẳn để người dùng sau không thấy trang còn trong cache của phiên này
+      window.location.replace('/app/login');
+    } else {
+      toast.error('Không đăng xuất được, vui lòng thử lại');
+    }
   };
 
   const items = navForRole(viewer.role);
@@ -173,8 +185,12 @@ export function AdminShell({ viewer, children }: AdminShellProps) {
                   items: [
                     { key: 'who', disabled: true, label: `${viewer.name} · ${ROLE_LABELS[viewer.role]}` },
                     { type: 'divider' },
-                    // Nối với POST /auth/logout ở S1-09, khi đã có màn đăng nhập để quay về
-                    { key: 'logout', disabled: true, icon: <LogoutOutlined />, label: 'Đăng xuất' },
+                    {
+                      key: 'logout',
+                      icon: <LogoutOutlined />,
+                      label: 'Đăng xuất',
+                      onClick: () => void logout(),
+                    },
                   ],
                 }}
               >

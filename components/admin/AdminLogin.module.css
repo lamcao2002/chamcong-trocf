@@ -1,0 +1,98 @@
+.page {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+  background: var(--bg-app);
+  color: var(--text);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: max(24px, env(safe-area-inset-top)) var(--gutter-mobile) 76px;
+  background: var(--header-gradient);
+  color: var(--surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--brand);
+  font-size: 18px;
+}
+
+.slogan {
+  max-width: 460px;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 30px;
+}
+
+.formSide {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0 var(--gutter-mobile) 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  margin-top: -52px;
+  padding: 24px 22px;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
+}
+
+.subtitle {
+  margin: 2px 0 20px;
+  color: var(--text-muted);
+}
+
+@media (min-width: 992px) {
+  .page {
+    grid-template-rows: none;
+    grid-template-columns: 52fr 48fr;
+  }
+
+  .panel {
+    justify-content: space-between;
+    padding: 40px 48px;
+  }
+
+  .slogan {
+    font-size: 28px;
+    line-height: 38px;
+  }
+
+  .formSide {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .card {
+    margin-top: 0;
+    padding: 32px 28px;
+  }
+}
