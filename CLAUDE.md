@@ -47,7 +47,12 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-08 Phân quyền 4 cấp, lọc `company_id`, lọc người được quản lý | Code xong, đã chạy thử trên PostgreSQL trống |
 | S1-09 Màn A1 đăng nhập quản trị, nút Đăng xuất | Code xong, đã thử trên Chrome 320–1440 px |
 | S1-10 Màn M1, đọc `?ma=`, PWA manifest | Code xong, Chrome xác nhận cài được PWA — M2 còn là màn tạm, chưa thử cài trên điện thoại thật |
-| S1-11 … S1-22 | Chưa làm |
+| S1-11 `audit_logs` mọi endpoint ghi | Code xong — `writeAudit` trong cùng transaction, không ghi PIN |
+| S1-12 → S1-16 Ca, ngày lễ, vị trí, địa điểm, cài đặt | Code xong, đã chạy qua giao diện trên Chrome |
+| S1-17 → S1-19 Nhân sự, drawer, Đã nghỉ | Code xong, đã chạy qua giao diện trên Chrome |
+| S1-20 Test API | Code xong — `npm run test:api`, CI chạy trên build thật |
+| S1-21 Nhập dữ liệu demo, thử M1 trên điện thoại | Mới chạy kịch bản demo trên Chrome giả lập; **chưa thử iPhone/Android thật** |
+| S1-22 Triển khai staging, demo | Đã đẩy nhánh `feat/s1-11-s1-22` để Vercel tạo bản Preview; **chưa xác nhận staging chạy được**, chưa demo |
 
 Cập nhật bảng này khi xong một việc.
 
@@ -58,6 +63,7 @@ npm install && cp .env.example .env.local
 npm run db:up        # Postgres docker
 npm run dev
 npm run check        # lint + typecheck + format + test — chạy trước khi commit
+npm run test:api     # test API qua HTTP: cần app đang chạy, DATABASE_URL phải là localhost
 npm run db:generate  # sau khi sửa lib/db/schema.ts, commit cả thư mục drizzle/
 npm run db:migrate
 npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production bị chặn
@@ -72,6 +78,9 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Form sửa dùng `FormDrawer`, trang có nút lưu tổng dùng `UnsavedBar` (`components/common/`): cả hai đã tự chặn rời trang; toast dùng `useToast`
 - Route API bọc `withAuth`, trang quản trị gọi `requireAdminPage` (`lib/auth/guard.ts`); truy vấn lọc bằng `scopeToCompany`/`scopeToStaff`, luật quyền ở `lib/auth/policy.ts`
 - `@ant-design/cssinjs` ghim bản 1.x cùng `antd` 5: lên 2.x sẽ có hai bản, `AntdRegistry` mất CSS phía server và trang nháy form thô
+- Service ở `lib/services/`: mọi truy vấn lọc `company_id`, ID từ client qua `assertOwned`, ghi kèm `writeAudit`; route chỉ parse rồi gọi service
+- Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
+- Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
 - Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T50

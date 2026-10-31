@@ -102,6 +102,16 @@ jobs:
         if: hashFiles('drizzle/meta/_journal.json') != ''
         run: npm run db:seed
 
+      - name: API tests against a running build
+        if: hashFiles('drizzle/meta/_journal.json') != ''
+        env:
+          API_BASE_URL: http://localhost:3000
+        run: |
+          npm run build
+          npm run start &
+          npx --yes wait-on@8 --timeout 60000 http://localhost:3000/api/v1/health
+          npm run test:api
+
       - name: Schema has no un-generated changes
         if: hashFiles('drizzle/meta/_journal.json') != ''
         run: |

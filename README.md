@@ -34,6 +34,7 @@ Tài liệu sản phẩm (PRD, Sprint, đặc tả engine) nằm trong `docs/pro
 | `npm run format` / `format:check` | Prettier |
 | `npm test` / `test:watch` | Vitest |
 | `npm run check` | lint + typecheck + format + test (giống CI) |
+| `npm run test:api` | test API qua HTTP; cần `npm run start` đang chạy trên CSDL đã migrate + seed. Đặt `API_BASE_URL` nếu không dùng cổng 3000. Từ chối chạy nếu `DATABASE_URL` không phải localhost |
 | `npm run db:up` / `db:down` | bật/tắt PostgreSQL docker |
 | `npm run db:generate` | sinh migration SQL từ `lib/db/schema.ts` vào `drizzle/` |
 | `npm run db:migrate` | áp dụng migration |
@@ -57,9 +58,13 @@ lib/
   db/schema.ts        21 bảng dữ liệu
   db/seed.ts          dữ liệu mẫu (nội dung ở db/seed-data.ts)
   auth/pin.ts         băm và kiểm tra PIN (argon2)
+  services/           nghiệp vụ, truy vấn theo công ty, ghi audit
+  domain/             hàm thuần: ca, ngày lễ, GPS, PIN
+  validation/         schema zod dùng chung form + API
   theme/tokens.ts     màu, bo góc, gradient header → theme AntD + biến CSS
   navigation/admin.ts menu quản trị theo quyền
 scripts/migrate.ts    chạy migration
+tests/api/            test API qua HTTP
 drizzle/              file migration sinh ra (commit vào git)
 docs/                 hướng dẫn hạ tầng
 .github/workflows/    CI
