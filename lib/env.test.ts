@@ -24,10 +24,6 @@ describe('parseServerEnv', () => {
   it('báo lỗi khi DATABASE_URL không phải PostgreSQL', () => {
     expect(() => parseServerEnv({ DATABASE_URL: 'mysql://localhost/db' })).toThrow(/PostgreSQL/);
   });
-
-  it('báo lỗi khi SESSION_SECRET quá ngắn', () => {
-    expect(() => parseServerEnv({ DATABASE_URL: LOCAL, SESSION_SECRET: 'ngan' })).toThrow(/32 ký tự/);
-  });
 });
 
 describe('migrationUrl', () => {

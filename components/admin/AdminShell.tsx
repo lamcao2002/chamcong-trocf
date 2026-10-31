@@ -173,7 +173,7 @@ export function AdminShell({ viewer, children }: AdminShellProps) {
                   items: [
                     { key: 'who', disabled: true, label: `${viewer.name} · ${ROLE_LABELS[viewer.role]}` },
                     { type: 'divider' },
-                    // Nối với POST /auth/logout ở S1-07
+                    // Nối với POST /auth/logout ở S1-09, khi đã có màn đăng nhập để quay về
                     { key: 'logout', disabled: true, icon: <LogoutOutlined />, label: 'Đăng xuất' },
                   ],
                 }}

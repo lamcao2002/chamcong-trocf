@@ -19,8 +19,6 @@ export const serverEnvSchema = z.object({
   DATABASE_URL: postgresUrl,
   DATABASE_URL_DIRECT: postgresUrl.optional(),
   APP_TIMEZONE: z.string().default('Asia/Ho_Chi_Minh'),
-  /** Chuỗi bí mật ký phiên đăng nhập (S1-07), tối thiểu 32 ký tự. */
-  SESSION_SECRET: z.string().min(32, 'SESSION_SECRET cần ít nhất 32 ký tự').optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
