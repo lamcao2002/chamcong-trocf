@@ -1,4 +1,4 @@
-import type { Role } from '@/lib/auth/roles';
+import { ADMIN_ONLY, HR_UP, MANAGERS, type Role } from '@/lib/auth/roles';
 
 export type AdminNavKey =
   'inbox' | 'timesheet' | 'schedule' | 'payroll' | 'staff' | 'positions' | 'locations' | 'settings';
@@ -8,13 +8,9 @@ export type AdminNavItem = {
   label: string;
   href: string;
   group: 'main' | 'setup';
-  /** Quyền thấy mục này theo cột "Ai dùng" của PRD; S1-08 chặn ở phía server. */
+  /** Quyền vào mục này theo cột "Ai dùng" của PRD; `requireAdminPage` chặn ở phía server. */
   roles: readonly Role[];
 };
-
-const MANAGERS: readonly Role[] = ['admin', 'hr', 'manager'];
-const HR_UP: readonly Role[] = ['admin', 'hr'];
-const ADMIN_ONLY: readonly Role[] = ['admin'];
 
 export const ADMIN_NAV: readonly AdminNavItem[] = [
   { key: 'inbox', label: 'Hộp việc', href: '/app', group: 'main', roles: MANAGERS },

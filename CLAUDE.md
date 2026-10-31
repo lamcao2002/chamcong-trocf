@@ -44,7 +44,8 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-05 Khung giao diện quản trị | Code xong, đã thử trên Chrome 375–1440 px — người xem còn là `DEV_VIEWER`, S1-08 thay bằng phiên thật |
 | S1-06 Drawer form, thanh chưa lưu, toast, hỏi khi rời trang | Code xong, đã thử trên Chrome 375–1440 px — chưa có màn thật nào dùng, chưa thử trên điện thoại thật |
 | S1-07 API đăng nhập, phiên cookie, đăng xuất | Code xong, đã chạy thử trên PostgreSQL trống — **chưa làm khoá 15 phút sau 5 lần sai** theo yêu cầu; cột `failed_pin_attempts`, `locked_until` chưa dùng |
-| S1-08 … S1-22 | Chưa làm |
+| S1-08 Phân quyền 4 cấp, lọc `company_id`, lọc người được quản lý | Code xong, đã chạy thử trên PostgreSQL trống — `/app/login` còn là trang tạm tới S1-09 |
+| S1-09 … S1-22 | Chưa làm |
 
 Cập nhật bảng này khi xong một việc.
 
@@ -67,6 +68,7 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Màu/bo góc lấy từ `lib/theme/tokens.ts`, không hardcode; CSS module dùng biến từ `themeCssVars()`
 - Trang quản trị nằm trong `app/(admin)/app/(shell)/`, bọc bằng `AdminPage`; thêm mục menu ở `lib/navigation/admin.ts`
 - Form sửa dùng `FormDrawer`, trang có nút lưu tổng dùng `UnsavedBar` (`components/common/`): cả hai đã tự chặn rời trang; toast dùng `useToast`
+- Route API bọc `withAuth`, trang quản trị gọi `requireAdminPage` (`lib/auth/guard.ts`); truy vấn lọc bằng `scopeToCompany`/`scopeToStaff`, luật quyền ở `lib/auth/policy.ts`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
 - Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T50

@@ -1,14 +1,20 @@
 import type { ReactNode } from 'react';
-import { AdminShell, type AdminViewer } from '@/components/admin/AdminShell';
+import { AdminShell } from '@/components/admin/AdminShell';
+import { requireAdminPage } from '@/lib/auth/guard';
 
-// Người xem tạm theo dữ liệu mẫu; S1-08 thay bằng phiên đăng nhập và màu công ty thật
-const DEV_VIEWER: AdminViewer = {
-  name: 'Nguyễn Thu Hà',
-  role: 'admin',
-  companyName: 'Cà phê Phố Nhỏ',
-  brandColor: '#7B5236',
-};
+export default async function AdminShellLayout({ children }: { children: ReactNode }) {
+  const { employee, company } = await requireAdminPage();
 
-export default function AdminShellLayout({ children }: { children: ReactNode }) {
-  return <AdminShell viewer={DEV_VIEWER}>{children}</AdminShell>;
+  return (
+    <AdminShell
+      viewer={{
+        name: employee.name,
+        role: employee.role,
+        companyName: company.name,
+        brandColor: company.brandColor,
+      }}
+    >
+      {children}
+    </AdminShell>
+  );
 }
