@@ -28,10 +28,14 @@ export type ServerEnv = z.infer<typeof serverEnvSchema>;
 /** Đọc và kiểm tra env; ném lỗi tiếng Việt liệt kê đủ các biến sai. */
 export function parseServerEnv(raw: Record<string, string | undefined>): ServerEnv {
   // Chuỗi rỗng coi như không đặt, để .env.example để trống không làm hỏng giá trị mặc định
-  const cleaned = Object.fromEntries(Object.entries(raw).filter(([, value]) => value !== undefined && value !== ''));
+  const cleaned = Object.fromEntries(
+    Object.entries(raw).filter(([, value]) => value !== undefined && value !== ''),
+  );
   const result = serverEnvSchema.safeParse(cleaned);
   if (!result.success) {
-    const issues = result.error.issues.map((issue) => `- ${issue.path.join('.')}: ${issue.message}`).join('\n');
+    const issues = result.error.issues
+      .map((issue) => `- ${issue.path.join('.')}: ${issue.message}`)
+      .join('\n');
     throw new Error(`Biến môi trường không hợp lệ:\n${issues}`);
   }
   return result.data;

@@ -17,7 +17,7 @@ async function main() {
   const env = parseServerEnv(process.env);
 
   if (!existsSync(`${MIGRATIONS_FOLDER}/meta/_journal.json`)) {
-    console.info('Chưa có migration nào trong ./drizzle — bỏ qua (S1-04 sẽ tạo migration đầu tiên).');
+    console.info('Chưa có migration nào trong ./drizzle — bỏ qua.');
     return;
   }
 

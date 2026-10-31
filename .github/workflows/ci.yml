@@ -94,6 +94,14 @@ jobs:
       - name: Apply again (must be idempotent)
         run: npm run db:migrate
 
+      - name: Seed demo data
+        if: hashFiles('drizzle/meta/_journal.json') != ''
+        run: npm run db:seed
+
+      - name: Seed again (must be idempotent)
+        if: hashFiles('drizzle/meta/_journal.json') != ''
+        run: npm run db:seed
+
       - name: Schema has no un-generated changes
         if: hashFiles('drizzle/meta/_journal.json') != ''
         run: |
