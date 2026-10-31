@@ -21,6 +21,8 @@ Kiểm tra kết nối: `curl http://localhost:3000/api/v1/health` → `{"ok":tr
 
 Dùng Supabase thay docker: xem [docs/setup-supabase.md](docs/setup-supabase.md).
 
+Tài liệu sản phẩm (PRD, Sprint, đặc tả engine) nằm trong `docs/product/`; bối cảnh cho Claude Code ở `CLAUDE.md`.
+
 ## Lệnh
 
 | Lệnh | Việc |
