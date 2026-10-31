@@ -1,0 +1,25 @@
+# PostgreSQL chạy trên máy để phát triển (thay Supabase dev khi offline).
+# Dùng: npm run db:up   ·   dừng: npm run db:down
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: chamcong-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chamcong
+      TZ: Asia/Ho_Chi_Minh
+      PGTZ: Asia/Ho_Chi_Minh
+    ports:
+      - '5432:5432'
+    volumes:
+      - chamcong-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d chamcong']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  chamcong-db-data:
