@@ -36,6 +36,8 @@ export const tokens = {
   sidebarWidth: 205,
   sidebarCollapsedWidth: 65,
   bottomNavHeight: 70,
+  /** [Đề xuất] Bản gốc không đo được bề rộng drawer desktop. */
+  formDrawerWidth: 520,
   pageGutter: { desktop: 27, mobile: 18 },
   /** Dưới mốc này: thanh điều hướng dưới thay cho menu trái (khớp breakpoint `lg` của Ant Design). */
   desktopBreakpoint: 992,
@@ -99,6 +101,8 @@ export function themeCssVars(brand: string = DEFAULT_BRAND): Record<`--${string}
     '--text': tokens.text,
     '--text-muted': tokens.textMuted,
     '--border': tokens.border,
+    '--warn-bg': tokens.warn.bg,
+    '--warn-fg': tokens.warn.fg,
     '--radius-card': `${tokens.radius.card}px`,
     '--radius-md': `${tokens.radius.md}px`,
     '--radius-pill': `${tokens.radius.pill}px`,
@@ -137,6 +141,7 @@ export function buildAntdTheme(brand: string = DEFAULT_BRAND): ThemeConfig {
       Card: { borderRadiusLG: tokens.radius.card },
       Tag: { borderRadiusSM: tokens.radius.pill },
       Drawer: { paddingLG: 20 },
+      Message: { borderRadiusLG: tokens.radius.pill, contentPadding: '10px 18px' },
       Menu: {
         itemBg: 'transparent',
         itemSelectedBg: brandSoft(colorPrimary),

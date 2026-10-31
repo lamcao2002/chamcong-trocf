@@ -42,7 +42,8 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-03 CI GitHub Actions | Code xong — chờ push lên GitHub để chạy lần đầu |
 | S1-04 Migration 21 bảng + seed "Cà phê Phố Nhỏ" | Code xong, đã chạy thử trên PostgreSQL 16 trống — chưa áp lên Supabase, chờ review schema |
 | S1-05 Khung giao diện quản trị | Code xong, đã thử trên Chrome 375–1440 px — người xem còn là `DEV_VIEWER`, S1-08 thay bằng phiên thật |
-| S1-06 … S1-22 | Chưa làm |
+| S1-06 Drawer form, thanh chưa lưu, toast, hỏi khi rời trang | Code xong, đã thử trên Chrome 375–1440 px — chưa có màn thật nào dùng, chưa thử trên điện thoại thật |
+| S1-07 … S1-22 | Chưa làm |
 
 Cập nhật bảng này khi xong một việc.
 
@@ -64,6 +65,7 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Biến môi trường chỉ đọc qua `getServerEnv()` (`lib/env.ts`)
 - Màu/bo góc lấy từ `lib/theme/tokens.ts`, không hardcode; CSS module dùng biến từ `themeCssVars()`
 - Trang quản trị nằm trong `app/(admin)/app/(shell)/`, bọc bằng `AdminPage`; thêm mục menu ở `lib/navigation/admin.ts`
+- Form sửa dùng `FormDrawer`, trang có nút lưu tổng dùng `UnsavedBar` (`components/common/`): cả hai đã tự chặn rời trang; toast dùng `useToast`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
 - Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T50

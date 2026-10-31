@@ -49,7 +49,7 @@ app/
   api/v1/health/      GET kiểm tra env + DB
   layout.tsx          font Be Vietnam Pro, AntdRegistry
   providers.tsx       ConfigProvider (vi_VN, theme từ token)
-components/           UI dùng chung (admin/: khung quản trị)
+components/           UI dùng chung (admin/: khung quản trị; common/: drawer form, thanh chưa lưu, toast, chặn rời trang)
 lib/
   env.ts              đọc & kiểm tra biến môi trường (zod)
   db/client.ts        kết nối postgres-js + drizzle (server-only)

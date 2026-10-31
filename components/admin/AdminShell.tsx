@@ -3,7 +3,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ConfigProvider, Drawer, Dropdown, Menu, type MenuProps } from 'antd';
+import { App as AntdApp, ConfigProvider, Drawer, Dropdown, Menu, type MenuProps } from 'antd';
 import {
   AppstoreOutlined,
   CalendarOutlined,
@@ -136,102 +136,105 @@ export function AdminShell({ viewer, children }: AdminShellProps) {
 
   return (
     <ConfigProvider theme={buildAntdTheme(viewer.brandColor ?? undefined)}>
-      <div
-        className={`${styles.shell} ${collapsed ? styles.collapsed : ''}`}
-        style={themeCssVars(viewer.brandColor ?? undefined) as CSSProperties}
-      >
-        <aside className={styles.sidebar} aria-label="Menu quản trị">
-          {companyCard}
-          <nav className={styles.sidebarNav}>
-            <Menu
-              mode="inline"
-              inlineCollapsed={collapsed}
-              selectedKeys={selectedKeys}
-              items={menuItems}
-              style={{ border: 0 }}
-            />
-          </nav>
-          <div className={styles.sidebarFooter}>
-            <Menu
-              mode="inline"
-              inlineCollapsed={collapsed}
-              selectable={false}
-              items={footerItems}
-              style={{ border: 0 }}
-            />
-          </div>
-        </aside>
-
-        <div className={styles.main}>
-          <div className={styles.account}>
-            <Dropdown
-              trigger={['click']}
-              placement="bottomRight"
-              menu={{
-                items: [
-                  { key: 'who', disabled: true, label: `${viewer.name} · ${ROLE_LABELS[viewer.role]}` },
-                  { type: 'divider' },
-                  // Nối với POST /auth/logout ở S1-07
-                  { key: 'logout', disabled: true, icon: <LogoutOutlined />, label: 'Đăng xuất' },
-                ],
-              }}
-            >
-              <button type="button" className={styles.avatar} aria-label={`Tài khoản ${viewer.name}`}>
-                {initials(viewer.name)}
-              </button>
-            </Dropdown>
-          </div>
-          <main>{children}</main>
-        </div>
-
-        <nav className={styles.bottomNav} aria-label="Điều hướng chính">
-          {bottomItems.map(({ key, label, href }) => {
-            const active = key === activeKey;
-            return (
-              <Link
-                key={key}
-                href={href}
-                aria-current={active ? 'page' : undefined}
-                className={`${styles.bottomItem} ${active ? styles.bottomItemActive : ''}`}
-              >
-                <span className={styles.bottomIcon}>{ICONS[key]}</span>
-                {label}
-              </Link>
-            );
-          })}
-          <button
-            type="button"
-            className={`${styles.bottomItem} ${moreActive ? styles.bottomItemActive : ''}`}
-            aria-haspopup="dialog"
-            aria-expanded={moreOpen}
-            onClick={() => setMoreOpen(true)}
-          >
-            <span className={styles.bottomIcon}>
-              <AppstoreOutlined />
-            </span>
-            Thêm
-          </button>
-        </nav>
-
-        <Drawer
-          placement="left"
-          width={280}
-          title="Menu"
-          open={moreOpen}
-          onClose={() => setMoreOpen(false)}
-          styles={{ body: { padding: 0 } }}
+      {/* App riêng để toast và hộp xác nhận nhận màu công ty thay vì màu mặc định ở Providers */}
+      <AntdApp component={false} message={{ top: 16, maxCount: 3 }}>
+        <div
+          className={`${styles.shell} ${collapsed ? styles.collapsed : ''}`}
+          style={themeCssVars(viewer.brandColor ?? undefined) as CSSProperties}
         >
-          <div
-            className={styles.drawerNav}
-            style={themeCssVars(viewer.brandColor ?? undefined) as CSSProperties}
-          >
+          <aside className={styles.sidebar} aria-label="Menu quản trị">
             {companyCard}
-            <nav aria-label="Toàn bộ menu">
-              <Menu mode="inline" selectedKeys={selectedKeys} items={menuItems} style={{ border: 0 }} />
+            <nav className={styles.sidebarNav}>
+              <Menu
+                mode="inline"
+                inlineCollapsed={collapsed}
+                selectedKeys={selectedKeys}
+                items={menuItems}
+                style={{ border: 0 }}
+              />
             </nav>
+            <div className={styles.sidebarFooter}>
+              <Menu
+                mode="inline"
+                inlineCollapsed={collapsed}
+                selectable={false}
+                items={footerItems}
+                style={{ border: 0 }}
+              />
+            </div>
+          </aside>
+
+          <div className={styles.main}>
+            <div className={styles.account}>
+              <Dropdown
+                trigger={['click']}
+                placement="bottomRight"
+                menu={{
+                  items: [
+                    { key: 'who', disabled: true, label: `${viewer.name} · ${ROLE_LABELS[viewer.role]}` },
+                    { type: 'divider' },
+                    // Nối với POST /auth/logout ở S1-07
+                    { key: 'logout', disabled: true, icon: <LogoutOutlined />, label: 'Đăng xuất' },
+                  ],
+                }}
+              >
+                <button type="button" className={styles.avatar} aria-label={`Tài khoản ${viewer.name}`}>
+                  {initials(viewer.name)}
+                </button>
+              </Dropdown>
+            </div>
+            <main>{children}</main>
           </div>
-        </Drawer>
-      </div>
+
+          <nav className={styles.bottomNav} aria-label="Điều hướng chính">
+            {bottomItems.map(({ key, label, href }) => {
+              const active = key === activeKey;
+              return (
+                <Link
+                  key={key}
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`${styles.bottomItem} ${active ? styles.bottomItemActive : ''}`}
+                >
+                  <span className={styles.bottomIcon}>{ICONS[key]}</span>
+                  {label}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              className={`${styles.bottomItem} ${moreActive ? styles.bottomItemActive : ''}`}
+              aria-haspopup="dialog"
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen(true)}
+            >
+              <span className={styles.bottomIcon}>
+                <AppstoreOutlined />
+              </span>
+              Thêm
+            </button>
+          </nav>
+
+          <Drawer
+            placement="left"
+            width={280}
+            title="Menu"
+            open={moreOpen}
+            onClose={() => setMoreOpen(false)}
+            styles={{ body: { padding: 0 } }}
+          >
+            <div
+              className={styles.drawerNav}
+              style={themeCssVars(viewer.brandColor ?? undefined) as CSSProperties}
+            >
+              {companyCard}
+              <nav aria-label="Toàn bộ menu">
+                <Menu mode="inline" selectedKeys={selectedKeys} items={menuItems} style={{ border: 0 }} />
+              </nav>
+            </div>
+          </Drawer>
+        </div>
+      </AntdApp>
     </ConfigProvider>
   );
 }
