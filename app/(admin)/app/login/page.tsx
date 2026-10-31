@@ -2,8 +2,8 @@ import type { CSSProperties } from 'react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { CheckOutlined } from '@ant-design/icons';
-import { AdminLoginForm } from '@/components/admin/AdminLoginForm';
 import styles from '@/components/admin/AdminLogin.module.css';
+import { LoginForm } from '@/components/common/LoginForm';
 import { getSession } from '@/lib/auth/session';
 import { themeCssVars } from '@/lib/theme/tokens';
 
@@ -29,7 +29,7 @@ export default async function AdminLoginPage() {
         <div className={styles.card}>
           <h1 className={styles.title}>Đăng nhập quản trị</h1>
           <p className={styles.subtitle}>Dùng email và mã PIN được cấp.</p>
-          <AdminLoginForm />
+          <LoginForm kind="admin" redirectTo="/app" />
         </div>
       </main>
     </div>
