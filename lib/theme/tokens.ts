@@ -35,6 +35,8 @@ export const tokens = {
   shadowCard: '0 1px 2px rgba(23,40,30,.05), 0 6px 20px rgba(23,40,30,.06)',
   sidebarWidth: 205,
   sidebarCollapsedWidth: 65,
+  bottomNavHeight: 70,
+  pageGutter: { desktop: 27, mobile: 18 },
   /** Dưới mốc này: thanh điều hướng dưới thay cho menu trái (khớp breakpoint `lg` của Ant Design). */
   desktopBreakpoint: 992,
 } as const;
@@ -61,10 +63,52 @@ export function darken(color: string, amount: number): string {
   return `#${channel(0)}${channel(2)}${channel(4)}`.toUpperCase();
 }
 
+/** Làm nhạt một màu hex về phía trắng theo tỉ lệ 0–1. */
+export function lighten(color: string, amount: number): string {
+  const hex = normalizeBrand(color).slice(1);
+  const ratio = Math.min(Math.max(amount, 0), 1);
+  const channel = (start: number) => {
+    const value = parseInt(hex.slice(start, start + 2), 16);
+    return Math.round(value + (255 - value) * ratio)
+      .toString(16)
+      .padStart(2, '0');
+  };
+  return `#${channel(0)}${channel(2)}${channel(4)}`.toUpperCase();
+}
+
+/** Nền nhạt của mục đang chọn (`--brand-soft`, #7B5236 → #F2EEEB). */
+export function brandSoft(brand: string): string {
+  return lighten(brand, 0.9);
+}
+
 /** Gradient dải header (120deg, brand → brand tối hơn ~22%). */
 export function headerGradient(brand: string): string {
   const base = normalizeBrand(brand);
   return `linear-gradient(120deg, ${base} 0%, ${darken(base, 0.22)} 100%)`;
+}
+
+/** Token dưới dạng biến CSS, gắn ở phần tử gốc để CSS module dùng lại thay vì hardcode. */
+export function themeCssVars(brand: string = DEFAULT_BRAND): Record<`--${string}`, string> {
+  const base = normalizeBrand(brand);
+  return {
+    '--brand': base,
+    '--brand-soft': brandSoft(base),
+    '--header-gradient': headerGradient(base),
+    '--bg-app': tokens.bgApp,
+    '--surface': tokens.surface,
+    '--text': tokens.text,
+    '--text-muted': tokens.textMuted,
+    '--border': tokens.border,
+    '--radius-card': `${tokens.radius.card}px`,
+    '--radius-md': `${tokens.radius.md}px`,
+    '--radius-pill': `${tokens.radius.pill}px`,
+    '--shadow-card': tokens.shadowCard,
+    '--sidebar-w': `${tokens.sidebarWidth}px`,
+    '--sidebar-w-collapsed': `${tokens.sidebarCollapsedWidth}px`,
+    '--bottom-nav-h': `${tokens.bottomNavHeight}px`,
+    '--gutter-desktop': `${tokens.pageGutter.desktop}px`,
+    '--gutter-mobile': `${tokens.pageGutter.mobile}px`,
+  };
 }
 
 /** Cấu hình theme Ant Design cho một màu thương hiệu. */
@@ -93,6 +137,17 @@ export function buildAntdTheme(brand: string = DEFAULT_BRAND): ThemeConfig {
       Card: { borderRadiusLG: tokens.radius.card },
       Tag: { borderRadiusSM: tokens.radius.pill },
       Drawer: { paddingLG: 20 },
+      Menu: {
+        itemBg: 'transparent',
+        itemSelectedBg: brandSoft(colorPrimary),
+        itemSelectedColor: colorPrimary,
+        itemBorderRadius: tokens.radius.md,
+        itemMarginInline: 0,
+        // Bề rộng bên trong sidebar thu gọn: trừ padding 12px hai bên và viền 1px
+        collapsedWidth: tokens.sidebarCollapsedWidth - 25,
+        groupTitleColor: tokens.textMuted,
+        groupTitleFontSize: 12,
+      },
     },
   };
 }

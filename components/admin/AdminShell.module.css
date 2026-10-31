@@ -1,0 +1,178 @@
+/* Mốc 992px khớp tokens.desktopBreakpoint; màu và kích thước lấy từ themeCssVars(). */
+.shell {
+  min-height: 100dvh;
+  background: var(--bg-app);
+  color: var(--text);
+}
+
+.sidebar {
+  display: none;
+}
+
+.main {
+  position: relative;
+  min-height: 100dvh;
+  padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+}
+
+.account {
+  position: absolute;
+  top: max(20px, env(safe-area-inset-top));
+  right: var(--gutter-mobile);
+  z-index: 1;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--brand);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bottomNav {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.bottomItem {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.bottomIcon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  font-size: 18px;
+}
+
+.bottomItemActive {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.bottomItemActive .bottomIcon {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.company {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 4px 16px;
+}
+
+.logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--brand);
+  color: var(--surface);
+  font-weight: 700;
+}
+
+.companyName {
+  overflow: hidden;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.drawerNav {
+  padding: 18px 12px;
+}
+
+@media (min-width: 992px) {
+  .bottomNav {
+    display: none;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    width: var(--sidebar-w);
+    padding: 18px 12px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    transition: width 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+  }
+
+  .main {
+    margin-left: var(--sidebar-w);
+    padding-bottom: 0;
+    transition: margin-left 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
+  }
+
+  .account {
+    top: 22px;
+    right: var(--gutter-desktop);
+  }
+
+  .collapsed .sidebar {
+    width: var(--sidebar-w-collapsed);
+  }
+
+  .collapsed .main {
+    margin-left: var(--sidebar-w-collapsed);
+  }
+
+  .collapsed .companyName {
+    display: none;
+  }
+
+  .collapsed .sidebar :global(.ant-menu-item-group-title) {
+    visibility: hidden;
+  }
+
+  .sidebarNav {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .sidebarFooter {
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+}

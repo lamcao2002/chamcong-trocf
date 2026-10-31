@@ -1,0 +1,43 @@
+.band {
+  min-height: 150px;
+  /* Chừa chỗ bên phải cho avatar tài khoản */
+  padding: max(20px, env(safe-area-inset-top)) calc(var(--gutter-mobile) + 52px) 68px var(--gutter-mobile);
+  background: var(--header-gradient);
+  color: var(--surface);
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  opacity: 0.85;
+}
+
+.body {
+  margin-top: -48px;
+  padding: 0 var(--gutter-mobile) 24px;
+}
+
+@media (min-width: 992px) {
+  .band {
+    min-height: 170px;
+    padding: 22px calc(var(--gutter-desktop) + 52px) 72px var(--gutter-desktop);
+  }
+
+  .body {
+    padding: 0 var(--gutter-desktop) 32px;
+  }
+}

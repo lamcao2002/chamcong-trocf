@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { BRAND_PRESETS, DEFAULT_BRAND, buildAntdTheme, darken, headerGradient, normalizeBrand } from './tokens';
+import {
+  BRAND_PRESETS,
+  DEFAULT_BRAND,
+  brandSoft,
+  buildAntdTheme,
+  darken,
+  headerGradient,
+  lighten,
+  normalizeBrand,
+  themeCssVars,
+} from './tokens';
 
 describe('normalizeBrand', () => {
   it('giữ màu hex hợp lệ, viết hoa', () => {
@@ -45,5 +55,29 @@ describe('buildAntdTheme', () => {
     for (const preset of BRAND_PRESETS) {
       expect(normalizeBrand(preset)).toBe(preset);
     }
+  });
+});
+
+describe('lighten', () => {
+  it('giữ nguyên ở 0, ra trắng ở 1', () => {
+    expect(lighten('#7B5236', 0)).toBe('#7B5236');
+    expect(lighten('#7B5236', 1)).toBe('#FFFFFF');
+  });
+});
+
+describe('brandSoft', () => {
+  it('khớp --brand-soft đo được trên bản gốc', () => {
+    expect(brandSoft('#7B5236')).toBe('#F2EEEB');
+  });
+});
+
+describe('themeCssVars', () => {
+  it('đổi màu theo công ty và rơi về mặc định khi màu sai', () => {
+    expect(themeCssVars('#7b5236')['--brand']).toBe('#7B5236');
+    expect(themeCssVars('red')['--brand']).toBe(DEFAULT_BRAND);
+  });
+
+  it('có đủ kích thước khung', () => {
+    expect(themeCssVars()).toMatchObject({ '--sidebar-w': '205px', '--bottom-nav-h': '70px' });
   });
 });

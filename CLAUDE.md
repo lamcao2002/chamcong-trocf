@@ -40,8 +40,9 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-01 Repo, AntD theme, ESLint, Prettier | Code xong — chờ `npm install` + `npm run check` xác nhận |
 | S1-02 Drizzle, env, docker Postgres, hướng dẫn Supabase, `/api/v1/health` | Code xong — chưa tạo project Supabase thật |
 | S1-03 CI GitHub Actions | Code xong — chờ push lên GitHub để chạy lần đầu |
-| S1-04 Migration 21 bảng + seed "Cà phê Phố Nhỏ" | **Việc tiếp theo** |
-| S1-05 … S1-22 | Chưa làm |
+| S1-04 Migration 21 bảng + seed "Cà phê Phố Nhỏ" | Code xong, đã chạy thử trên PostgreSQL 16 trống — chưa áp lên Supabase, chờ review schema |
+| S1-05 Khung giao diện quản trị | Code xong, đã thử trên Chrome 375–1440 px — người xem còn là `DEV_VIEWER`, S1-08 thay bằng phiên thật |
+| S1-06 … S1-22 | Chưa làm |
 
 Cập nhật bảng này khi xong một việc.
 
@@ -54,13 +55,15 @@ npm run dev
 npm run check        # lint + typecheck + format + test — chạy trước khi commit
 npm run db:generate  # sau khi sửa lib/db/schema.ts, commit cả thư mục drizzle/
 npm run db:migrate
+npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production bị chặn
 ```
 
 ## Quy ước code
 
 - `lib/db/client.ts` là `server-only`; client component không import DB
 - Biến môi trường chỉ đọc qua `getServerEnv()` (`lib/env.ts`)
-- Màu/bo góc lấy từ `lib/theme/tokens.ts`, không hardcode
+- Màu/bo góc lấy từ `lib/theme/tokens.ts`, không hardcode; CSS module dùng biến từ `themeCssVars()`
+- Trang quản trị nằm trong `app/(admin)/app/(shell)/`, bọc bằng `AdminPage`; thêm mục menu ở `lib/navigation/admin.ts`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
 - Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T50
