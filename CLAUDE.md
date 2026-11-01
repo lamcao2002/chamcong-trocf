@@ -61,6 +61,8 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 |---|---|
 | S2-01 Hạ tầng | `vercel.json` vùng `sin1`, `loading.tsx` cho `(shell)` và `/m` xong, chưa triển khai; **còn đặt `APP_ENV=staging` trên Vercel và đo lại trên staging** |
 | S2-02 Chốt quyết định | Xong: 17 quyết định đã ghi vào đặc tả, thêm T51–T53 |
+| S2-03 `employees.left_date` | Code xong, đã chạy trên PostgreSQL tạm — **chưa áp lên Supabase, phải migrate trước khi triển khai** |
+| S2-04 → S2-07 Engine bước A–F | Code xong trong `lib/engine/`: 43/53 ca chạy xanh; 10 ca cần đơn và duyệt đang `skip`, S2-08 bật lại |
 
 Cập nhật bảng này khi xong một việc.
 

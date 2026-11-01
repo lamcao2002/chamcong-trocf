@@ -51,11 +51,11 @@ Cả 17 điểm được chốt theo đề xuất dưới đây ngày 01/11/2026
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S2-01 | Hạ tầng: `vercel.json` vùng `sin1`, `APP_ENV=staging`, `loading.tsx` cho `(shell)` và `/m`, đo lại tốc độ | — | 0,5 | — | Dev A | 1 | Đang làm |
 | S2-02 | Chốt 17 quyết định, cập nhật đặc tả, thêm luật mới vào bộ ca kiểm thử | US21 | 0,25 | — | Dev A | 1 | Xong |
-| S2-03 | Migration `employees.left_date`, đặt ngày khi chuyển Đã nghỉ, cho dữ liệu cũ một giá trị mặc định | US13, US22 | 0,25 | S2-02 | Dev A | 1 | Chưa làm |
-| S2-04 | Kiểu đầu vào/đầu ra của engine, dữ liệu mẫu, khung test T01–T53 (đang đỏ) | US21 | 0,5 | S2-02 | Dev A | 2 | Chưa làm |
-| S2-05 | Bước A + B: ca kỳ vọng, ghép lần chấm, chấm trùng, ca liền nhau, ca đêm, ngoài lịch | US21 | 1,5 | S2-04 | Dev A | 2–3 | Chưa làm |
-| S2-06 | Bước C + D: phút làm, công theo 3 cách tính, muộn, về sớm | US21 | 1 | S2-05 | Dev A | 4 | Chưa làm |
-| S2-07 | Bước E + F: OT, trạng thái, cờ, đề xuất, câu "Vì sao hệ thống đề xuất" | US21 | 1 | S2-06 | Dev A | 5 | Chưa làm |
+| S2-03 | Migration `employees.left_date`, đặt ngày khi chuyển Đã nghỉ, cho dữ liệu cũ một giá trị mặc định | US13, US22 | 0,25 | S2-02 | Dev A | 1 | Xong |
+| S2-04 | Kiểu đầu vào/đầu ra của engine, dữ liệu mẫu, khung test T01–T53 (đang đỏ) | US21 | 0,5 | S2-02 | Dev A | 2 | Xong |
+| S2-05 | Bước A + B: ca kỳ vọng, ghép lần chấm, chấm trùng, ca liền nhau, ca đêm, ngoài lịch | US21 | 1,5 | S2-04 | Dev A | 2–3 | Xong |
+| S2-06 | Bước C + D: phút làm, công theo 3 cách tính, muộn, về sớm | US21 | 1 | S2-05 | Dev A | 4 | Xong |
+| S2-07 | Bước E + F: OT, trạng thái, cờ, đề xuất, câu "Vì sao hệ thống đề xuất" | US21 | 1 | S2-06 | Dev A | 5 | Xong |
 | S2-08 | Áp đơn và duyệt: phép, quên chấm, làm thêm, tha muộn, công ghi đè, hoàn duyệt | US21 | 0,75 | S2-07 | Dev A | 6 | Chưa làm |
 | S2-09 | Service tính lại: đọc đầu vào, khoá theo nhân viên, xoá rồi ghi `day_records` trong một giao dịch | US22 | 1,5 | S2-08 | Dev A | 6–7 | Chưa làm |
 | S2-10 | Gắn tính lại vào `/app/punch`, `PUT /schedule` và mọi nơi sửa ca, vị trí, nhân viên, ngày lễ, cài đặt | US22 | 0,75 | S2-09, S2-12, S2-16 | Dev A | 8 | Chưa làm |

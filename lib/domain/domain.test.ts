@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { vietnamToday } from './date';
 import { averagePosition, collectSamples } from './geo';
 import { vietnamHolidays } from './holiday';
 import { generatePin } from './pin';
@@ -98,5 +99,12 @@ describe('collectSamples', () => {
     gps.emit(21);
     gps.emit(21.1);
     await expect(result).resolves.toHaveLength(2);
+  });
+});
+
+describe('vietnamToday', () => {
+  it('sang ngày mới theo giờ Việt Nam, không theo UTC', () => {
+    expect(vietnamToday(new Date('2026-10-31T16:59:00Z'))).toBe('2026-10-31');
+    expect(vietnamToday(new Date('2026-10-31T17:00:00Z'))).toBe('2026-11-01');
   });
 });

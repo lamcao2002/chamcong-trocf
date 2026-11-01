@@ -120,7 +120,7 @@ Một ngày công có thể mang nhiều cờ nhưng chỉ một trạng thái h
 
 | Ưu tiên | Trạng thái | Khi nào | Cần duyệt | Đề xuất trong Hộp việc | Nguồn |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `chua_toi` | now < giờ vào ca, chưa chấm | Không | — | \[Gốc\] |
+| 1 | `chua_toi` | now < giờ ra ca, chưa chấm | Không | — | \[Gốc\]; \[Đề xuất\] giữ tới hết ca vì `vang` chỉ có sau khi hết ca |
 | 2 | `dang_lam` | Đã vào, chưa ra, now < giờ ra ca + 6 giờ | Không | — | \[Gốc\] |
 | 3 | `vang` | Có ca, hết ca, không có lần chấm nào, không có đơn | Có | Không có đề xuất; chỉ "Điều chỉnh khác…" | \[Gốc\] |
 | 4 | `thieu_gio` | Chỉ có vào hoặc chỉ có ra (cờ `thieu_vao`/`thieu_ra`) | Có | Có giải trình → "Duyệt 1 công" (giờ thiếu lấy từ giải trình hoặc đơn quên chấm) | \[Gốc\] |

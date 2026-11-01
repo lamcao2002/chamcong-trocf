@@ -8,6 +8,7 @@
  *
  * Phần thêm so với bảng cột của PRD (ghi vào PRD khi review schema):
  * - employees.failed_pin_attempts, locked_until: khoá 15 phút sau 5 lần sai (US01).
+ * - employees.left_date: ngày cuối còn làm; tính lại công không xoá ngày trước đó (US13, T52, T53).
  * - day_records.off_day, is_holiday, waived_late, waived_early, suggestion: đầu ra bước D–F của
  *   đặc tả ngày công; Lương và Hộp việc chỉ đọc `day_records`.
  * - `shift_id` của day_records, explanations, approvals được NULL: dòng theo ngày không gắn ca
@@ -228,6 +229,7 @@ export const employees = pgTable(
     failedPinAttempts: integer('failed_pin_attempts').notNull().default(0),
     lockedUntil: timestamptz('locked_until'),
     status: employeeStatusEnum('status').notNull().default('active'),
+    leftDate: date('left_date'),
     contract: contractTypeEnum('contract').notNull().default('full_time'),
     onboardDate: date('onboard_date').notNull(),
     role: roleEnum('role').notNull().default('app'),
@@ -240,6 +242,7 @@ export const employees = pgTable(
     unique('employees_company_email_unique').on(t.companyId, t.email),
     index('employees_manager_idx').on(t.managerId),
     check('employees_email_lowercase', sql`${t.email} = lower(${t.email})`),
+    check('employees_left_date', sql`(${t.status} = 'left') = (${t.leftDate} is not null)`),
   ],
 ).enableRLS();
 
