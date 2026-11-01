@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeDay } from './compute-day';
 import type { DayInput, DayRecord, EngineApproval, EnginePunch, EngineShift } from './types';
 
-/** Bộ ca kiểm thử T01–T53 của docs/product/02-dac-ta-engine-ngay-cong.md; mỗi dòng một test. */
+/** Bộ ca kiểm thử T01–T59 của docs/product/02-dac-ta-engine-ngay-cong.md; mỗi dòng một test. */
 
 const DATE = '2026-10-07'; // Thứ Tư
 const NEXT_DATE = '2026-10-08';
@@ -546,11 +546,59 @@ const CASES: Case[] = [
     }),
     check: expectOne({ status: 'du', cong: 1 }),
   },
+  {
+    id: 'T54',
+    title: 'gộp nhiều quyết định trong một bản ghi duyệt',
+    input: onShift(CA2, [punch('in', '14:00', { inZone: false }), punch('out', '23:00')], {
+      approvals: [approval({ shiftId: CA2.id, approveGps: true, otMinutes: 60 })],
+    }),
+    check: expectOne({ status: 'du', otApproved: 60, otState: 'da_duyet', needsReview: false }),
+  },
+  {
+    id: 'T55',
+    title: 'đơn phép ngày không có lịch không sinh dòng ngày công',
+    input: input({ requests: [annualLeave] }),
+    check: (records) => expect(records).toEqual([]),
+  },
+  {
+    id: 'T56',
+    title: 'duyệt thiếu giờ có giải trình',
+    input: {
+      ...T17,
+      explanations: [{ shiftId: SANG.id, reason: 'ra 12:05 quên bấm' }],
+      approvals: [approval({ shiftId: SANG.id, approveMissing: true })],
+    },
+    check: expectOne({ cong: 1, needsReview: false, suggestions: [] }),
+  },
+  {
+    id: 'T57',
+    title: 'tha về sớm',
+    input: onShift(CA1, pair('06:00', '13:50'), {
+      penaltyPerMin: 1000,
+      approvals: [approval({ waiveEarly: true })],
+    }),
+    check: expectOne({ status: 'du', earlyMin: 10, waivedEarly: true, penalty: 0 }),
+  },
+  {
+    id: 'T58',
+    title: 'tha muộn nhưng chưa tha sớm',
+    input: onShift(CA1, pair('06:14', '13:50'), {
+      penaltyPerMin: 1000,
+      approvals: [approval({ waiveLate: true })],
+    }),
+    check: expectOne({ status: 'muon', lateMin: 14, earlyMin: 10, penalty: 10_000 }),
+  },
+  {
+    id: 'T59',
+    title: 'điều chỉnh nửa công cho ngày thiếu giờ',
+    input: { ...T17, approvals: [approval({ shiftId: SANG.id, congOverride: 0.5 })] },
+    check: expectOne({ status: 'nua_cong', cong: 0.5, needsReview: false }),
+  },
 ];
 
 describe('bộ ca kiểm thử của đặc tả', () => {
-  it('có đủ T01–T53', () => {
-    const expected = Array.from({ length: 53 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`);
+  it('có đủ T01–T59', () => {
+    const expected = Array.from({ length: 59 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`);
     expect(CASES.map(({ id }) => id)).toEqual(expected);
   });
 

@@ -125,7 +125,7 @@ Tạo đơn (Nghỉ phép, Quên chấm, Làm thêm) là bottom sheet mở từ 
 | audit\_logs | actor\_id, action, entity, entity\_id, before jsonb, after jsonb, at | chỉ thêm |
 
 - PIN chỉ lưu dạng băm; không API nào trả PIN gốc sau lúc tạo (khắc phục điểm yếu bản gốc).
-- Phép năm còn lại tính từ `positions.leave_days` (hoặc ghi đè) trừ đơn phép năm đã duyệt và đang chờ trong năm.
+- Phép năm còn lại tính từ `positions.leave_days` (hoặc ghi đè) trừ đơn phép năm đã duyệt và đang chờ trong năm, theo công kỳ vọng của từng ngày có ca.
 
 ## Danh sách API
 

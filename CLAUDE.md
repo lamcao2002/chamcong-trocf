@@ -16,8 +16,9 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 |---|---|
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
+| `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
-| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **53 ca kiểm thử T01–T53**, quyết định đã chốt |
+| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **59 ca kiểm thử T01–T59**, ký hiệu ô Bảng công, quyết định đã chốt |
 | `docs/product/01-ke-hoach-mvp.md` | Kế hoạch 5 bước, 4 quyết định đã chốt |
 | `docs/website-analysis/` | Phân tích sản phẩm gốc: UI tokens (05), data model (07), flows (06) |
 | `docs/setup-supabase.md` | Hạ tầng dev/staging |
@@ -71,9 +72,15 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S2-19 Kiểm tra ngày công | Code xong `GET /day` và màn tạm ở `/app/bang-cong`, Sprint 3 thay bằng Bảng công |
 | S2-20 Test API | Code xong: 163 test, gồm chạy song song, kỳ đã công bố, chặn trang theo quyền |
 | S2-21 Thử điện thoại thật | **Chưa làm**, cần người thử tại quán, phiếu thử ở `docs/product/05-sprint-2.md` |
-| S2-22 Triển khai, demo | Đã đẩy nhánh `feat/sprint2`; **chưa so ngày công với tính tay, chưa demo** |
+| S2-22 Triển khai, demo | Bản Preview từ `feat/sprint2` đã lên nhưng bị Vercel Authentication chặn; **chưa merge `main`, chưa so với tính tay, chưa demo** |
 
 Cập nhật bảng này khi xong một việc.
+
+## Tiến độ Sprint 3
+
+| Việc | Trạng thái |
+|---|---|
+| S3-01 Chốt quyết định | Xong: 13 quyết định đã ghi vào đặc tả, thêm T54–T59 và bảng ký hiệu ô |
 
 ## Lệnh
 
@@ -104,5 +111,5 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
-- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T53
+- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T59
 - Văn bản giao diện tiếng Việt; số `1.234.567đ`, ngày `dd/mm/yyyy`
