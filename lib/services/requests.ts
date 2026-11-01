@@ -23,7 +23,7 @@ import { formatDecimal } from '@/lib/format';
 import type { DecisionInput, ExplanationInput, RequestInput } from '@/lib/validation/request';
 import { actorOf } from './actor';
 import { assertCanDecide } from './approvals';
-import { assertNotPublished, loadEmployeeRules, recomputeDays } from './recompute';
+import { loadEmployeeRules, recomputeDays } from './recompute';
 import { assertOwned } from './references';
 import { allowedShiftIds } from './schedule';
 
@@ -130,8 +130,6 @@ export async function createRequest(ctx: AuthContext, input: RequestInput) {
   const toDate = input.type === 'leave' ? input.toDate : input.date;
 
   return getDb().transaction(async (tx) => {
-    await assertNotPublished(tx, companyId, fromDate, toDate);
-
     let payload: object;
     if (input.type === 'leave') {
       payload = await leavePayload(tx, ctx, input);
@@ -235,7 +233,6 @@ export async function decideRequest(ctx: AuthContext, id: string, { decision, no
 
     const { employeeId, fromDate, toDate } = request;
     await assertCanDecide(tx, ctx, employeeId);
-    await assertNotPublished(tx, companyId, fromDate, toDate);
 
     const approve = decision === 'approve';
     const [after] = await tx
@@ -276,7 +273,6 @@ export async function saveExplanation(ctx: AuthContext, { date, shiftId, reason 
   if (date > vietnamToday()) throw new ApiError(400, 'Chưa tới ngày này', { date: 'Chưa tới ngày này' });
 
   return getDb().transaction(async (tx) => {
-    await assertNotPublished(tx, companyId, date, date);
     await assertOwned(tx, ctx, shifts, [shiftId], 'shiftId');
     const [explanation] = await tx
       .insert(explanations)

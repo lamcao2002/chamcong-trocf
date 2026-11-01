@@ -7,10 +7,10 @@ import {
   type ShiftWindow,
   type TimedPunch,
 } from './match-punches';
-import { atMinute, clock, duration, minuteOfDay, weekDay } from './time';
+import { otRateOf } from './ot-rate';
+import { atMinute, clock, duration, minuteOfDay } from './time';
 import type { DayInput, DayRecord, DayStatus, EngineApproval, EngineShift, Suggestion } from './types';
 
-const SATURDAY = 6;
 const DAY_MINUTES = 24 * 60;
 /** Sau mốc này lần vào chưa có lần ra mới thành thiếu giờ, khớp cửa sổ ghép lần ra. */
 const OPEN_SHIFT_MINUTES = 6 * 60;
@@ -111,12 +111,6 @@ function evidence(date: string, inMinute: number | null, outMinute: number | nul
       ...(outMinute === null ? [] : [`Ra ${clock(outMinute)}`]),
     ],
   };
-}
-
-function otRate({ date, isHoliday, otRates }: DayInput, offDay: boolean): number {
-  if (isHoliday) return otRates.holiday;
-  if (!offDay) return otRates.weekday;
-  return weekDay(date) === SATURDAY ? (otRates.saturday ?? otRates.weekday) : otRates.offday;
 }
 
 /** Bước C: phút làm chỉ đếm phần trong khung ca, trừ phần giao với giờ nghỉ. */
@@ -337,7 +331,7 @@ function shiftRecord(slot: ShiftPunches, context: Context, options: ShiftRecordO
     earlyMin,
     otProposed: ot?.minutes ?? 0,
     otApproved,
-    otRate: ot ? otRate(input, false) : 0,
+    otRate: ot ? otRateOf({ ...input, offDay: false }, input.otRates) : 0,
     missing: flags.filter((flag) => flag === 'thieu_vao' || flag === 'thieu_ra').length,
     flags,
     suggestions,
@@ -391,7 +385,7 @@ function offDayRecord(punches: readonly TimedPunch[], input: DayInput): DayRecor
       workedMin: minutes,
       otProposed: minutes,
       otApproved,
-      otRate: otRate(input, true),
+      otRate: otRateOf({ ...input, offDay: true }, input.otRates),
       flags: pending > 0 ? ['ot_cho'] : [],
       suggestions: [otSuggestion(pending, why)],
     },

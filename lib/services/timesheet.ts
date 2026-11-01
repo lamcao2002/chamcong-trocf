@@ -15,7 +15,7 @@ import { loadEmployeeRules } from './recompute';
 
 const WEEK_DAYS = 7;
 
-async function periodFor(ctx: AuthContext, key: string | undefined, today: string) {
+export async function periodFor(ctx: AuthContext, key: string | undefined, today: string) {
   const db = getDb();
   const [company] = await db
     .select({ cutoffDay: companies.cutoffDay })

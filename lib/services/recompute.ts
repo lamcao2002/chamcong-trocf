@@ -1,7 +1,6 @@
 import 'server-only';
 import { and, between, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { ApiError } from '@/lib/api/errors';
 import { writeAudit, type Tx } from '@/lib/audit';
 import { getDb } from '@/lib/db/client';
 import {
@@ -266,10 +265,63 @@ export function firstLiveDay(today: string): string {
   return addDays(today, -CRON_DAYS_BACK);
 }
 
-/** Kỳ đã công bố là bản chụp: không nhận thay đổi nào cho tới khi Sprint 4 có "cần công bố lại". */
-export async function assertNotPublished(tx: Reader, companyId: string, from: string, to: string) {
-  const [published] = await tx
-    .select({ key: payrollPeriods.periodKey })
+type RecordFields = {
+  employeeId: string;
+  date: string;
+  shiftId: string | null;
+  status: string;
+  cong: number;
+  workedMin: number;
+  lateMin: number;
+  earlyMin: number;
+  waivedLate: boolean;
+  waivedEarly: boolean;
+  otProposed: number;
+  otApproved: number;
+  offDay: boolean;
+  isHoliday: boolean;
+};
+
+/** Các trường làm đổi tiền hoặc số trên phiếu; bỏ `computed_at` để tính lại ra cùng số không bị coi là đổi. */
+function fingerprint(rows: readonly RecordFields[], from: string, to: string): string {
+  return rows
+    .filter(({ date }) => date >= from && date <= to)
+    .map((row) =>
+      [
+        row.employeeId,
+        row.date,
+        row.shiftId,
+        row.status,
+        row.cong,
+        row.workedMin,
+        row.lateMin,
+        row.earlyMin,
+        row.waivedLate,
+        row.waivedEarly,
+        row.otProposed,
+        row.otApproved,
+        row.offDay,
+        row.isHoliday,
+      ].join('|'),
+    )
+    .sort()
+    .join('\n');
+}
+
+/**
+ * Sửa dữ liệu trong kỳ đã công bố vẫn được, phiếu giữ nguyên, nhưng kỳ chuyển sang "cần công bố lại"
+ * (D10). Chỉ đặt cờ khi số thật sự đổi: cron chạy lại ra cùng kết quả thì không được báo sai.
+ */
+async function markChangedPeriodsStale(
+  tx: Tx,
+  companyId: string,
+  ids: string[],
+  from: string,
+  to: string,
+  next: readonly RecordFields[],
+) {
+  const periods = await tx
+    .select({ id: payrollPeriods.id, fromDate: payrollPeriods.fromDate, toDate: payrollPeriods.toDate })
     .from(payrollPeriods)
     .where(
       and(
@@ -278,9 +330,20 @@ export async function assertNotPublished(tx: Reader, companyId: string, from: st
         lte(payrollPeriods.fromDate, to),
         gte(payrollPeriods.toDate, from),
       ),
-    )
-    .limit(1);
-  if (published) throw new ApiError(409, `Kỳ ${published.key} đã công bố, không sửa được`);
+    );
+  if (periods.length === 0) return;
+
+  const current = await tx
+    .select()
+    .from(dayRecords)
+    .where(and(inArray(dayRecords.employeeId, ids), between(dayRecords.date, from, to)));
+  for (const period of periods) {
+    const start = period.fromDate > from ? period.fromDate : from;
+    const end = period.toDate < to ? period.toDate : to;
+    if (fingerprint(current, start, end) !== fingerprint(next, start, end)) {
+      await tx.update(payrollPeriods).set({ stale: true }).where(eq(payrollPeriods.id, period.id));
+    }
+  }
 }
 
 /** Bỏ các trường chỉ dùng trong tính toán, xem chú thích ở `DayRecord`. */
@@ -324,6 +387,7 @@ export async function recomputeDays(
     }
   }
 
+  await markChangedPeriodsStale(tx, companyId, ids, from, lastDay, rows);
   await tx
     .delete(dayRecords)
     .where(and(inArray(dayRecords.employeeId, ids), between(dayRecords.date, from, lastDay)));

@@ -9,7 +9,7 @@ import { approvals, employees, explanations, shifts } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import type { ApprovalInput } from '@/lib/validation/approval';
 import { actorOf } from './actor';
-import { assertNotPublished, recomputeDays } from './recompute';
+import { recomputeDays } from './recompute';
 import { assertOwned } from './references';
 
 type Reader = Pick<Tx, 'select'>;
@@ -78,7 +78,6 @@ export async function saveApproval(ctx: AuthContext, input: ApprovalInput) {
   try {
     return await getDb().transaction(async (tx) => {
       await assertCanDecide(tx, ctx, employeeId);
-      await assertNotPublished(tx, companyId, date, date);
       await assertOwned(tx, ctx, shifts, [shiftId, decision.confirmShiftId], 'shiftId');
 
       const [before] = await tx
@@ -136,7 +135,6 @@ export async function revokeApproval(ctx: AuthContext, id: string) {
     if (!approval) throw notFound('bản ghi duyệt');
     const { employeeId, date, shiftId } = approval;
     await assertCanDecide(tx, ctx, employeeId);
-    await assertNotPublished(tx, companyId, date, date);
 
     await tx.update(approvals).set({ revokedAt: new Date() }).where(eq(approvals.id, id));
     await setExplanationStatus(tx, { employeeId, date, shiftId }, 'pending');

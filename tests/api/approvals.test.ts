@@ -215,23 +215,52 @@ describe('DELETE /approvals/:id (US28)', () => {
   });
 });
 
-describe('kỳ đã công bố (C8)', () => {
-  it('chặn duyệt, hoàn duyệt, lịch, ngày lễ', async () => {
+describe('kỳ đã công bố (D10)', () => {
+  it('sửa được, kỳ chuyển sang cần công bố lại', async () => {
     const id = await dayWithTwoIssues();
     const { approval } = (await approve(id, { approveGps: true })).body;
     const [period] =
       await sql`insert into payroll_periods (company_id, period_key, from_date, to_date, published)
       select company_id, ${`LOCK${Date.now()}`}, ${yesterday}, ${yesterday}, true
       from employees where id = ${id} returning id`;
+    const stale = async () =>
+      (await sql`select stale from payroll_periods where id = ${period!.id}`)[0]!.stale;
+    const reset = () => sql`update payroll_periods set stale = false where id = ${period!.id}`;
     try {
-      expect((await approve(id, { otMinutes: 60 })).status).toBe(409);
-      expect((await api('DELETE', `/approvals/${approval.id}`, { cookie: admin })).status).toBe(409);
-      expect((await schedule(id, yesterday, [shifts.SANG.id])).status).toBe(409);
+      expect((await approve(id, { otMinutes: 60 })).status).toBe(201);
+      expect(await stale()).toBe(true);
+
+      await reset();
+      expect((await api('DELETE', `/approvals/${approval.id}`, { cookie: admin })).status).toBe(200);
+      expect(await stale()).toBe(true);
+
+      await reset();
+      expect((await schedule(id, yesterday, [shifts.SANG.id])).status).toBe(200);
+      expect(await stale()).toBe(true);
+
+      await reset();
       const holiday = await api('POST', '/holidays', {
         cookie: admin,
         body: { date: yesterday, name: 'Lễ' },
       });
-      expect(holiday.status).toBe(409);
+      expect(holiday.status).toBe(201);
+      expect(await stale()).toBe(true);
+      await api('DELETE', `/holidays/${holiday.body.holiday.id}`, { cookie: admin });
+    } finally {
+      await sql`delete from payroll_periods where id = ${period!.id}`;
+    }
+  });
+
+  it('tính lại ra cùng số thì không báo cần công bố lại', async () => {
+    const id = await dayWithTwoIssues();
+    const [period] =
+      await sql`insert into payroll_periods (company_id, period_key, from_date, to_date, published)
+      select company_id, ${`SAME${Date.now()}`}, ${yesterday}, ${yesterday}, true
+      from employees where id = ${id} returning id`;
+    try {
+      expect((await schedule(id, yesterday, [shifts.TOI.id])).status).toBe(200);
+      const [row] = await sql`select stale from payroll_periods where id = ${period!.id}`;
+      expect(row!.stale).toBe(false);
     } finally {
       await sql`delete from payroll_periods where id = ${period!.id}`;
     }

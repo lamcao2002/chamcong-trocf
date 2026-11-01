@@ -156,7 +156,7 @@ Duyệt không sửa lần chấm gốc; nó lưu một bản ghi duyệt riêng
 - Mỗi nhân viên × ngày × ca có một bản ghi duyệt hiệu lực: quyết định sau gộp vào bản ghi đang có (T54), Hoàn duyệt thu hồi cả bản ghi \[Đề xuất\].
 - Giải trình gắn vào việc của ngày đó, không phải việc riêng; duyệt ngày thì giải trình đóng theo, giải trình đã từ chối không đưa vào đầu vào \[Đề xuất\].
 - Tha muộn và tha sớm độc lập với nhau (T57, T58); thao tác này nằm ở drawer ngày của Bảng công vì `muon` không vào Hộp việc \[Đề xuất\].
-- Không duyệt được ngày thuộc kỳ đã công bố cho tới khi Sprint 4 có "cần công bố lại" \[Đề xuất\].
+- Sửa ngày thuộc kỳ đã công bố vẫn được, kỳ đó chuyển sang "cần công bố lại" và phiếu cũ giữ nguyên tới khi công bố lại (quyết định D10 của [Sprint 4](07-sprint-4.md)) \[Đề xuất\].
 
 - Mọi duyệt và đơn đều ghi người làm và thời điểm để truy vết \[Đề xuất\].
 - Sau mỗi thay đổi, tính lại **ngay** ngày công liên quan và cập nhật Hộp việc, Bảng công, Lương trong cùng giao dịch — tránh lỗi bản gốc: OT đã duyệt ở Hộp việc nhưng Lương vẫn báo "chờ" \[Đề xuất\].
@@ -285,7 +285,7 @@ Nhóm A, B được chốt ngày 01/11/2026 theo đề xuất của [Sprint 2](0
 | C5 | Xin nghỉ ngày chưa có lịch | Chỉ xin được ngày đã có ca, kể cả ca cố định |
 | C6 | Tự duyệt | Không, trừ khi công ty chỉ có một Quản trị viên |
 | C7 | Người không có quản lý trực tiếp | Quản trị viên và Nhân sự thấy toàn công ty; Quản lý nhóm chỉ thấy người của mình |
-| C8 | Kỳ đã công bố | Trả 409 cho duyệt, đơn, lịch, ngày lễ; Sprint 4 mở lại qua "cần công bố lại" |
+| C8 | Kỳ đã công bố | Sprint 3 trả 409 cho duyệt, đơn, lịch, ngày lễ; S4-04 thay bằng cờ "cần công bố lại" theo D10 |
 | C9 | Giải trình | Gắn vào việc của ngày; gửi lại thì cập nhật, duyệt ngày thì đóng theo |
 | C10 | Sửa đơn đã duyệt | Không có hoàn duyệt đơn trong MVP, dùng Điều chỉnh khác ở drawer ngày |
 | C11 | "Chờ xử lý" đếm gì | Mọi việc cần duyệt của kỳ hiện tại, gồm cả đơn chờ |

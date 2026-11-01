@@ -16,7 +16,7 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 |---|---|
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
-| `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-20, công thức lương, 14 ca P01–P14, kế hoạch production |
+| `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, 18 ca P01–P18, kế hoạch production |
 | `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
 | `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **59 ca kiểm thử T01–T59**, ký hiệu ô Bảng công, quyết định đã chốt |
@@ -46,7 +46,7 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-04 Migration 21 bảng + seed "Cà phê Phố Nhỏ" | Code xong, đã chạy thử trên PostgreSQL 16 trống — chưa áp lên Supabase, chờ review schema |
 | S1-05 Khung giao diện quản trị | Code xong, đã thử trên Chrome 375–1440 px — người xem còn là `DEV_VIEWER`, S1-08 thay bằng phiên thật |
 | S1-06 Drawer form, thanh chưa lưu, toast, hỏi khi rời trang | Code xong, đã thử trên Chrome 375–1440 px — chưa có màn thật nào dùng, chưa thử trên điện thoại thật |
-| S1-07 API đăng nhập, phiên cookie, đăng xuất | Code xong, đã chạy thử trên PostgreSQL trống — **chưa làm khoá 15 phút sau 5 lần sai** theo yêu cầu; cột `failed_pin_attempts`, `locked_until` chưa dùng |
+| S1-07 API đăng nhập, phiên cookie, đăng xuất | Code xong, đã chạy thử trên PostgreSQL trống — khoá 15 phút chưa làm, sẽ làm ở S4-21 trước khi lên production |
 | S1-08 Phân quyền 4 cấp, lọc `company_id`, lọc người được quản lý | Code xong, đã chạy thử trên PostgreSQL trống |
 | S1-09 Màn A1 đăng nhập quản trị, nút Đăng xuất | Code xong, đã thử trên Chrome 320–1440 px |
 | S1-10 Màn M1, đọc `?ma=`, PWA manifest | Code xong, Chrome xác nhận cài được PWA — M2 còn là màn tạm, chưa thử cài trên điện thoại thật |
@@ -94,6 +94,15 @@ Cập nhật bảng này khi xong một việc.
 | S3-20 Dữ liệu thật | Mới mô phỏng một tuần trên PostgreSQL tạm; **chưa có dữ liệu thật tại quán** |
 | S3-21 Triển khai, demo | Đã đẩy nhánh `feat/sprint-3`; **chưa merge, chưa demo** |
 
+## Tiến độ Sprint 4
+
+| Việc | Trạng thái |
+|---|---|
+| S4-01 Chốt quyết định | 19 quyết định đã ghi vào `docs/product/07-sprint-4.md`, thêm P15–P17 và S4-21; **chưa đối chiếu với bảng lương của quán** |
+| S4-02 Bộ tính lương | Code xong `lib/payroll/compute-pay.ts`: 18/18 ca P01–P18, hàm thuần |
+| S4-03 → S4-07 API lương | Code xong `/payroll`, `/adjustments`, `/payroll/publish`, `/app/payslips`; kỳ đã công bố dùng cờ `stale` thay cho 409 |
+| S4-08 → S4-10 Màn A5 | Code xong tổng quan, danh sách, sao kê, thưởng/phạt; nút Công bố làm ở S4-11 |
+
 ## Lệnh
 
 ```bash
@@ -121,6 +130,7 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Service ở `lib/services/`: mọi truy vấn lọc `company_id`, ID từ client qua `assertOwned`, ghi kèm `writeAudit`; route chỉ parse rồi gọi service
 - Mọi thao tác làm đổi ngày công gọi `recomputeDays` hoặc `recomputeOpenPeriod` trong cùng transaction; `day_records` là kết quả tính lại được, không ghi tay
 - Mọi màn đọc ngày công đi qua `readDayRecords` (`lib/services/day.ts`), không đọc thẳng `day_records`; việc trong Hộp việc định danh bằng nhân viên × ngày × ca × cờ, không dùng `day_records.id`
+- Tiền chỉ tính trong `lib/payroll/compute-pay.ts`; phiếu đã công bố đọc từ bản chụp `payslips`, không tính lại
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)

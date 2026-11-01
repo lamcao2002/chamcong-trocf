@@ -4,8 +4,8 @@ Nov 1, 2026 · @Lam Cao
 
 Sprint 4 hoàn tất MVP: sau **10 ngày làm việc**, quản lý xem được sao kê từng người, thêm thưởng/phạt, công bố phiếu lương cho nhân viên xem trên app, và bản production chạy trên CSDL riêng có sao lưu.
 
-- **Phạm vi:** 3 user story US34–US36 của [PRD MVP](03-prd-mvp.md); màn A5, M4; so lương với bảng tính tay; triển khai production.
-- **Khối lượng:** 20 việc, tổng khoảng 16 ngày công.
+- **Phạm vi:** 3 user story US34–US36 của [PRD MVP](03-prd-mvp.md); màn A5, M4; so lương với bảng tính tay; khoá PIN của US01; triển khai production.
+- **Khối lượng:** 21 việc, tổng khoảng 16 ngày công.
 - **Giả định đội ngũ:** 2 lập trình viên full-stack — Dev A nghiêng backend, Dev B nghiêng giao diện. Nếu chỉ 1 người, sprint kéo dài khoảng 3 tuần.
 - **Ngoài sprint:** bậc lương, phụ cấp, phạt tự động, BHXH, in PDF, Excel, lịch sử công bố lại (sau MVP).
 
@@ -19,24 +19,22 @@ Code Sprint 3 đã merge vào `main` và chạy ở `sin1`, nhưng phần thử 
 | --- | --- | --- |
 | Thử tại quán | S2-21, S2-22, S3-20, S3-21 chưa xong: chưa thử điện thoại thật, chưa so với tính tay, chưa demo | Làm trước hoặc song song ngày 1, theo phiếu thử trong [Sprint 2](05-sprint-2.md) |
 | Quán thử | Chưa có; PRD yêu cầu trước Sprint 3 | Bắt buộc phải có, S4-18 không làm thay được |
-| Bảng lương tính tay | Chưa có mẫu của quán | Xin mẫu ngay ngày 1 để chốt công thức trước khi code |
+| Bảng lương tính tay | Chưa có mẫu của quán, nên S4-01 chưa đóng; công thức hiện lấy từ bản gốc | Xin mẫu sớm nhất có thể, đối chiếu trước khi trả lương thật |
 | CSDL Production | `docs/setup-supabase.md` để trống phần này; cần xác nhận bản đang chạy có dùng chung project với staging không | S4-15 tách project riêng, không chuyển dữ liệu thử sang |
 | Khoá đã lộ | `CRON_SECRET` đang dùng từng hiện trong lịch sử hội thoại | S4-15 tạo khoá mới cho production |
 
-## Quyết định cần bạn chốt
+## Quyết định đã chốt
 
-Bốn điểm dưới đây ảnh hưởng tới tiền hoặc bảo mật, nên không tự áp đề xuất; cần trả lời trước khi đưa quán dùng thật.
+Bốn điểm dưới đây do chủ sản phẩm chốt ngày 01/11/2026; riêng Q2 phải xác nhận bằng bảng lương của quán trước khi trả lương thật.
 
-| # | Câu hỏi | Vì sao phải hỏi | Đề xuất |
+| # | Câu hỏi | Quyết định | Tác động |
 | --- | --- | --- | --- |
-| Q1 | **Khoá 15 phút sau 5 lần sai PIN có làm không?** | Đã quyết định chưa làm ở S1-07. Production có dữ liệu lương thật, PIN chỉ 4 số, nên người biết email có thể thử hết 10.000 khả năng | Làm trước khi lên production, khoảng 0,5 ngày, cột đã có sẵn. Chưa tính vào sprint vì đang theo quyết định cũ |
-| Q2 | **Ca ghép: đi làm 1 công, nghỉ phép 0,5 công?** (B2) | Quyết định trực tiếp lương tháng và lương công | Đối chiếu bảng lương của quán, sửa đặc tả nếu khác |
-| Q3 | **Lương giờ có được trả ngày phép và ngày lễ không?** | Đặc tả tính lương giờ theo phút làm, nên phép năm thành 0đ dù vẫn trừ phép | Trả bằng công kỳ vọng × giờ chuẩn ca × đơn giá |
-| Q4 | **Lương tháng có trần ở công chuẩn không?** | Công thức gốc không có trần, làm 28 công trên chuẩn 26 thì lương vượt mức | Giữ không trần theo bản gốc |
+| Q1 | Khoá 15 phút sau 5 lần sai PIN | **Làm trước khi lên production**, thay quyết định chưa làm ở S1-07 | Thêm S4-21 |
+| Q2 | Ca ghép đi làm 1 công, nghỉ phép 0,5 công (B2) | Giữ theo đặc tả, xác nhận sau bằng bảng lương của quán | Lương tháng, lương công |
+| Q3 | Lương giờ có trả ngày phép và ngày lễ không | Có: công của ngày × giờ chuẩn ca × đơn giá | Dòng riêng trên sao kê, P15, P16 |
+| Q4 | Lương tháng có trần ở công chuẩn không | Không trần, theo bản gốc | P17 |
 
-## Quyết định cần chốt trước ngày 1
-
-Các điểm sau chặn S4-02 đến S4-06; đề xuất dưới đây sẽ được dùng nếu không có ý kiến khác.
+Mười lăm điểm tiếp theo được chốt theo đề xuất cùng ngày.
 
 | # | Câu hỏi | Đề xuất | Ảnh hưởng |
 | --- | --- | --- | --- |
@@ -65,6 +63,7 @@ Quan sát từ bản gốc trong `docs/website-analysis/04-feature-specification
 | Lương tháng | mức ÷ công chuẩn × công | 11.000.000 ÷ 26 × 26 = 11.000.000đ |
 | Lương giờ | phút làm ÷ 60 × đơn giá giờ | 79,35 giờ × 25.000 = 1.983.750đ |
 | Lương công | đơn giá × công | 60.000 × 27 = 1.620.000đ |
+| Ngày có công không có phút làm của lương giờ (phép, lễ, thiếu giờ được duyệt) | công của ngày × giờ chuẩn ca × đơn giá giờ | 1 × 7,5 × 25.000 = 187.500đ |
 | Đơn giá giờ của lương tháng | mức ÷ công chuẩn ÷ giờ chuẩn ca | 10.000.000 ÷ 26 ÷ 7,5 = 51.282đ |
 | OT | phút ÷ 60 × đơn giá giờ × hệ số | 90 phút × 51.282 × 150% = 115.385đ |
 | Thực lĩnh | lương + OT đã duyệt + thưởng − phạt | 10.000.000 + 115.385 = 10.115.385đ |
@@ -89,32 +88,37 @@ Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_
 | P12 | Thực lĩnh âm | 60.000đ, 1 công, phạt 100.000đ | −40.000đ, có cảnh báo | D9 |
 | P13 | Không có ngày công | Vị trí tháng, 0 công | 0đ, vẫn có phiếu | Đề xuất |
 | P14 | Làm tròn | Ba dòng có phần lẻ | Thực lĩnh bằng đúng tổng ba dòng đã làm tròn | D1 |
+| P15 | Nghỉ phép, lương giờ | 25.000đ/giờ, ca 7,5 giờ, 1 ngày phép năm, 1 ngày nghỉ ốm | 187.500đ cho phép năm, 0đ cho nghỉ ốm | Q3 |
+| P16 | Ngày lễ không đi làm, lương giờ | 25.000đ/giờ, ca 8 giờ, trạng thái `le`, 1 công | 200.000đ | Q3 |
+| P17 | Vượt công chuẩn | 10.000.000, chuẩn 26, 28 công | 10.769.231đ | Q4 |
+| P18 | Thiếu giờ được duyệt, lương giờ | 25.000đ/giờ, ca 5 giờ, 1 công, 0 phút làm | 125.000đ | Q3 |
 
 ## Danh sách việc
 
-20 việc, tổng 15,75 ngày công; cột Trạng thái cập nhật hằng ngày.
+21 việc, tổng 16,25 ngày công; cột Trạng thái cập nhật hằng ngày.
 
 | ID | Việc | Story | Ước lượng (ngày) | Phụ thuộc | Người | Ngày | Trạng thái |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| S4-01 | Chốt quyết định, đối chiếu công thức với bảng lương của quán, cập nhật tài liệu | US34 | 0,25 | — | Dev A | 1 | Chưa làm |
-| S4-02 | Hàm thuần `computePay` trong `lib/payroll/`, dòng có công thức chữ, ca P01–P14 | US34 | 1,5 | S4-01 | Dev A | 1–2 | Chưa làm |
-| S4-03 | API `GET /payroll`, `/payroll/:employeeId`: quỹ lương, sẵn sàng, OT chờ, sao kê, chỉ Nhân sự+ | US34 | 1 | S4-02 | Dev A | 3 | Chưa làm |
-| S4-04 | Thay 409 của kỳ đã công bố bằng `stale`; `recomputeDays` chỉ đặt `stale` khi số thật sự đổi | US36 | 0,75 | S4-01 | Dev A | 4 | Chưa làm |
-| S4-05 | API `POST`, `DELETE /adjustments`: số tiền > 0, lý do bắt buộc, chặn tự thêm | US35 | 0,5 | S4-01 | Dev B | 1 | Chưa làm |
-| S4-06 | API `POST /payroll/publish`: tạo kỳ, bản chụp bất biến, công bố lại trong một giao dịch | US36 | 1 | S4-03, S4-04 | Dev A | 5 | Chưa làm |
-| S4-07 | API `GET /app/payslips`, `/app/payslips/:periodKey`: chỉ phiếu đã công bố của chính mình | US36 | 0,25 | S4-06 | Dev A | 6 | Chưa làm |
-| S4-08 | Màn A5: thẻ kỳ, tiến độ x/N, thẻ phụ, danh sách nhân viên có chip lọc | US34 | 1,5 | S4-03 | Dev B | 4–5 | Chưa làm |
-| S4-09 | Sao kê "Vì sao ra số này", phần OT chờ với thực lĩnh dự phóng | US34 | 1 | S4-08 | Dev B | 6 | Chưa làm |
-| S4-10 | Modal thưởng/phạt, xoá khoản | US35 | 0,5 | S4-05, S4-09 | Dev B | 7 | Chưa làm |
+| S4-01 | Chốt quyết định, đối chiếu công thức với bảng lương của quán, cập nhật tài liệu | US34 | 0,25 | — | Dev A | 1 | Đang làm |
+| S4-02 | Hàm thuần `computePay` trong `lib/payroll/`, dòng có công thức chữ, ca P01–P18 | US34 | 1,5 | S4-01 | Dev A | 1–2 | Xong |
+| S4-03 | API `GET /payroll`, `/payroll/:employeeId`: quỹ lương, sẵn sàng, OT chờ, sao kê, chỉ Nhân sự+ | US34 | 1 | S4-02 | Dev A | 3 | Xong |
+| S4-04 | Thay 409 của kỳ đã công bố bằng `stale`; `recomputeDays` chỉ đặt `stale` khi số thật sự đổi | US36 | 0,75 | S4-01 | Dev A | 4 | Xong |
+| S4-05 | API `POST`, `DELETE /adjustments`: số tiền > 0, lý do bắt buộc, chặn tự thêm | US35 | 0,5 | S4-01 | Dev B | 1 | Xong |
+| S4-06 | API `POST /payroll/publish`: tạo kỳ, bản chụp bất biến, công bố lại trong một giao dịch | US36 | 1 | S4-03, S4-04 | Dev A | 5 | Xong |
+| S4-07 | API `GET /app/payslips`, `/app/payslips/:periodKey`: chỉ phiếu đã công bố của chính mình | US36 | 0,25 | S4-06 | Dev A | 6 | Xong |
+| S4-08 | Màn A5: thẻ kỳ, tiến độ x/N, thẻ phụ, danh sách nhân viên có chip lọc | US34 | 1,5 | S4-03 | Dev B | 4–5 | Xong |
+| S4-09 | Sao kê "Vì sao ra số này", phần OT chờ với thực lĩnh dự phóng | US34 | 1 | S4-08 | Dev B | 6 | Xong |
+| S4-10 | Modal thưởng/phạt, xoá khoản | US35 | 0,5 | S4-05, S4-09 | Dev B | 7 | Xong |
 | S4-11 | Hộp xác nhận công bố, báo "cần công bố lại" | US36 | 0,5 | S4-06, S4-08 | Dev B | 7 | Chưa làm |
 | S4-12 | Màn M4: danh sách kỳ, phiếu đã công bố; thay màn tạm | US36 | 0,75 | S4-07 | Dev B | 8 | Chưa làm |
 | S4-13 | Test API, ma trận quyền, Playwright luồng công bố; test Lương khớp Bảng công | US34–US36 | 1 | S4-07 | Dev A | 6–7 | Chưa làm |
 | S4-14 | Script tạo công ty và Quản trị viên đầu tiên, chặn đổi ngày chốt, chặn seed nhầm | — | 0,5 | S4-01 | Dev A | 7 | Chưa làm |
-| S4-15 | Project Supabase production, biến môi trường, tên miền, khoá mới, sổ tay triển khai | — | 0,5 | S4-14 | Dev A | 8 | Chưa làm |
+| S4-15 | Project Supabase production, biến môi trường, tên miền, khoá mới, sổ tay triển khai | — | 0,5 | S4-14, S4-21 | Dev A | 8 | Chưa làm |
 | S4-16 | Sao lưu hằng ngày giữ 30 ngày, thử khôi phục thật một lần | — | 0,75 | S4-15 | Dev A | 8–9 | Chưa làm |
 | S4-17 | Giám sát: cảnh báo `/api/v1/health`, báo khi cron lỗi | — | 0,25 | S4-15 | Dev A | 9 | Chưa làm |
 | S4-18 | Chạy một kỳ tại quán, so từng phiếu với bảng tính tay, ghi từng khoản lệch | — | 2 | S4-12, S4-15 | Dev A + B | 9–10, rồi tới ngày chốt | Chưa làm |
 | S4-19 | Sửa lỗi phát hiện khi so; lỗi nào cũng thêm thành ca kiểm thử | — | 1 | S4-18 | Dev A + B | Sau S4-18 | Chưa làm |
+| S4-21 | Khoá 15 phút sau 5 lần sai PIN, dùng cột sẵn có, không lộ tài khoản nào tồn tại, thử ở test API | US01 | 0,5 | S4-01 | Dev A | 7 | Chưa làm |
 | S4-20 | Tài liệu một trang cho quản lý và nhân viên, demo công bố kỳ đầu tiên | — | 0,25 | S4-19 | Dev A + B | Sau S4-19 | Chưa làm |
 
 ## Thứ tự làm theo ngày
@@ -123,7 +127,7 @@ Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_
 
 1. **Ngày 1–3 — Bộ tính lương:** Dev A chốt công thức, viết hàm thuần và API lương (S4-01 đến S4-03); Dev B làm API thưởng/phạt (S4-05).
 2. **Ngày 4–6 — Công bố:** Dev A làm cờ `stale`, công bố, API phiếu (S4-04, S4-06, S4-07); Dev B làm màn A5 và sao kê (S4-08, S4-09).
-3. **Ngày 7–8 — Hoàn thiện:** Dev A làm test, script tạo công ty, môi trường production (S4-13 đến S4-15); Dev B làm thưởng/phạt, hộp công bố, M4 (S4-10 đến S4-12).
+3. **Ngày 7–8 — Hoàn thiện:** Dev A làm test, khoá PIN, script tạo công ty, môi trường production (S4-13 đến S4-15, S4-21); Dev B làm thưởng/phạt, hộp công bố, M4 (S4-10 đến S4-12).
 4. **Ngày 9–10 — Lên production:** sao lưu, giám sát, bắt đầu chạy kỳ thật (S4-16 đến S4-18).
 5. **Sau ngày chốt của kỳ — Nghiệm thu:** so phiếu, sửa lỗi, công bố kỳ đầu tiên (S4-18 đến S4-20).
 
@@ -135,7 +139,7 @@ Không thêm bảng mới; `adjustments`, `payroll_periods`, `payslips` đã có
 lib/
   payroll/
     compute-pay.ts       computePay(input): dòng, thực lĩnh, OT chờ
-    compute-pay.test.ts  P01–P14
+    compute-pay.test.ts  P01–P18
   services/
     payroll.ts           quỹ lương, sao kê, công bố
     adjustments.ts
@@ -175,8 +179,9 @@ scripts/create-company.ts
 Sprint 4 cũng là mốc hoàn thành MVP; các điều kiện dưới đây gồm cả định nghĩa hoàn thành của PRD.
 
 - [ ] 3 story US34–US36 đạt tiêu chí nghiệm thu trong PRD
-- [ ] 36/36 story đạt, trừ phần khoá PIN của US01 nếu Q1 giữ quyết định chưa làm
-- [ ] 59/59 ca engine và 14/14 ca lương xanh trong CI
+- [ ] 36/36 story đạt, gồm khoá PIN của US01
+- [ ] 59/59 ca engine và 18/18 ca lương xanh trong CI
+- [ ] Công ca ghép (Q2) đã xác nhận bằng bảng lương của quán
 - [ ] Mọi endpoint ghi mới có `audit_logs`, lọc `company_id`, và có dòng trong `MATRIX`
 - [ ] Một quán thật dùng đủ 1 kỳ; chênh lệch lương so với tính tay bằng 0đ hoặc giải thích được từng dòng
 - [ ] Chạy ổn trên ít nhất 1 iPhone và 1 Android của nhân viên thật
@@ -206,7 +211,7 @@ Rủi ro lớn nhất là trả sai tiền cho người thật: sai công thức
 | Chưa có quán thử | Tới ngày 9 chưa có nơi chạy | Vẫn lên production; MVP chưa được tính là xong, báo rõ thay vì coi demo nhập tay là nghiệm thu |
 | Sửa `stale` làm hỏng luồng đã ổn định | Test Sprint 3 đỏ, cron báo sai | Làm riêng một việc (S4-04), giữ nguyên toàn bộ test của C8 đổi sang kiểm tra cờ |
 | Phiếu đã công bố bị đổi ngầm | Nhân viên thấy số khác lúc đầu | M4 chỉ đọc bản chụp; có test sửa dữ liệu rồi kiểm tra phiếu không đổi |
-| Lộ PIN bằng dò thử trên production | Nhiều lần đăng nhập sai liên tiếp | Trả lời Q1 trước khi lên production; tối thiểu theo dõi `auth.login` thất bại |
+| Lộ PIN bằng dò thử trên production | Nhiều lần đăng nhập sai liên tiếp | S4-21 khoá tài khoản 15 phút; S4-15 phụ thuộc việc này nên không lên production khi chưa có |
 | Mất dữ liệu | Sao lưu chạy nhưng không khôi phục được | Bắt buộc thử khôi phục thật ở S4-16 |
 | Kỳ đầu tiên chưa tới ngày chốt khi hết sprint | Ngày 10 chưa có kỳ trọn vẹn | Tách mốc: code xong hết sprint, nghiệm thu MVP sau ngày chốt |
 | Nhân viên mở phiếu người khác | Đoán `periodKey` hoặc ID | API chỉ lọc theo phiên, không nhận ID nhân viên; có test cách ly |
