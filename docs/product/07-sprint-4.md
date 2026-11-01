@@ -118,7 +118,7 @@ Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_
 | S4-17 | Giám sát: cảnh báo `/api/v1/health`, báo khi cron lỗi | — | 0,25 | S4-15 | Dev A | 9 | Chưa làm |
 | S4-18 | Chạy một kỳ tại quán, so từng phiếu với bảng tính tay, ghi từng khoản lệch | — | 2 | S4-12, S4-15 | Dev A + B | 9–10, rồi tới ngày chốt | Chưa làm |
 | S4-19 | Sửa lỗi phát hiện khi so; lỗi nào cũng thêm thành ca kiểm thử | — | 1 | S4-18 | Dev A + B | Sau S4-18 | Chưa làm |
-| S4-21 | Khoá 15 phút sau 5 lần sai PIN, dùng cột sẵn có, không lộ tài khoản nào tồn tại, thử ở test API | US01 | 0,5 | S4-01 | Dev A | 7 | Chưa làm |
+| S4-21 | Khoá 15 phút sau 5 lần sai PIN, dùng cột sẵn có, không lộ tài khoản nào tồn tại, thử ở test API | US01 | 0,5 | S4-01 | Dev A | 7 | Xong |
 | S4-20 | Tài liệu một trang cho quản lý và nhân viên, demo công bố kỳ đầu tiên | — | 0,25 | S4-19 | Dev A + B | Sau S4-19 | Chưa làm |
 
 ## Thứ tự làm theo ngày

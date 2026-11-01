@@ -65,6 +65,16 @@ describe('npm run company:create', () => {
       expect([path, page.status]).toEqual([path, 200]);
     }
 
+    const reset = await api(
+      'POST',
+      `/employees/${(await api('GET', '/me', { cookie })).body.user.id}/reset-pin`,
+      {
+        cookie,
+      },
+    );
+    expect(reset.status).toBe(200);
+    expect((await login('chu@quan.vn', 'admin', code, reset.body.pin)).length).toBeGreaterThan(0);
+
     const [audit] = await sql`select l.action, l.actor_id, l.after from audit_logs l
       join companies c on c.id = l.company_id where c.code = ${code} and l.action = 'company.create'`;
     expect(audit).toMatchObject({ actor_id: null });

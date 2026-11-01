@@ -46,7 +46,7 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-04 Migration 21 bảng + seed "Cà phê Phố Nhỏ" | Code xong, đã chạy thử trên PostgreSQL 16 trống — chưa áp lên Supabase, chờ review schema |
 | S1-05 Khung giao diện quản trị | Code xong, đã thử trên Chrome 375–1440 px — người xem còn là `DEV_VIEWER`, S1-08 thay bằng phiên thật |
 | S1-06 Drawer form, thanh chưa lưu, toast, hỏi khi rời trang | Code xong, đã thử trên Chrome 375–1440 px — chưa có màn thật nào dùng, chưa thử trên điện thoại thật |
-| S1-07 API đăng nhập, phiên cookie, đăng xuất | Code xong, đã chạy thử trên PostgreSQL trống — khoá 15 phút chưa làm, sẽ làm ở S4-21 trước khi lên production |
+| S1-07 API đăng nhập, phiên cookie, đăng xuất | Code xong, đã chạy thử trên PostgreSQL trống — khoá 15 phút làm ở S4-21 |
 | S1-08 Phân quyền 4 cấp, lọc `company_id`, lọc người được quản lý | Code xong, đã chạy thử trên PostgreSQL trống |
 | S1-09 Màn A1 đăng nhập quản trị, nút Đăng xuất | Code xong, đã thử trên Chrome 320–1440 px |
 | S1-10 Màn M1, đọc `?ma=`, PWA manifest | Code xong, Chrome xác nhận cài được PWA — M2 còn là màn tạm, chưa thử cài trên điện thoại thật |
@@ -104,6 +104,7 @@ Cập nhật bảng này khi xong một việc.
 | S4-08 → S4-11 Màn A5 | Code xong tổng quan, danh sách, sao kê, thưởng/phạt, hộp công bố, báo cần công bố lại |
 | S4-12 Màn M4 | Code xong danh sách kỳ và phiếu; **chưa thử điện thoại thật** |
 | S4-13 Test | Code xong test API và Playwright luồng công bố |
+| S4-21 Khoá PIN | Code xong: khoá theo tài khoản trong `lib/auth/login.ts`, phản hồi giống tài khoản không tồn tại, Đặt lại PIN mở khoá ngay |
 | S4-14 Chuẩn bị production | Code xong `npm run company:create`, khoá ngày chốt sau kỳ công bố đầu tiên, chặn seed theo CSDL đích (`lib/db/target.ts`) |
 
 ## Lệnh

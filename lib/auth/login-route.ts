@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server';
 import { getServerEnv } from '@/lib/env';
 import { loginSchema } from '@/lib/validation/auth';
 import { login } from './login';
-import { SESSION_POLICY, sessionCookieOptions, type SessionKind } from './session-policy';
+import { LOGIN_POLICY, SESSION_POLICY, sessionCookieOptions, type SessionKind } from './session-policy';
 
-const INVALID_CREDENTIALS = 'Thông tin đăng nhập không đúng';
+/** Tài khoản đang khoá nhận đúng câu này: báo riêng sẽ cho biết email đó có tồn tại. */
+const INVALID_CREDENTIALS = `Thông tin đăng nhập không đúng. Sai ${LOGIN_POLICY.maxAttempts} lần liên tiếp sẽ bị khoá ${LOGIN_POLICY.lockMinutes} phút.`;
 const NO_ADMIN_ACCESS = 'Tài khoản này không có quyền vào trang quản trị';
 
 /** Xử lý chung POST /auth/admin/login và /auth/app/login. Lỗi không nói rõ trường nào sai (US01). */

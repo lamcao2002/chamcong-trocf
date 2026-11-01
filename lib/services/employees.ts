@@ -237,7 +237,7 @@ export async function updateEmployee(
   }
 }
 
-/** Tạo PIN mới và đăng xuất mọi máy; PIN gốc chỉ trả về đúng lần này (US12). */
+/** Tạo PIN mới, mở khoá và đăng xuất mọi máy; PIN gốc chỉ trả về đúng lần này (US12). */
 export async function resetEmployeePin(ctx: AuthContext, id: string) {
   const pin = generatePin();
   const pinHash = await hashPin(pin);
@@ -251,7 +251,10 @@ export async function resetEmployeePin(ctx: AuthContext, id: string) {
     if (!before) throw notFound('nhân viên');
     if (!canEditEmployee(ctx.employee, before)) throw new ApiError(403, 'Bạn không được sửa Quản trị viên');
 
-    await tx.update(employees).set({ pinHash }).where(findEmployee(ctx, id));
+    await tx
+      .update(employees)
+      .set({ pinHash, failedPinAttempts: 0, lockedUntil: null })
+      .where(findEmployee(ctx, id));
     await tx.delete(sessions).where(eq(sessions.employeeId, id));
     await writeAudit(tx, actorOf(ctx), { action: 'employee.reset_pin', entity: 'employee', entityId: id });
   });
