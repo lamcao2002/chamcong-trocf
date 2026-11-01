@@ -8,6 +8,13 @@
       "when": 1793440406330,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793536964660,
+      "tag": "0001_employees_left_date",
+      "breakpoints": true
     }
   ]
 }

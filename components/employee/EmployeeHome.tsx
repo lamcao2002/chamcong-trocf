@@ -1,19 +1,24 @@
 'use client';
 
-import { Button } from 'antd';
+import { Button, ConfigProvider } from 'antd';
 import { LogoutOutlined } from '@ant-design/icons';
 import { useLogout } from '@/components/common/useLogout';
 import { ROLE_LABELS, type Role } from '@/lib/auth/roles';
+import type { AppHome } from '@/lib/services/attendance';
+import { buildAntdTheme } from '@/lib/theme/tokens';
+import { PunchScreen } from './PunchScreen';
 import styles from './EmployeeScreen.module.css';
 
 type EmployeeHomeProps = {
   name: string;
   role: Role;
   companyName: string;
+  brandColor: string | null;
+  home: AppHome;
 };
 
-/** Màn tạm sau khi đăng nhập; M2 Chấm công thay ở Sprint 2 (US17–US20). */
-export function EmployeeHome({ name, role, companyName }: EmployeeHomeProps) {
+/** Màn chính của app nhân viên: dải đầu trang và màn Chấm công. */
+export function EmployeeHome({ name, role, companyName, brandColor, home }: EmployeeHomeProps) {
   const logout = useLogout('/m');
 
   return (
@@ -29,12 +34,10 @@ export function EmployeeHome({ name, role, companyName }: EmployeeHomeProps) {
           <Button icon={<LogoutOutlined />} aria-label="Đăng xuất" onClick={() => void logout()} />
         </div>
       </header>
-      <main className={styles.body}>
-        <div className={styles.card}>
-          <h1 className={styles.title}>Chấm công</h1>
-          <p className={styles.muted}>Màn chấm công sẽ có ở Sprint 2.</p>
-        </div>
-      </main>
+      {/* Chip ca và nút theo màu công ty, thay vì màu mặc định của Providers */}
+      <ConfigProvider theme={buildAntdTheme(brandColor ?? undefined)}>
+        <PunchScreen home={home} />
+      </ConfigProvider>
     </>
   );
 }

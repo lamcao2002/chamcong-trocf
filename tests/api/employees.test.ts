@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { vietnamToday } from '../../lib/domain/date';
 import { COMPANY, api, auditCount, employeeBody, login, sql } from './helpers';
 
 let cookie: string;
@@ -185,11 +186,18 @@ describe('Đã nghỉ (US13)', () => {
     await expect(login(email, 'app', COMPANY, pin)).resolves.toBeTruthy();
   });
 
-  it('dữ liệu cũ giữ nguyên', async () => {
+  it('ghi ngày nghỉ, PATCH lặp lại không đổi ngày, kích hoạt lại thì xoá', async () => {
     const { id } = await create();
-    const [employee] = await sql`select company_id from employees where id = ${id}`;
-    await sql`insert into day_records (company_id, employee_id, date, status) values (${employee!.company_id}, ${id}, '2026-10-01', 'du')`;
+    const leftDate = async () => (await api('GET', `/employees/${id}`, { cookie })).body.employee.leftDate;
+
     await api('PATCH', `/employees/${id}`, { cookie, body: { status: 'left' } });
-    expect((await sql`select 1 from day_records where employee_id = ${id}`).length).toBe(1);
+    expect(await leftDate()).toBe(vietnamToday());
+
+    await sql`update employees set left_date = '2026-01-15' where id = ${id}`;
+    await api('PATCH', `/employees/${id}`, { cookie, body: { status: 'left', name: 'Đổi tên' } });
+    expect(await leftDate()).toBe('2026-01-15');
+
+    await api('PATCH', `/employees/${id}`, { cookie, body: { status: 'active' } });
+    expect(await leftDate()).toBeNull();
   });
 });

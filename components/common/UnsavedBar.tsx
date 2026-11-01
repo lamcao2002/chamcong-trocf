@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Button } from 'antd';
 import { useConfirmDiscard } from './useConfirmDiscard';
 import { useLeaveGuard } from './useLeaveGuard';
@@ -11,6 +12,8 @@ type UnsavedBarProps = {
   /** Phần chữ sau số, vd "ô chưa lưu" ở Xếp ca. */
   label?: string;
   saveLabel?: string;
+  /** Icon thay chữ Huỷ, vd ↶ ở Xếp ca. */
+  discardIcon?: ReactNode;
   saving?: boolean;
   /** `dark`: Cài đặt; `light` viền vàng: Xếp ca. */
   tone?: 'dark' | 'light';
@@ -23,6 +26,7 @@ export function UnsavedBar({
   count,
   label = 'thay đổi chưa lưu',
   saveLabel = 'Lưu',
+  discardIcon,
   saving = false,
   tone = 'dark',
   onSave,
@@ -45,8 +49,15 @@ export function UnsavedBar({
           {count} {label}
         </span>
         <span className={styles.actions}>
-          <Button type="text" className={styles.discard} disabled={saving} onClick={() => void discard()}>
-            Huỷ
+          <Button
+            type="text"
+            className={styles.discard}
+            disabled={saving}
+            icon={discardIcon}
+            aria-label="Huỷ thay đổi"
+            onClick={() => void discard()}
+          >
+            {discardIcon ? null : 'Huỷ'}
           </Button>
           <Button type="primary" loading={saving} onClick={onSave}>
             {saveLabel}

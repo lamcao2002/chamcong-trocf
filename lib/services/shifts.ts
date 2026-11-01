@@ -17,8 +17,25 @@ import {
 import { isOvernight } from '@/lib/domain/shift';
 import type { ShiftInput } from '@/lib/validation/shift';
 import { actorOf } from './actor';
+import { employeesUsingShift, recomputeOpenPeriod, rulesChanged } from './recompute';
 
 const NOT_FOUND = 'ca';
+
+/** Trường làm đổi ngày công; đổi tên hay mã thì khỏi tính lại. */
+const SHIFT_RULES = [
+  'startTime',
+  'endTime',
+  'breakStart',
+  'breakEnd',
+  'calc',
+  'stdHours',
+  'minFull',
+  'minHalf',
+  'graceMin',
+  'minOt',
+  'isPart',
+  'noLateCheck',
+] as const;
 
 const toHhmm = (time: string | null) => time?.slice(0, 5) ?? null;
 
@@ -116,6 +133,10 @@ export async function updateShift(ctx: AuthContext, id: string, input: ShiftInpu
         before: before.shift,
         after: shift,
       });
+      if (rulesChanged(before.shift, shift!, SHIFT_RULES)) {
+        const employeeIds = await employeesUsingShift(tx, ctx.company.id, id);
+        await recomputeOpenPeriod(tx, ctx.company.id, employeeIds);
+      }
       return shift!;
     });
   } catch (error) {

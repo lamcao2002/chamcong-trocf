@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { averagePosition, collectSamples } from './geo';
+import { vietnamToday } from './date';
+import { averagePosition, collectSamples, distanceMeters, nearestZone } from './geo';
 import { vietnamHolidays } from './holiday';
 import { generatePin } from './pin';
 
@@ -98,5 +99,34 @@ describe('collectSamples', () => {
     gps.emit(21);
     gps.emit(21.1);
     await expect(result).resolves.toHaveLength(2);
+  });
+});
+
+describe('vietnamToday', () => {
+  it('sang ngày mới theo giờ Việt Nam, không theo UTC', () => {
+    expect(vietnamToday(new Date('2026-10-31T16:59:00Z'))).toBe('2026-10-31');
+    expect(vietnamToday(new Date('2026-10-31T17:00:00Z'))).toBe('2026-11-01');
+  });
+});
+
+describe('nearestZone', () => {
+  const hoanKiem = { id: 'hk', name: 'Hoàn Kiếm', lat: 21.02452, lng: 105.85308, radiusM: 60 };
+  const tayHo = { id: 'th', name: 'Tây Hồ', lat: 21.063898, lng: 105.828298, radiusM: 60 };
+
+  it('một độ vĩ khoảng 111 km', () => {
+    expect(distanceMeters({ lat: 21, lng: 105 }, { lat: 22, lng: 105 })).toBeCloseTo(111_195, -1);
+  });
+
+  it('chọn địa điểm gần nhất, biên bán kính vẫn trong vùng', () => {
+    const near = { lat: hoanKiem.lat + 0.0003, lng: hoanKiem.lng };
+    expect(nearestZone(near, [tayHo, hoanKiem])).toMatchObject({ location: hoanKiem, inZone: true });
+
+    const edge = distanceMeters(near, hoanKiem);
+    expect(nearestZone(near, [{ ...hoanKiem, radiusM: edge }])?.inZone).toBe(true);
+    expect(nearestZone(near, [{ ...hoanKiem, radiusM: edge - 1 }])?.inZone).toBe(false);
+  });
+
+  it('không có địa điểm thì trả null', () => {
+    expect(nearestZone({ lat: 21, lng: 105 }, [])).toBeNull();
   });
 });

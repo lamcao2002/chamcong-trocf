@@ -19,6 +19,8 @@ export const serverEnvSchema = z.object({
   DATABASE_URL: postgresUrl,
   DATABASE_URL_DIRECT: postgresUrl.optional(),
   APP_TIMEZONE: z.string().default('Asia/Ho_Chi_Minh'),
+  /** Vercel Cron gửi kèm; bỏ trống thì route cron từ chối mọi lời gọi. */
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

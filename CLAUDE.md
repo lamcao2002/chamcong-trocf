@@ -16,7 +16,9 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 |---|---|
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
-| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **50 ca kiểm thử T01–T50**, 9 câu hỏi mở |
+| `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
+| `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
+| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **59 ca kiểm thử T01–T59**, ký hiệu ô Bảng công, quyết định đã chốt |
 | `docs/product/01-ke-hoach-mvp.md` | Kế hoạch 5 bước, 4 quyết định đã chốt |
 | `docs/website-analysis/` | Phân tích sản phẩm gốc: UI tokens (05), data model (07), flows (06) |
 | `docs/setup-supabase.md` | Hạ tầng dev/staging |
@@ -52,9 +54,33 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-17 → S1-19 Nhân sự, drawer, Đã nghỉ | Code xong, đã chạy qua giao diện trên Chrome |
 | S1-20 Test API | Code xong — `npm run test:api`, CI chạy trên build thật |
 | S1-21 Nhập dữ liệu demo, thử M1 trên điện thoại | Mới chạy kịch bản demo trên Chrome giả lập; **chưa thử iPhone/Android thật** |
-| S1-22 Triển khai staging, demo | Đã đẩy nhánh `feat/s1-11-s1-22` để Vercel tạo bản Preview; **chưa xác nhận staging chạy được**, chưa demo |
+| S1-22 Triển khai staging, demo | Bản Vercel từ `main` chạy được, `/api/v1/health` báo `db: up`; chưa demo |
+
+## Tiến độ Sprint 2
+
+| Việc | Trạng thái |
+|---|---|
+| S2-01 Hạ tầng | `vercel.json` vùng `sin1`, `loading.tsx` cho `(shell)` và `/m` xong, chưa triển khai; **còn đặt `APP_ENV=staging` trên Vercel và đo lại trên staging** |
+| S2-02 Chốt quyết định | Xong: 17 quyết định đã ghi vào đặc tả, thêm T51–T53 |
+| S2-03 `employees.left_date` | Code xong, đã chạy trên PostgreSQL tạm — **chưa áp lên Supabase, phải migrate trước khi triển khai** |
+| S2-04 → S2-08 Engine | Code xong trong `lib/engine/`: 53/53 ca chạy xanh, gồm áp đơn và duyệt |
+| S2-09 Service tính lại | Code xong `lib/services/recompute.ts`, đã chạy trên PostgreSQL tạm |
+| S2-10 Gắn tính lại | Code xong: lần chấm, lịch, ca, vị trí, nhân viên, ngày lễ, cài đặt |
+| S2-11 Cron | Code xong; **cần đặt `CRON_SECRET` trên Vercel** |
+| S2-12 → S2-14 Xếp ca | Code xong API và màn A4, đã thử trên Chrome 375 và 1440 px |
+| S2-15 → S2-18 Chấm công | Code xong API và màn M2, đã thử trên Chrome giả lập GPS; **chưa thử điện thoại thật** |
+| S2-19 Kiểm tra ngày công | Code xong `GET /day` và màn tạm ở `/app/bang-cong`, Sprint 3 thay bằng Bảng công |
+| S2-20 Test API | Code xong: 163 test, gồm chạy song song, kỳ đã công bố, chặn trang theo quyền |
+| S2-21 Thử điện thoại thật | **Chưa làm**, cần người thử tại quán, phiếu thử ở `docs/product/05-sprint-2.md` |
+| S2-22 Triển khai, demo | Bản Preview từ `feat/sprint2` đã lên nhưng bị Vercel Authentication chặn; **chưa merge `main`, chưa so với tính tay, chưa demo** |
 
 Cập nhật bảng này khi xong một việc.
+
+## Tiến độ Sprint 3
+
+| Việc | Trạng thái |
+|---|---|
+| S3-01 Chốt quyết định | Xong: 13 quyết định đã ghi vào đặc tả, thêm T54–T59 và bảng ký hiệu ô |
 
 ## Lệnh
 
@@ -76,12 +102,14 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Màu/bo góc lấy từ `lib/theme/tokens.ts`, không hardcode; CSS module dùng biến từ `themeCssVars()`
 - Trang quản trị nằm trong `app/(admin)/app/(shell)/`, bọc bằng `AdminPage`; thêm mục menu ở `lib/navigation/admin.ts`
 - Form sửa dùng `FormDrawer`, trang có nút lưu tổng dùng `UnsavedBar` (`components/common/`): cả hai đã tự chặn rời trang; toast dùng `useToast`
+- Trong `(shell)` đã có `loading.tsx`: chặn quyền ở page chuyển hướng phía client (HTTP 200), chỉ phiên hết hạn ở layout mới trả 307
 - Route API bọc `withAuth`, trang quản trị gọi `requireAdminPage` (`lib/auth/guard.ts`); truy vấn lọc bằng `scopeToCompany`/`scopeToStaff`, luật quyền ở `lib/auth/policy.ts`
 - `@ant-design/cssinjs` ghim bản 1.x cùng `antd` 5: lên 2.x sẽ có hai bản, `AntdRegistry` mất CSS phía server và trang nháy form thô
 - Service ở `lib/services/`: mọi truy vấn lọc `company_id`, ID từ client qua `assertOwned`, ghi kèm `writeAudit`; route chỉ parse rồi gọi service
+- Mọi thao tác làm đổi ngày công gọi `recomputeDays` hoặc `recomputeOpenPeriod` trong cùng transaction; `day_records` là kết quả tính lại được, không ghi tay
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
-- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T50
+- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T59
 - Văn bản giao diện tiếng Việt; số `1.234.567đ`, ngày `dd/mm/yyyy`

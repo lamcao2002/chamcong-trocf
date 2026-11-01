@@ -1,6 +1,6 @@
 const DAY_MINUTES = 24 * 60;
 
-function toMinutes(time: string): number {
+export function toMinutes(time: string): number {
   const [hours = 0, minutes = 0] = time.split(':').map(Number);
   return hours * 60 + minutes;
 }
@@ -18,7 +18,7 @@ type ShiftTimes = {
 };
 
 /** Trải mốc giờ lên trục tính từ giờ vào ca, để ca qua đêm so sánh được. */
-function offsetFrom(startTime: string, time: string): number {
+export function offsetFrom(startTime: string, time: string): number {
   return (toMinutes(time) - toMinutes(startTime) + DAY_MINUTES) % DAY_MINUTES;
 }
 

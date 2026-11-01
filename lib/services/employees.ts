@@ -25,6 +25,8 @@ import {
 import { generatePin } from '@/lib/domain/pin';
 import type { EmployeeCreateInput, EmployeePatchInput } from '@/lib/validation/employee';
 import { actorOf } from './actor';
+import { vietnamToday } from '@/lib/domain/date';
+import { recomputeOpenPeriod } from './recompute';
 import { assertOwned } from './references';
 
 /** Không có `pin_hash` và bộ đếm PIN: mọi đọc nhân viên ra API đều qua danh sách cột này. */
@@ -33,6 +35,7 @@ const PUBLIC_COLUMNS = {
   email: employees.email,
   name: employees.name,
   status: employees.status,
+  leftDate: employees.leftDate,
   contract: employees.contract,
   onboardDate: employees.onboardDate,
   role: employees.role,
@@ -40,6 +43,9 @@ const PUBLIC_COLUMNS = {
   positionId: employees.positionId,
   payOverride: employees.payOverride,
 };
+
+/** Trường làm đổi ngày công của người đó. */
+const EMPLOYEE_RULES = ['positionId', 'onboardDate', 'status', 'payOverride'] as const;
 
 const EMAIL_TAKEN = new ApiError(409, 'Email đã có người dùng', { email: 'Email đã có người dùng' });
 
@@ -201,8 +207,14 @@ export async function updateEmployee(
       }
 
       await assertReferences(tx, ctx, { ...fields, shiftIds, locationIds });
+      // Giữ ngày cũ khi PATCH lặp lại `left`, để công đến ngày nghỉ thật không bị đổi
+      const statusChanged = fields.status !== undefined && fields.status !== before.status;
+      const leftDate = statusChanged ? { leftDate: fields.status === 'left' ? vietnamToday() : null } : {};
       if (Object.keys(fields).length > 0) {
-        await tx.update(employees).set(fields).where(findEmployee(ctx, id));
+        await tx
+          .update(employees)
+          .set({ ...fields, ...leftDate })
+          .where(findEmployee(ctx, id));
       }
       await replaceOverrides(tx, id, { shiftIds, locationIds });
       // Đã nghỉ: đá ra ngay trên mọi máy, không chờ phiên hết hạn (US13)
@@ -213,8 +225,12 @@ export async function updateEmployee(
         entity: 'employee',
         entityId: id,
         before,
-        after: { ...fields, shiftIds, locationIds },
+        after: { ...fields, ...leftDate, shiftIds, locationIds },
       });
+      const touchesCong =
+        shiftIds !== undefined ||
+        EMPLOYEE_RULES.some((key) => fields[key] !== undefined && fields[key] !== before[key]);
+      if (touchesCong) await recomputeOpenPeriod(tx, ctx.company.id, [id]);
     });
   } catch (error) {
     throw isUniqueViolation(error) ? EMAIL_TAKEN : error;

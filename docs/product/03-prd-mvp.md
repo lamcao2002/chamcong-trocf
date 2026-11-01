@@ -125,7 +125,7 @@ Tạo đơn (Nghỉ phép, Quên chấm, Làm thêm) là bottom sheet mở từ 
 | audit\_logs | actor\_id, action, entity, entity\_id, before jsonb, after jsonb, at | chỉ thêm |
 
 - PIN chỉ lưu dạng băm; không API nào trả PIN gốc sau lúc tạo (khắc phục điểm yếu bản gốc).
-- Phép năm còn lại tính từ `positions.leave_days` (hoặc ghi đè) trừ đơn phép năm đã duyệt và đang chờ trong năm.
+- Phép năm còn lại tính từ `positions.leave_days` (hoặc ghi đè) trừ đơn phép năm đã duyệt và đang chờ trong năm, theo công kỳ vọng của từng ngày có ca.
 
 ## Danh sách API
 
@@ -210,4 +210,4 @@ MVP xong khi quán thử dùng trọn một kỳ tháng và lương app tính kh
 - [ ] Chạy ổn trên ít nhất 1 iPhone và 1 Android của nhân viên thật
 - [ ] Đã triển khai production có sao lưu hằng ngày
 
-**Phụ thuộc còn mở:** 9 câu hỏi cuối [Đặc tả bộ tính ngày công](https://claude.ai/artifact/67rpzF2DcocSBs4gtn22ik) cần chốt trước Sprint 2; chọn nơi chạy (vd Vercel + Supabase) và tên miền trước khi kết thúc Sprint 1; tìm quán thử trước Sprint 3.
+**Phụ thuộc còn mở:** các câu hỏi của [Đặc tả bộ tính ngày công](02-dac-ta-engine-ngay-cong.md) đã chốt ngày 01/11/2026, riêng công ca ghép cần xác nhận bằng bảng lương thật trước Sprint 4; chọn tên miền trước Sprint 4; tìm quán thử trước Sprint 3.

@@ -4,7 +4,7 @@ Oct 31, 2026 · @Lam Cao
 
 Bộ tính ngày công biến **ca + lịch + lần chấm + đơn từ** thành một bản ghi ngày công cho mỗi nhân viên × ngày × ca; tài liệu này chốt 6 bước tính, bảng quyết định và 50 ca kiểm thử để code Sprint 2 theo đúng kết quả mong đợi.
 
-Quy ước nguồn: **\[Gốc\]** = quan sát được trên bản tham khảo E-HRM Pro (giao diện, dữ liệu API, hướng dẫn chính thức); **\[Đề xuất\]** = quy tắc ta tự chốt cho MVP vì bản gốc không cho thấy. Theo kế hoạch đã duyệt, dữ liệu lưu trên PostgreSQL; mọi mốc giờ lưu theo giờ Việt Nam (UTC+7).
+Quy ước nguồn: **\[Gốc\]** = quan sát được trên bản tham khảo E-HRM Pro (giao diện, dữ liệu API, hướng dẫn chính thức); **\[Đề xuất\]** = quy tắc ta tự chốt cho MVP vì bản gốc không cho thấy. Theo kế hoạch đã duyệt, dữ liệu lưu trên PostgreSQL; mọi mốc giờ lưu theo giờ Việt Nam (UTC+7). Các quy tắc \[Đề xuất\] đã được chốt ở mục [Quyết định đã chốt](#quyết-định-đã-chốt).
 
 ## Đầu vào và đầu ra
 
@@ -36,7 +36,7 @@ Mỗi ngày, engine lập danh sách ca mà nhân viên phải làm, xét theo t
 
 | # | Điều kiện | Ca kỳ vọng | Ghi chú | Nguồn |
 | --- | --- | --- | --- | --- |
-| 1 | Ngày trước ngày vào làm, hoặc nhân viên Đã nghỉ | Không có | Không tính vắng | \[Gốc\] |
+| 1 | Ngày trước ngày vào làm, hoặc sau `left_date` của nhân viên Đã nghỉ | Không có | Không tính vắng; các ngày đến hết `left_date` vẫn tính bình thường để giữ công cũ (US13) | \[Gốc\], \[Đề xuất\] mốc ngày |
 | 2 | Ô lịch = OFF (Cho nghỉ) | Không có | 0 công, không vắng, không trừ phép | \[Gốc\] |
 | 3 | Ô lịch có mã ca | Đúng các ca trong ô | Một ngày có thể nhiều ca | \[Gốc\] |
 | 4 | Nhân viên ca cố định, ngày thuộc ngày làm việc của vị trí | Ca cố định | Hiển thị ô viền đứt | \[Gốc\] |
@@ -45,19 +45,19 @@ Mỗi ngày, engine lập danh sách ca mà nhân viên phải làm, xét theo t
 
 Sau khi có danh sách ca, áp thêm ba lớp:
 
-- **Ngày lễ** \[Gốc\]: người ca cố định được đủ công dù không đi làm; đi làm thì OT theo hệ số lễ. Người linh hoạt có ca trong ngày lễ: \[Đề xuất\] tính như ngày thường, OT theo hệ số lễ.
-- **Đơn nghỉ phép đã duyệt** phủ ngày: \[Gốc\] phép năm = 1 công và trừ 1 ngày phép; ca ghép = 0,5 công. \[Đề xuất\] nghỉ ốm và không lương = 0 công, không báo vắng.
+- **Ngày lễ** \[Gốc\]: người ca cố định được đủ công dù không đi làm; đi làm thì OT theo hệ số lễ. Người linh hoạt có ca trong ngày lễ: \[Đề xuất\] tính như ngày thường, OT theo hệ số lễ, không thêm công lễ.
+- **Đơn nghỉ phép đã duyệt** phủ ngày: \[Gốc\] phép năm = 1 công và trừ 1 ngày phép; ca ghép = 0,5 công. \[Đề xuất\] nghỉ ốm và không lương = 0 công, không báo vắng. Phép trừ theo công kỳ vọng của từng ngày có ca, nên ca ghép trừ 0,5 ngày; chỉ xin được ngày đã có ca, kể cả ca cố định (T55) \[Đề xuất\].
 - **Đơn đổi ca đã duyệt** \[Đề xuất\]: bỏ ca nghỉ khỏi ngày xin nghỉ, thêm ca làm bù vào ngày làm bù.
 
 ## Bước B — Ghép lần chấm vào ca
 
 Mỗi lần chấm được gán cho đúng một ca kỳ vọng; lần chấm không gán được ca nào thành "làm ngoài lịch" và vào Hộp việc.
 
-1. **Cửa sổ ghép** \[Đề xuất\]: lần vào thuộc ca nếu nằm trong \[giờ vào − 120 phút, giờ ra\]; lần ra thuộc ca nếu nằm trong \[giờ vào, giờ ra + 6 giờ\] và trước giờ vào của ca kế tiếp trong ngày.
+1. **Cửa sổ ghép** \[Đề xuất\]: lần vào thuộc ca nếu nằm trong \[giờ vào − 120 phút, giờ ra\]; lần ra thuộc ca nếu nằm trong \[giờ vào, giờ ra + 6 giờ\] và trước giờ vào của ca kế tiếp trong ngày. Ngoại lệ với hai ca liền nhau: lần ra trong 15 phút sau mốc giao ca, khi ca trước chưa có lần ra, thuộc ca trước (T30, T51).
 2. **Chấm trùng** \[Gốc\]: bấm VÀO CA hai lần không sai công — lấy lần vào sớm nhất và lần ra muộn nhất của ca; các lần còn lại chỉ lưu nhật ký.
-3. **Ca liền nhau** \[Gốc\]: một cặp vào/ra phủ hai ca liền nhau (vd vào 07:13, ra 17:00 cho Ca sáng 07–12 và Ca chiều 12–17) được tách tại mốc giao ca: Ca sáng ra 12:00, Ca chiều vào 12:00 đúng giờ.
+3. **Ca liền nhau** \[Gốc\]: một cặp vào/ra phủ hai ca liền nhau (vd vào 07:13, ra 17:00 cho Ca sáng 07–12 và Ca chiều 12–17) được tách tại mốc giao ca: Ca sáng ra 12:00, Ca chiều vào 12:00 đúng giờ. Chỉ tách khi ca sau không có lần vào riêng (T29); ca sau có lần vào riêng thì mỗi ca xét lần chấm của mình (T30, T51) \[Đề xuất\].
 4. **Ca đêm** \[Gốc\]: ca qua 0 giờ (vd 22:00 → 06:00) thuộc ngày bắt đầu ca; giờ ra ngày hôm sau vẫn ghép vào ca đó.
-5. **Nhân viên chọn ca khi chấm** \[Gốc\]: ghi lại mã ca đã chọn. Nếu giờ thực tế khớp ca khác tốt hơn (trùng nhiều phút hơn), gắn cờ `sai_ca` và đề xuất "Xác nhận ca \<ca khớp>"; công tạm tính theo ca khớp.
+5. **Nhân viên chọn ca khi chấm** \[Gốc\]: ghi lại mã ca đã chọn. Nếu giờ thực tế khớp ca khác tốt hơn (trùng nhiều phút hơn), gắn cờ `sai_ca` và đề xuất "Xác nhận ca \<ca khớp>"; công tạm tính theo ca khớp. Ca đã chọn không có trong lịch mà giờ thực tế trùng ca đó nhiều hơn ca có lịch thì đây là ca ngoài lịch (mục 6), ca có lịch thành vắng \[Đề xuất\].
 6. **Chấm khi không có ca** \[Đề xuất\]: nhân viên linh hoạt chọn một ca ngoài lịch ("Ca bạn chọn (ngoài lịch)") → tạo ca tạm, gắn cờ `ngoai_lich`, cần duyệt; người ca cố định chấm ngày Cho nghỉ → cùng cờ \[Gốc\].
 7. **Ngoài vùng** \[Gốc\]: lần chấm vẫn ghép vào ca, gắn cờ `gps`; ngày công vẫn tính bình thường nhưng cần duyệt vị trí.
 
@@ -78,7 +78,8 @@ Ví dụ \[Gốc\]: Ca 1 06:00–14:00, nghỉ 10:00–10:30, vào 05:59 ra 14:0
 | Giờ thực tế + bắt lỗi | Như dòng trên | Có | \[Gốc\] |
 
 - Thiếu lần vào hoặc lần ra → worked = 0, công = 0, `missing` = số lần thiếu, trạng thái `thieu_gio` \[Gốc\].
-- **Công kỳ vọng** (dùng cho phép, lễ): ca thường = 1; ca ghép (`part`) = 0,5 \[Gốc\]. Ca Tạp vụ 2 giờ cũng mang công kỳ vọng 0,5 trong dữ liệu gốc — quy tắc chưa rõ, xem câu hỏi mở.
+- **Công kỳ vọng** (dùng cho phép, lễ): ca thường = 1; ca ghép (`part`) = 0,5 \[Gốc\]. Quy tắc chỉ dựa vào cờ `is_part`, không dựa vào số giờ; ca Tạp vụ 2 giờ muốn có công kỳ vọng 0,5 thì phải bật cờ này \[Đề xuất\].
+- **Ca ghép đi làm khác nghỉ phép:** đi làm đủ được 1 công (T24, T29, T30), nghỉ phép năm được 0,5 công (T37), và hai ca ghép trong ngày ra 2 công. Tạm giữ đúng đặc tả, phải xác nhận bằng bảng lương thật của quán trước Sprint 4.
 - **Lương theo giờ** dùng worked, không dùng công: Ánh tháng 9 làm 79,35 giờ × 25.000đ = 1.983.750đ \[Gốc\].
 
 ## Bước D — Muộn và về sớm
@@ -94,7 +95,7 @@ Muộn chỉ được ghi khi vượt thời gian cho phép của ca; số phút
 - Ca bật "Không bắt lỗi muộn / sớm" (vd Tạp vụ) và ca tính "Theo giờ thực tế": luôn 0 \[Gốc\].
 - Hai ca liền nhau được tách tại mốc giao ca thì mốc giao không tính muộn/sớm \[Gốc\].
 - Muộn/sớm **không làm mất công** nếu worked vẫn đủ min1 (vd vào 14:07 ca 14–22 → worked 443 ≥ 420 → 1 công, muộn 7') \[Gốc\].
-- Tiền phạt = phút × mức phạt đ/phút của vị trí, chỉ khi vị trí bật "Trừ tiền phạt và BHXH" và chưa được tha \[Gốc\]. Đơn muộn/sớm đã duyệt hoặc quản lý "tha" → đánh dấu `waived`, phút vẫn hiển thị nhưng không phạt \[Gốc\].
+- Tiền phạt = phút × mức phạt đ/phút của vị trí, chỉ khi vị trí bật "Trừ tiền phạt và BHXH" và chưa được tha \[Gốc\]. Phạt nằm ngoài MVP: engine nhận `penaltyPerMin` và trả tiền phạt để chạy T49, nhưng không lưu, không có giao diện, và service luôn truyền 0. Đơn muộn/sớm đã duyệt hoặc quản lý "tha" → đánh dấu `waived`, phút vẫn hiển thị nhưng không phạt \[Gốc\].
 
 ## Bước E — OT
 
@@ -119,7 +120,7 @@ Một ngày công có thể mang nhiều cờ nhưng chỉ một trạng thái h
 
 | Ưu tiên | Trạng thái | Khi nào | Cần duyệt | Đề xuất trong Hộp việc | Nguồn |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `chua_toi` | now < giờ vào ca, chưa chấm | Không | — | \[Gốc\] |
+| 1 | `chua_toi` | now < giờ ra ca, chưa chấm | Không | — | \[Gốc\]; \[Đề xuất\] giữ tới hết ca vì `vang` chỉ có sau khi hết ca |
 | 2 | `dang_lam` | Đã vào, chưa ra, now < giờ ra ca + 6 giờ | Không | — | \[Gốc\] |
 | 3 | `vang` | Có ca, hết ca, không có lần chấm nào, không có đơn | Có | Không có đề xuất; chỉ "Điều chỉnh khác…" | \[Gốc\] |
 | 4 | `thieu_gio` | Chỉ có vào hoặc chỉ có ra (cờ `thieu_vao`/`thieu_ra`) | Có | Có giải trình → "Duyệt 1 công" (giờ thiếu lấy từ giải trình hoặc đơn quên chấm) | \[Gốc\] |
@@ -131,7 +132,7 @@ Một ngày công có thể mang nhiều cờ nhưng chỉ một trạng thái h
 | 10 | `nua_cong` | Công = 0,5 | Không | — | \[Gốc\] ô |
 | 11 | `du` | Còn lại, công ≥ 1 | Không | — | \[Gốc\] |
 
-Trạng thái ngày đặc biệt hiển thị thay các dòng trên: `nghi_phep` (P), `le` (L), `nghi` (OFF / không ca) \[Gốc\].
+Trạng thái ngày đặc biệt hiển thị thay các dòng trên: `nghi_phep` (P), `le` (L), `nghi` (OFF / không ca) \[Gốc\]. Ba trạng thái này chỉ dùng khi ngày không có lần chấm; có chấm thì chọn theo bảng trên, vd đi làm ngày lễ là `ot_cho` (T34) \[Đề xuất\]. Đi làm ngày nghỉ tuần tạo dòng có `shift_id` trống, trạng thái `ot_cho` (T35) \[Đề xuất\]. Ca 0 công vì về quá sớm không vào Hộp việc (T07) \[Đề xuất\].
 
 Mỗi việc mang `evidence` là các dòng bằng chứng ("Vào 13:59", "Ra 23:38", lời giải trình) và một câu "Vì sao hệ thống đề xuất" sinh từ chính số liệu, vd "Ra ca lúc 23:36, sau giờ hết ca (22:00) 1 giờ 36 — vượt mức tối thiểu tính OT" \[Gốc\].
 
@@ -152,13 +153,37 @@ Duyệt không sửa lần chấm gốc; nó lưu một bản ghi duyệt riêng
 | Đơn Nghỉ phép đã duyệt | Ngày thành `nghi_phep`; phép năm = công kỳ vọng và trừ phép | \[Gốc\] |
 | Hoàn duyệt | Xoá bản ghi duyệt, ngày trở về kết quả hệ thống | \[Gốc\] |
 
+- Mỗi nhân viên × ngày × ca có một bản ghi duyệt hiệu lực: quyết định sau gộp vào bản ghi đang có (T54), Hoàn duyệt thu hồi cả bản ghi \[Đề xuất\].
+- Giải trình gắn vào việc của ngày đó, không phải việc riêng; duyệt ngày thì giải trình đóng theo, giải trình đã từ chối không đưa vào đầu vào \[Đề xuất\].
+- Tha muộn và tha sớm độc lập với nhau (T57, T58); thao tác này nằm ở drawer ngày của Bảng công vì `muon` không vào Hộp việc \[Đề xuất\].
+- Không duyệt được ngày thuộc kỳ đã công bố cho tới khi Sprint 4 có "cần công bố lại" \[Đề xuất\].
+
 - Mọi duyệt và đơn đều ghi người làm và thời điểm để truy vết \[Đề xuất\].
 - Sau mỗi thay đổi, tính lại **ngay** ngày công liên quan và cập nhật Hộp việc, Bảng công, Lương trong cùng giao dịch — tránh lỗi bản gốc: OT đã duyệt ở Hộp việc nhưng Lương vẫn báo "chờ" \[Đề xuất\].
 - Kỳ lương đã công bố là bản chụp đóng băng; thay đổi sau đó chỉ hiện ở phiếu khi công bố lại \[Gốc\].
 
+## Ký hiệu ô Bảng công
+
+Mười bốn trạng thái ngày công hiện bằng 12 ký hiệu của bản gốc \[Gốc\]; ô có nhiều ca hiện ký hiệu đứng trên trong bảng này kèm số ca ở góc ô \[Đề xuất\].
+
+| Ưu tiên | Ký hiệu | Trạng thái | Ghi chú |
+| --- | --- | --- | --- |
+| 1 | V | `vang` | Vắng |
+| 2 | ! | `thieu_gio` | Thiếu giờ vào/ra |
+| 3 | G | `ngoai_vung` | Ngoài vùng |
+| 4 | C | `sai_ca`, `ngoai_lich` | Chấm sai ca hoặc ngoài lịch \[Đề xuất\] |
+| 5 | + viền đứt | `ot_cho` | OT chờ duyệt |
+| 6 | M | `muon` | Muộn hoặc về sớm chưa tha |
+| 7 | ½ | `nua_cong` | Thiếu công |
+| 8 | + đặc | `du` có OT đã duyệt | OT đã duyệt |
+| 9 | Ô đặc | `du` | Đủ công |
+| 10 | P | `nghi_phep` | Nghỉ phép |
+| 11 | L | `le` | Nghỉ lễ |
+| 12 | Ô trống | `chua_toi`, `dang_lam`, `nghi` | Chưa có kết quả hoặc không có công \[Đề xuất\] |
+
 ## Bộ ca kiểm thử
 
-50 ca dưới đây là đặc tả chạy được: mỗi dòng thành một unit test, và engine chỉ được coi là xong khi cả 50 dòng đều đúng.
+T01–T50 và các ca bổ sung T51–T59 là đặc tả chạy được: mỗi dòng thành một unit test, và engine chỉ được coi là xong khi tất cả đều đúng. Trừ khi ghi `now`, các ca chạy với `now` sau cửa sổ 6 giờ của ca cuối.
 
 **Cấu hình ca dùng trong test** (cho phép muộn 5', OT tối thiểu 30', chế độ muộn "Tính cả số phút" trừ khi ghi khác):
 
@@ -176,7 +201,7 @@ Duyệt không sửa lần chấm gốc; nó lưu một bản ghi duyệt riêng
 | T04 | Muộn | CA1, chế độ "phần vượt" | Vào 06:14, ra 14:00 | Muộn 9, 1 công | Gốc |
 | T05 | Về sớm | CA1 | Vào 06:00, ra 13:50 | Về sớm 10, worked 440, 1 công | Đề xuất |
 | T06 | Nửa công | CA1 | Vào 07:00, ra 14:00 | Muộn 60, worked 390, 0,5 công | Đề xuất |
-| T07 | Không công | CA1 | Vào 06:00, ra 09:00 | Về sớm 300, worked 180, 0 công | Đề xuất |
+| T07 | Không công | CA1 | Vào 06:00, ra 09:00 | Về sớm 300, worked 180, 0 công, không cần duyệt | Đề xuất |
 | T08 | Đến sớm | CA1, OT trước ca tắt | Vào 05:30, ra 14:00 | worked 450, OT 0 | Gốc |
 | T09 | OT trước ca | CA1, OT trước ca bật | Vào 05:20, ra 14:00 | `ot_cho`, OT trước ca 40 | Gốc |
 | T10 | OT sau ca | CA2 | Vào 13:59, ra 23:38 | `ot_cho`, OT 98, worked 450, 1 công, đề xuất "Duyệt 98 phút" | Gốc |
@@ -203,10 +228,10 @@ Duyệt không sửa lần chấm gốc; nó lưu một bản ghi duyệt riêng
 | T31 | Ca đêm | DEM ngày 10/10 | Vào 21:55 ngày 10/10, ra 06:03 ngày 11/10 | Ghép vào ngày 10/10, worked 480, 1 công | Gốc ý, Đề xuất số |
 | T32 | Ngoài cửa sổ ghép | CA1 | Vào 03:50, ra 14:00 | Lần 03:50 thành `ngoai_lich`; CA1 `thieu_gio` (thiếu vào) | Đề xuất |
 | T33 | Lễ, không đi làm | Cố định CA1 | Ngày lễ, không chấm | `le`, 1 công | Gốc |
-| T34 | Lễ, đi làm | Cố định CA1 | Ngày lễ; vào 06:00, ra 14:00 | 1 công + OT đề xuất 450' hệ số 300% | Gốc hệ số, Đề xuất cách đếm |
-| T35 | Ngày nghỉ tuần | Cố định, ngày không làm việc | Vào 08:00, ra 12:00 | `offDay`, 0 công, OT đề xuất 240' hệ số 200% | Đề xuất |
+| T34 | Lễ, đi làm | Cố định CA1 | Ngày lễ; vào 06:00, ra 14:00 | `ot_cho`, 1 công + OT đề xuất 450' hệ số 300% | Gốc hệ số, Đề xuất cách đếm |
+| T35 | Ngày nghỉ tuần | Cố định, ngày không làm việc | Vào 08:00, ra 12:00 | `ot_cho`, `offDay`, `shift_id` trống, 0 công, OT đề xuất 240' hệ số 200% | Đề xuất |
 | T36 | Phép năm | CA1 | Đơn phép năm đã duyệt | `nghi_phep`, 1 công, phép còn lại −1 | Gốc |
-| T37 | Phép, ca ghép | SANG | Đơn phép năm đã duyệt | `nghi_phep`, 0,5 công | Gốc |
+| T37 | Phép, ca ghép | SANG | Đơn phép năm đã duyệt | `nghi_phep`, 0,5 công, phép còn lại −0,5 | Gốc |
 | T38 | Nghỉ ốm | CA1 | Đơn nghỉ ốm đã duyệt | `nghi_phep`, 0 công, không vắng, không trừ phép | Đề xuất |
 | T39 | Cho nghỉ | Cố định CA1, ô OFF | Không chấm | `nghi`, 0 công, không vắng | Gốc |
 | T40 | Trước ngày vào làm | Cố định CA1 | Ngày < ngày vào làm, không chấm | Không có ca, không vắng | Gốc |
@@ -220,17 +245,49 @@ Duyệt không sửa lần chấm gốc; nó lưu một bản ghi duyệt riêng
 | T48 | Duyệt vắng thành 1 công | CA1 | T19 + Điều chỉnh: 1 công | 1 công, hết cần duyệt | Gốc |
 | T49 | Phạt muộn | CA1, phạt 1.000đ/phút bật | T03 | Phạt 14.000đ | Gốc |
 | T50 | Hoàn duyệt | CA1 | T48 rồi hoàn duyệt | Trở lại `vang`, 0 công, cần duyệt | Gốc |
+| T51 | Ra quá ngoại lệ giao ca | SANG + CHIEU | 06:58–12:16 và 12:01–17:03 | Lần ra 12:16 không thuộc SANG: SANG `thieu_gio` (thiếu ra), CHIEU `du` | Đề xuất |
+| T52 | Sau ngày nghỉ việc | Cố định CA1, `left_date` 10/10 | Ngày 11/10, không chấm | Không có ca, không vắng | Đề xuất |
+| T53 | Đến hết ngày nghỉ việc | Cố định CA1, `left_date` 10/10, đã chuyển Đã nghỉ | Ngày 10/10; vào 06:00, ra 14:00 | `du`, 1 công, công cũ không mất | Đề xuất |
+| T54 | Gộp nhiều quyết định | CA2 | Vào 14:00 ngoài vùng, ra 23:00; một bản ghi duyệt vị trí và OT 60' | `du`, OT đã duyệt 60, hết cần duyệt | Đề xuất |
+| T55 | Phép ngày không có lịch | Linh hoạt, không lịch | Đơn phép năm đã duyệt, không chấm | Không có dòng ngày công, không vắng | Đề xuất |
+| T56 | Duyệt thiếu giờ có giải trình | SANG | T20 + duyệt thiếu giờ | 1 công, hết cần duyệt, hết đề xuất | Gốc |
+| T57 | Tha về sớm | CA1, phạt 1.000đ/phút bật | T05 + quản lý tha sớm | Về sớm 10 hiển thị, `waived`, phạt 0, `du` | Đề xuất |
+| T58 | Tha muộn, chưa tha sớm | CA1, phạt 1.000đ/phút bật | Vào 06:14, ra 13:50; tha muộn | Phạt 10.000đ, vẫn `muon` | Đề xuất |
+| T59 | Điều chỉnh nửa công | SANG | T17 + quản lý chọn 0,5 công | 0,5 công, `nua_cong`, hết cần duyệt | Gốc ý, Đề xuất trạng thái |
 
-## Câu hỏi mở cần chốt trước khi code
+## Quyết định đã chốt
 
-Các điểm dưới đây đang dùng giá trị đề xuất; cần bạn xác nhận hoặc đổi trước Sprint 2.
+Nhóm A, B được chốt ngày 01/11/2026 theo đề xuất của [Sprint 2](05-sprint-2.md), nhóm C theo đề xuất của [Sprint 3](06-sprint-3.md); riêng B2 cần xác nhận lại bằng bảng lương thật của quán.
 
-- [ ] Cửa sổ ghép lần chấm: vào sớm tối đa 120', ra muộn tối đa 6 giờ sau ca — giữ hay đổi?
-- [ ] Ca dưới bao nhiêu giờ chuẩn thì công kỳ vọng là 0,5? (Bản gốc: Tạp vụ 2 giờ = 0,5 dù không phải ca ghép.)
-- [ ] Theo giờ thực tế: làm tròn công 2 chữ số và trần 1 công — đồng ý?
-- [ ] Nghỉ ốm, nghỉ không lương: 0 công và không trừ phép — đồng ý?
-- [ ] Người linh hoạt làm ngày lễ có được thêm công lễ không, hay chỉ OT hệ số 300%?
-- [ ] Đi làm ngày nghỉ tuần / ngày lễ: tính OT trên toàn bộ phút làm (đề xuất) hay chỉ phần ngoài khung ca?
-- [ ] Đi muộn/về sớm có bắt quản lý duyệt không (đề xuất: không, chỉ hiện ô M)?
-- [ ] Có ca 0 công vì về quá sớm (T07): có đưa vào Hộp việc không?
-- [ ] Đơn làm thêm: phần vượt khung giờ của đơn để chờ duyệt (đề xuất) hay bỏ qua?
+| # | Câu hỏi | Quyết định |
+| --- | --- | --- |
+| A1 | Cửa sổ ghép lần chấm | Vào sớm tối đa 120 phút, ra muộn tối đa 6 giờ |
+| A2 | Ca nào có công kỳ vọng 0,5 | Chỉ ca bật `is_part` |
+| A3 | Công theo giờ thực tế | Làm tròn 2 chữ số, trần 1 công |
+| A4 | Nghỉ ốm, không lương | 0 công, không trừ phép |
+| A5 | Người linh hoạt làm ngày lễ | Chỉ OT hệ số 300%, không thêm công lễ |
+| A6 | OT ngày nghỉ tuần, ngày lễ | Tính trên toàn bộ phút làm |
+| A7 | Muộn/sớm có bắt duyệt không | Không, chỉ hiện ô M |
+| A8 | Ca 0 công vì về quá sớm | Không vào Hộp việc |
+| A9 | Phần vượt khung đơn làm thêm | Để chờ duyệt |
+| B1 | Lần ra sát mốc giao ca (T30) | Ngoại lệ 15 phút ở Bước B mục 1 |
+| B2 | Ca ghép đi làm 1 công, nghỉ phép 0,5 công | Giữ đúng đặc tả, xác nhận trước Sprint 4 |
+| B3 | Tiền phạt (T49) | Engine tính, không lưu, service truyền 0 |
+| B4 | Đi làm ngày lễ | Trạng thái đặc biệt chỉ dùng khi không có lần chấm |
+| B5 | Đi làm ngày nghỉ tuần | `shift_id` trống, trạng thái `ot_cho` |
+| B6 | Nhân viên Đã nghỉ | Thêm `left_date`, chỉ bỏ ca sau ngày đó |
+| B7 | GPS bị chặn | Không cho chấm, hiện hướng dẫn bật quyền |
+| B8 | Tính trong vùng | Khoảng cách ≤ bán kính, không cộng sai số; lưu `accuracy_m` |
+| C1 | Một ngày nhiều việc | Gộp vào một bản ghi duyệt; Hoàn duyệt thu hồi cả bản ghi |
+| C2 | 14 trạng thái, 12 ký hiệu | Theo bảng ở mục Ký hiệu ô Bảng công |
+| C3 | Ngày nhiều ca | Ký hiệu đứng trên trong bảng, kèm số ca ở góc ô |
+| C4 | Trừ phép | Theo công kỳ vọng của từng ngày có ca |
+| C5 | Xin nghỉ ngày chưa có lịch | Chỉ xin được ngày đã có ca, kể cả ca cố định |
+| C6 | Tự duyệt | Không, trừ khi công ty chỉ có một Quản trị viên |
+| C7 | Người không có quản lý trực tiếp | Quản trị viên và Nhân sự thấy toàn công ty; Quản lý nhóm chỉ thấy người của mình |
+| C8 | Kỳ đã công bố | Trả 409 cho duyệt, đơn, lịch, ngày lễ; Sprint 4 mở lại qua "cần công bố lại" |
+| C9 | Giải trình | Gắn vào việc của ngày; gửi lại thì cập nhật, duyệt ngày thì đóng theo |
+| C10 | Sửa đơn đã duyệt | Không có hoàn duyệt đơn trong MVP, dùng Điều chỉnh khác ở drawer ngày |
+| C11 | "Chờ xử lý" đếm gì | Mọi việc cần duyệt của kỳ hiện tại, gồm cả đơn chờ |
+| C12 | Kỳ của Hộp việc và Bảng công | Một loại kỳ theo `cutoff_day`; để trống là tròn tháng |
+| C13 | Tha muộn | Ở drawer ngày của Bảng công |

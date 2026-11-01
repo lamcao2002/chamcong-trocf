@@ -6,9 +6,11 @@ import { writeAudit } from '@/lib/audit';
 import { scopeToCompany, type AuthContext } from '@/lib/auth/policy';
 import { getDb } from '@/lib/db/client';
 import { holidays } from '@/lib/db/schema';
+import { vietnamToday } from '@/lib/domain/date';
 import { vietnamHolidays } from '@/lib/domain/holiday';
 import type { HolidayInput } from '@/lib/validation/holiday';
 import { actorOf } from './actor';
+import { recomputeCompanyDay, recomputeOpenPeriod } from './recompute';
 
 export function listHolidays(ctx: AuthContext) {
   return getDb()
@@ -33,6 +35,7 @@ export async function createHoliday(ctx: AuthContext, input: HolidayInput) {
         entityId: holiday!.id,
         after: holiday,
       });
+      await recomputeCompanyDay(tx, ctx.company.id, holiday!.date);
       return holiday!;
     });
   } catch (error) {
@@ -54,6 +57,7 @@ export async function deleteHoliday(ctx: AuthContext, id: string) {
       entityId: id,
       before: holiday,
     });
+    await recomputeCompanyDay(tx, ctx.company.id, holiday.date);
   });
 }
 
@@ -70,6 +74,8 @@ export async function seedVietnamHolidays(ctx: AuthContext, year: number) {
       entity: 'holiday',
       after: { year, added: added.length },
     });
+    // Thêm năm sau thì chưa có gì để tính; thêm năm nay thì có thể trúng ngày đã qua
+    if (added.some(({ date }) => date <= vietnamToday())) await recomputeOpenPeriod(tx, ctx.company.id);
     return added;
   });
 }
