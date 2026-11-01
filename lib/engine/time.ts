@@ -21,6 +21,11 @@ export function weekDay(date: string): number {
   return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
+/** Thứ Hai của tuần chứa `date`; tuần tính từ Thứ Hai đến Chủ nhật. */
+export function mondayOf(date: string): string {
+  return addDays(date, -((weekDay(date) + 6) % 7));
+}
+
 /** Ngày cách `date` một số ngày, cùng định dạng `YYYY-MM-DD`. */
 export function addDays(date: string, days: number): string {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MINUTES * MINUTE_MS)

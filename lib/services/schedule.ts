@@ -26,7 +26,7 @@ const WEEK_DAYS = 7;
 type Reader = Pick<Tx, 'select'>;
 
 /** Ca được xếp cho từng người: ghi đè Ca riêng thắng ca của vị trí, luôn gồm ca cố định. */
-async function allowedShiftIds(db: Reader, employeeRows: { id: string; positionId: string | null }[]) {
+export async function allowedShiftIds(db: Reader, employeeRows: { id: string; positionId: string | null }[]) {
   const ids = employeeRows.map(({ id }) => id);
   const positionIds = employeeRows.flatMap(({ positionId }) => positionId ?? []);
   const [overrides, ofPositions, fixed] = await Promise.all([
@@ -50,6 +50,8 @@ async function allowedShiftIds(db: Reader, employeeRows: { id: string; positionI
 }
 
 /** Lưới một tuần: người được quản lý, ô đã xếp, và ô ca cố định không cần xếp (US14). */
+export type ScheduleView = Awaited<ReturnType<typeof getSchedule>>;
+
 export async function getSchedule(ctx: AuthContext, week: string) {
   const db = getDb();
   const dates = Array.from({ length: WEEK_DAYS }, (_, index) => addDays(week, index));
@@ -115,14 +117,19 @@ export async function getSchedule(ctx: AuthContext, week: string) {
         allowedShiftIds: allowed.get(id) ?? [],
         cells: dates.map((date) => {
           const cell = cells.find((row) => row.employeeId === id && row.date === date);
-          const schedule = cell ? { shiftIds: cell.shiftIds, isOff: cell.isOff } : null;
-          const expected = expectedShifts({ date, employee, schedule, shifts: library as EngineShift[] });
+          /** Ca cố định khi không có ô lịch: hiện viền đứt, không cần xếp. */
+          const defaults = expectedShifts({
+            date,
+            employee,
+            schedule: null,
+            shifts: library as EngineShift[],
+          });
           return {
             date,
-            shiftIds: expected.shifts.map((shift) => shift.id),
-            isOff: schedule?.isOff ?? false,
-            /** Ca cố định chưa có ô lịch: hiện viền đứt, không cần xếp. */
-            fixed: !cell && expected.shifts.length > 0,
+            shiftIds: cell?.shiftIds ?? [],
+            isOff: cell?.isOff ?? false,
+            defaultShiftIds: defaults.shifts.map((shift) => shift.id),
+            editable: date >= employee.onboardDate && (!employee.leftDate || date <= employee.leftDate),
           };
         }),
       };

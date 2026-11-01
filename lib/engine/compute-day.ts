@@ -399,6 +399,45 @@ function offDayRecord(punches: readonly TimedPunch[], input: DayInput): DayRecor
   );
 }
 
+/** Lần chấm không thuộc ca kỳ vọng nào: thành ca ngoài lịch theo ca đã chọn, không có ca thì dòng không gắn ca. */
+function temporaryRecords(
+  punches: readonly TimedPunch[],
+  context: Context,
+  fallbackShiftId: string | null,
+  noCong: boolean,
+  expectedIds: readonly string[] = [],
+): DayRecord[] {
+  const { input } = context;
+  const chosenId = punches.find(({ chosenShiftId }) => chosenShiftId)?.chosenShiftId;
+  const temporary = input.shifts.find(({ id }) => id === (chosenId ?? fallbackShiftId));
+  // Chọn đúng ca có lịch nhưng chấm ngoài cửa sổ của ca đó: ca đã có dòng riêng, không tạo trùng
+  if (!temporary || expectedIds.includes(temporary.id)) return [unmatchedRecord(punches, input)];
+  const confirmed = input.approvals.some(
+    ({ shiftId, confirmShiftId }) => shiftId === temporary.id && confirmShiftId,
+  );
+
+  const { slots, unmatched: outside } = matchPunches([shiftWindow(temporary)], punches, []);
+  return [
+    ...slots
+      .filter(({ punches: matched }) => matched.length > 0)
+      .map((slot) => shiftRecord(slot, context, { temporary: true, noCong: noCong && !confirmed })),
+    ...(outside.length > 0 ? [unmatchedRecord(outside, input)] : []),
+  ];
+}
+
+/**
+ * Chọn ca ngoài lịch rồi làm đúng ca đó (US20): giờ chấm trùng ca đã chọn nhiều hơn ca kỳ vọng thì
+ * đây là ca ngoài lịch, không phải chọn nhầm. Trả về ca đã chọn trong trường hợp này.
+ */
+function offScheduleChoice({ window, punches, inMinute, outMinute }: ShiftPunches, { input }: Context) {
+  if (inMinute === null || outMinute === null) return null;
+  const chosenId = punches.find(({ chosenShiftId }) => chosenShiftId)?.chosenShiftId;
+  const chosen = input.shifts.find(({ id }) => id === chosenId);
+  if (!chosen || chosen.id === window.shift.id) return null;
+  const chosenMinutes = workedMinutes(shiftWindow(chosen), inMinute, outMinute);
+  return chosenMinutes > workedMinutes(window, inMinute, outMinute) ? chosen : null;
+}
+
 /** Ngày không có ca kỳ vọng: lần chấm nếu có thành OT ngày nghỉ hoặc ca ngoài lịch. */
 function withoutExpectedShift(
   reason: ExpectedReason,
@@ -412,21 +451,8 @@ function withoutExpectedShift(
   if (unmatched.length === 0) return reason === 'off' ? [finish(blankRecord(input, null, 'nghi'))] : [];
   if (reason === 'off_day') return [offDayRecord(unmatched, input)];
 
-  const chosenId = unmatched.find(({ chosenShiftId }) => chosenShiftId)?.chosenShiftId;
   const fixedId = reason === 'off' ? input.employee.fixedShiftId : null;
-  const temporary = input.shifts.find(({ id }) => id === (chosenId ?? fixedId));
-  if (!temporary) return [unmatchedRecord(unmatched, input)];
-  const confirmed = input.approvals.some(
-    ({ shiftId, confirmShiftId }) => shiftId === temporary.id && confirmShiftId,
-  );
-
-  const { slots, unmatched: outside } = matchPunches([shiftWindow(temporary)], unmatched, []);
-  return [
-    ...slots.map((slot) =>
-      shiftRecord(slot, context, { temporary: true, noCong: reason === 'off' && !confirmed }),
-    ),
-    ...(outside.length > 0 ? [unmatchedRecord(outside, input)] : []),
-  ];
+  return temporaryRecords(unmatched, context, fixedId, reason === 'off');
 }
 
 /**
@@ -446,8 +472,16 @@ export function computeDay(input: DayInput, now: Date): DayRecord[] {
   }
 
   const { slots, unmatched } = matchPunches(expected.shifts.map(shiftWindow), punches, previous);
+  const expectedIds = expected.shifts.map(({ id }) => id);
+  const loose = [...unmatched];
+  const kept = slots.map((slot) => {
+    const choice = offScheduleChoice(slot, context);
+    if (!choice || expectedIds.includes(choice.id)) return slot;
+    loose.push(...slot.punches);
+    return { ...slot, punches: [], inMinute: null, outMinute: null };
+  });
   return [
-    ...slots.map((slot) => shiftRecord(slot, context)),
-    ...(unmatched.length > 0 ? [unmatchedRecord(unmatched, input)] : []),
+    ...kept.map((slot) => shiftRecord(slot, context)),
+    ...(loose.length > 0 ? temporaryRecords(loose, context, null, false, expectedIds) : []),
   ];
 }

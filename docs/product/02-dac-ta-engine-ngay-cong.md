@@ -57,7 +57,7 @@ Mỗi lần chấm được gán cho đúng một ca kỳ vọng; lần chấm k
 2. **Chấm trùng** \[Gốc\]: bấm VÀO CA hai lần không sai công — lấy lần vào sớm nhất và lần ra muộn nhất của ca; các lần còn lại chỉ lưu nhật ký.
 3. **Ca liền nhau** \[Gốc\]: một cặp vào/ra phủ hai ca liền nhau (vd vào 07:13, ra 17:00 cho Ca sáng 07–12 và Ca chiều 12–17) được tách tại mốc giao ca: Ca sáng ra 12:00, Ca chiều vào 12:00 đúng giờ. Chỉ tách khi ca sau không có lần vào riêng (T29); ca sau có lần vào riêng thì mỗi ca xét lần chấm của mình (T30, T51) \[Đề xuất\].
 4. **Ca đêm** \[Gốc\]: ca qua 0 giờ (vd 22:00 → 06:00) thuộc ngày bắt đầu ca; giờ ra ngày hôm sau vẫn ghép vào ca đó.
-5. **Nhân viên chọn ca khi chấm** \[Gốc\]: ghi lại mã ca đã chọn. Nếu giờ thực tế khớp ca khác tốt hơn (trùng nhiều phút hơn), gắn cờ `sai_ca` và đề xuất "Xác nhận ca \<ca khớp>"; công tạm tính theo ca khớp.
+5. **Nhân viên chọn ca khi chấm** \[Gốc\]: ghi lại mã ca đã chọn. Nếu giờ thực tế khớp ca khác tốt hơn (trùng nhiều phút hơn), gắn cờ `sai_ca` và đề xuất "Xác nhận ca \<ca khớp>"; công tạm tính theo ca khớp. Ca đã chọn không có trong lịch mà giờ thực tế trùng ca đó nhiều hơn ca có lịch thì đây là ca ngoài lịch (mục 6), ca có lịch thành vắng \[Đề xuất\].
 6. **Chấm khi không có ca** \[Đề xuất\]: nhân viên linh hoạt chọn một ca ngoài lịch ("Ca bạn chọn (ngoài lịch)") → tạo ca tạm, gắn cờ `ngoai_lich`, cần duyệt; người ca cố định chấm ngày Cho nghỉ → cùng cờ \[Gốc\].
 7. **Ngoài vùng** \[Gốc\]: lần chấm vẫn ghép vào ca, gắn cờ `gps`; ngày công vẫn tính bình thường nhưng cần duyệt vị trí.
 

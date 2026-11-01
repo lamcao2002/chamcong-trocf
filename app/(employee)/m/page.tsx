@@ -4,6 +4,7 @@ import { LoginForm } from '@/components/common/LoginForm';
 import { EmployeeHome } from '@/components/employee/EmployeeHome';
 import styles from '@/components/employee/EmployeeScreen.module.css';
 import { getSession } from '@/lib/auth/session';
+import { getAppHome } from '@/lib/services/attendance';
 import { themeCssVars } from '@/lib/theme/tokens';
 
 type EmployeePageProps = {
@@ -30,6 +31,8 @@ export default async function EmployeePage({ searchParams }: EmployeePageProps) 
           name={session.employee.name}
           role={session.employee.role}
           companyName={session.company.name}
+          brandColor={session.company.brandColor}
+          home={await getAppHome(session)}
         />
       </div>
     );

@@ -51,3 +51,32 @@ export function collectSamples(
     const timer = setTimeout(() => settle({ code: 3 }), timeoutMs);
   });
 }
+
+const EARTH_RADIUS_M = 6_371_000;
+const radians = (degrees: number) => (degrees * Math.PI) / 180;
+
+/** Khoảng cách theo đường tròn lớn (haversine), đủ chính xác ở quy mô vài km. */
+export function distanceMeters(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
+  const latDelta = radians(to.lat - from.lat);
+  const lngDelta = radians(to.lng - from.lng);
+  const a =
+    Math.sin(latDelta / 2) ** 2 +
+    Math.cos(radians(from.lat)) * Math.cos(radians(to.lat)) * Math.sin(lngDelta / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(a));
+}
+
+type Zone = { id: string; name: string; lat: number; lng: number; radiusM: number };
+
+export type ZoneCheck<T extends Zone> = { location: T; distanceM: number; inZone: boolean };
+
+/** Địa điểm gần nhất; trong vùng khi khoảng cách không vượt bán kính, không cộng sai số GPS. */
+export function nearestZone<T extends Zone>(
+  point: { lat: number; lng: number },
+  zones: readonly T[],
+): ZoneCheck<T> | null {
+  const checks = zones.map((location) => {
+    const distanceM = distanceMeters(point, location);
+    return { location, distanceM, inZone: distanceM <= location.radiusM };
+  });
+  return checks.sort((a, b) => a.distanceM - b.distanceM)[0] ?? null;
+}

@@ -33,6 +33,7 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'POST', path: `/employees/${NIL}/reset-pin`, allowed: ['hr', 'admin'] },
   { method: 'GET', path: '/schedule?week=2026-11-02', allowed: ['manager', 'hr', 'admin'] },
   { method: 'PUT', path: '/schedule', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'GET', path: `/day/${NIL}/2026-11-02`, allowed: ['manager', 'hr', 'admin'] },
 ];
 
 let cookies: Record<Exclude<Role, 'none'>, string>;

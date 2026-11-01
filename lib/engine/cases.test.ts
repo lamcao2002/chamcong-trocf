@@ -692,6 +692,71 @@ describe('ngoài bộ ca kiểm thử', () => {
     expect(computeDay(worked, AFTER_WINDOW)[0]).toMatchObject({ status: 'du', cong: 1 });
   });
 
+  it('chọn ca ngoài lịch và làm đúng ca đó thì thành ngoài lịch, ca có lịch thành vắng', () => {
+    const chosen = { chosenShiftId: CHIEU.id };
+    const records = computeDay(
+      onShift(SANG, [punch('in', '12:00', chosen), punch('out', '17:00', chosen)]),
+      AFTER_WINDOW,
+    );
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({ shiftId: SANG.id, status: 'vang' });
+    expect(records[1]).toMatchObject({ shiftId: CHIEU.id, status: 'ngoai_lich', cong: 1, needsReview: true });
+    expect(label(records[1])).toBe('Duyệt ca Ca chiều');
+  });
+
+  it('vào quá giờ ca có lịch, lần chấm vẫn về ca ngoài lịch đã chọn', () => {
+    const chosen = { chosenShiftId: TOI.id };
+    const records = computeDay(
+      onShift(SANG, [punch('in', '17:00', chosen), punch('out', '22:00', chosen)]),
+      AFTER_WINDOW,
+    );
+    expect(records[1]).toMatchObject({ shiftId: TOI.id, status: 'ngoai_lich', workedMin: 300 });
+  });
+
+  it('chọn ca ngoài lịch nhưng chấm ngoài giờ ca đó không sinh dòng vắng', () => {
+    const records = computeDay(
+      input({ punches: [punch('in', '20:23', { chosenShiftId: SANG.id })] }),
+      AFTER_WINDOW,
+    );
+    expect(records.map(({ shiftId, status }) => [shiftId, status])).toEqual([[null, 'ngoai_lich']]);
+  });
+
+  it('chọn đúng ca có lịch nhưng chấm sau giờ ra không tạo hai dòng cùng ca', () => {
+    const chosen = { chosenShiftId: SANG.id };
+    const records = computeDay(onShift(SANG, [punch('in', '20:21', chosen)]), AFTER_WINDOW);
+    expect(records.map(({ shiftId, status }) => [shiftId, status])).toEqual([
+      [SANG.id, 'vang'],
+      [null, 'ngoai_lich'],
+    ]);
+  });
+
+  it('không bao giờ có hai dòng cùng ca trong một ngày, ràng buộc unique của day_records', () => {
+    let seed = 20261101;
+    const next = (limit: number) => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed % limit;
+    };
+    const pick = <T>(items: readonly T[]) => items[next(items.length)]!;
+    const clockAt = (minute: number) =>
+      `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+
+    for (let round = 0; round < 2000; round += 1) {
+      const scheduled = LIBRARY.filter(() => next(4) === 0).slice(0, 3);
+      const punches = Array.from({ length: next(6) }, () =>
+        punch(pick(['in', 'out'] as const), clockAt(next(1440)), {
+          chosenShiftId: pick([null, ...LIBRARY.map(({ id }) => id)]),
+          inZone: pick([true, false]),
+        }),
+      );
+      const day = onShift(scheduled, punches, {
+        previousDayShifts: pick([[], [DEM], [TOI]]),
+        isHoliday: next(5) === 0,
+      });
+      const ids = computeDay(day, AFTER_WINDOW).map(({ shiftId }) => shiftId);
+      expect(new Set(ids).size, JSON.stringify({ round, ids })).toBe(ids.length);
+    }
+  });
+
   it('muộn đúng bằng mức cho phép chưa tính muộn', () => {
     expect(computeDay(onShift(CA1, pair('06:05', '14:00')), AFTER_WINDOW)[0]).toMatchObject({ lateMin: 0 });
     expect(computeDay(onShift(CA1, pair('06:06', '14:00')), AFTER_WINDOW)[0]).toMatchObject({ lateMin: 6 });

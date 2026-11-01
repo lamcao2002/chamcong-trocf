@@ -64,9 +64,11 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S2-03 `employees.left_date` | Code xong, đã chạy trên PostgreSQL tạm — **chưa áp lên Supabase, phải migrate trước khi triển khai** |
 | S2-04 → S2-08 Engine | Code xong trong `lib/engine/`: 53/53 ca chạy xanh, gồm áp đơn và duyệt |
 | S2-09 Service tính lại | Code xong `lib/services/recompute.ts`, đã chạy trên PostgreSQL tạm |
-| S2-10 Gắn tính lại | Xong với lịch, ca, vị trí, nhân viên, ngày lễ, cài đặt; **còn `/app/punch` chờ S2-16** |
+| S2-10 Gắn tính lại | Code xong: lần chấm, lịch, ca, vị trí, nhân viên, ngày lễ, cài đặt |
 | S2-11 Cron | Code xong; **cần đặt `CRON_SECRET` trên Vercel** |
-| S2-12 API lịch | Code xong `GET`, `PUT /schedule`, chưa có màn A4 (S2-13) |
+| S2-12 → S2-14 Xếp ca | Code xong API và màn A4, đã thử trên Chrome 375 và 1440 px |
+| S2-15 → S2-18 Chấm công | Code xong API và màn M2, đã thử trên Chrome giả lập GPS; **chưa thử điện thoại thật** |
+| S2-19 Kiểm tra ngày công | Code xong `GET /day` và màn tạm ở `/app/bang-cong`, Sprint 3 thay bằng Bảng công |
 
 Cập nhật bảng này khi xong một việc.
 

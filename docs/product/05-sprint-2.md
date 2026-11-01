@@ -58,16 +58,16 @@ Cả 17 điểm được chốt theo đề xuất dưới đây ngày 01/11/2026
 | S2-07 | Bước E + F: OT, trạng thái, cờ, đề xuất, câu "Vì sao hệ thống đề xuất" | US21 | 1 | S2-06 | Dev A | 5 | Xong |
 | S2-08 | Áp đơn và duyệt: phép, quên chấm, làm thêm, tha muộn, công ghi đè, hoàn duyệt | US21 | 0,75 | S2-07 | Dev A | 6 | Xong |
 | S2-09 | Service tính lại: đọc đầu vào, khoá theo nhân viên, xoá rồi ghi `day_records` trong một giao dịch | US22 | 1,5 | S2-08 | Dev A | 6–7 | Xong |
-| S2-10 | Gắn tính lại vào `/app/punch`, `PUT /schedule` và mọi nơi sửa ca, vị trí, nhân viên, ngày lễ, cài đặt | US22 | 0,75 | S2-09, S2-12, S2-16 | Dev A | 8 | Đang làm |
+| S2-10 | Gắn tính lại vào `/app/punch`, `PUT /schedule` và mọi nơi sửa ca, vị trí, nhân viên, ngày lễ, cài đặt | US22 | 0,75 | S2-09, S2-12, S2-16 | Dev A | 8 | Xong |
 | S2-11 | Cron hằng ngày chốt các ngày đã qua để có `vang`, `thieu_gio` | US22 | 0,5 | S2-09 | Dev A | 8 | Xong |
 | S2-12 | API `GET /schedule?week=`, `PUT /schedule`: lọc người được quản lý, kiểm tra ca thuộc công ty, ẩn người Đã nghỉ | US14–US16 | 1 | S2-02 | Dev B | 1–2 | Xong |
-| S2-13 | Màn A4: điều hướng tuần, dải 7 ô, ca cố định viền đứt, drawer chọn ca theo ngày | US14 | 1,5 | S2-12 | Dev B | 2–3 | Chưa làm |
-| S2-14 | Ô đổi chấm cam, thanh "N ô chưa lưu · ↶ · Lưu", Cho nghỉ | US15, US16 | 0,5 | S2-13 | Dev B | 4 | Chưa làm |
-| S2-15 | API `GET /app/home`: ca hôm nay, ca được chọn, địa điểm, trạng thái đang trong ca | US17, US20 | 0,75 | S2-05 | Dev B | 4–5 | Chưa làm |
-| S2-16 | API `POST /app/punch`: giờ server, tính trong vùng, chọn địa điểm gần nhất, ghi `attendance_logs` | US18, US19 | 1 | S2-15 | Dev B | 5–6 | Chưa làm |
-| S2-17 | Màn M2: ca hôm nay, trạng thái GPS, nút VÀO/RA CA, thẻ kết quả | US17–US19 | 1,5 | S2-16 | Dev B | 6–7 | Chưa làm |
-| S2-18 | Chip chọn ca, dòng thời gian hôm nay, hướng dẫn bật quyền cho iPhone/Android | US17, US20 | 0,5 | S2-17 | Dev B | 8 | Chưa làm |
-| S2-19 | `GET /day/:employeeId/:date` và màn tạm tại `/app/bang-cong`: bảng `day_records` theo ngày, chỉ đọc | US22 | 0,5 | S2-09 | Dev B | 8 | Chưa làm |
+| S2-13 | Màn A4: điều hướng tuần, dải 7 ô, ca cố định viền đứt, drawer chọn ca theo ngày | US14 | 1,5 | S2-12 | Dev B | 2–3 | Xong |
+| S2-14 | Ô đổi chấm cam, thanh "N ô chưa lưu · ↶ · Lưu", Cho nghỉ | US15, US16 | 0,5 | S2-13 | Dev B | 4 | Xong |
+| S2-15 | API `GET /app/home`: ca hôm nay, ca được chọn, địa điểm, trạng thái đang trong ca | US17, US20 | 0,75 | S2-05 | Dev B | 4–5 | Xong |
+| S2-16 | API `POST /app/punch`: giờ server, tính trong vùng, chọn địa điểm gần nhất, ghi `attendance_logs` | US18, US19 | 1 | S2-15 | Dev B | 5–6 | Xong |
+| S2-17 | Màn M2: ca hôm nay, trạng thái GPS, nút VÀO/RA CA, thẻ kết quả | US17–US19 | 1,5 | S2-16 | Dev B | 6–7 | Xong |
+| S2-18 | Chip chọn ca, dòng thời gian hôm nay, hướng dẫn bật quyền cho iPhone/Android | US17, US20 | 0,5 | S2-17 | Dev B | 8 | Xong |
+| S2-19 | `GET /day/:employeeId/:date` và màn tạm tại `/app/bang-cong`: bảng `day_records` theo ngày, chỉ đọc | US22 | 0,5 | S2-09 | Dev B | 8 | Xong |
 | S2-20 | Test API: lịch, chấm công, tính lại, ma trận quyền; thêm endpoint mới vào `MATRIX` | US14–US22 | 1 | S2-10, S2-11 | Dev A | 9 | Chưa làm |
 | S2-21 | Thử M2 trên iPhone và Android thật tại quán: cài PWA, GPS trong nhà, chặn quyền | US17–US20 | 0,5 | S2-18 | Dev B | 9 | Chưa làm |
 | S2-22 | Triển khai staging, so ngày công với tính tay, demo cuối sprint | — | 0,5 | S2-19, S2-20, S2-21 | Dev A + B | 10 | Chưa làm |

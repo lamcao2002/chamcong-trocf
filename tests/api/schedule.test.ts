@@ -80,8 +80,8 @@ describe('GET /schedule (US14)', () => {
 
     const row = (id: string) => schedule.employees.find((employee: any) => employee.id === id);
     expect(row(fixed).shiftMode).toBe('fixed');
-    expect(row(fixed).cells[0]).toMatchObject({ shiftIds: [shifts.TV2.id], fixed: true });
-    expect(row(flexible).cells[0]).toMatchObject({ shiftIds: [], fixed: false });
+    expect(row(fixed).cells[0]).toMatchObject({ shiftIds: [], defaultShiftIds: [shifts.TV2.id] });
+    expect(row(flexible).cells[0]).toMatchObject({ shiftIds: [], defaultShiftIds: [] });
     expect(row(flexible).allowedShiftIds).toContain(shifts.SANG.id);
   });
 

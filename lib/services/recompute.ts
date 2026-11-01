@@ -98,7 +98,7 @@ export async function loadEmployeeRules(db: Reader, employeeIds: readonly string
 }
 
 /** Đọc gộp một lần cho cả khoảng ngày, không truy vấn theo từng ngày. */
-async function loadInputs(tx: Tx, companyId: string, employeeIds: string[], from: string, to: string) {
+async function loadInputs(tx: Reader, companyId: string, employeeIds: string[], from: string, to: string) {
   const [company] = await tx.select().from(companies).where(eq(companies.id, companyId));
   const rules = await loadEmployeeRules(tx, employeeIds);
   const shiftRows = await tx.select().from(shifts).where(eq(shifts.companyId, companyId));
@@ -199,6 +199,32 @@ function dayInput(loaded: Loaded, employeeId: string, date: string): DayInput | 
     explanations: mine(loaded.explanations).filter((row) => row.date === date),
     approvals: mine(loaded.approvals).filter((row) => row.date === date),
   };
+}
+
+/**
+ * Tính một ngày mà không ghi: `chua_toi`, `dang_lam` đổi theo đồng hồ, nên dòng đã lưu của những ngày
+ * cron chưa chốt có thể cũ. Màn đọc dùng hàm này thay cho đọc thẳng `day_records`.
+ */
+export async function computeDayLive(
+  db: Reader,
+  companyId: string,
+  employeeIds: string[],
+  date: string,
+  now: Date = new Date(),
+) {
+  if (employeeIds.length === 0) return new Map<string, DayRecord[]>();
+  const loaded = await loadInputs(db, companyId, employeeIds, date, date);
+  return new Map(
+    employeeIds.map((employeeId) => {
+      const input = dayInput(loaded, employeeId, date);
+      return [employeeId, input ? computeDay(input, now) : []];
+    }),
+  );
+}
+
+/** Ngày cron đã chốt: dòng trong `day_records` không còn đổi theo đồng hồ. */
+export function isSettledDay(date: string, today: string): boolean {
+  return date < addDays(today, -CRON_DAYS_BACK);
 }
 
 /** Bỏ các trường chỉ dùng trong tính toán, xem chú thích ở `DayRecord`. */
