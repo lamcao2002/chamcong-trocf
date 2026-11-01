@@ -68,9 +68,9 @@ Cả 17 điểm được chốt theo đề xuất dưới đây ngày 01/11/2026
 | S2-17 | Màn M2: ca hôm nay, trạng thái GPS, nút VÀO/RA CA, thẻ kết quả | US17–US19 | 1,5 | S2-16 | Dev B | 6–7 | Xong |
 | S2-18 | Chip chọn ca, dòng thời gian hôm nay, hướng dẫn bật quyền cho iPhone/Android | US17, US20 | 0,5 | S2-17 | Dev B | 8 | Xong |
 | S2-19 | `GET /day/:employeeId/:date` và màn tạm tại `/app/bang-cong`: bảng `day_records` theo ngày, chỉ đọc | US22 | 0,5 | S2-09 | Dev B | 8 | Xong |
-| S2-20 | Test API: lịch, chấm công, tính lại, ma trận quyền; thêm endpoint mới vào `MATRIX` | US14–US22 | 1 | S2-10, S2-11 | Dev A | 9 | Chưa làm |
-| S2-21 | Thử M2 trên iPhone và Android thật tại quán: cài PWA, GPS trong nhà, chặn quyền | US17–US20 | 0,5 | S2-18 | Dev B | 9 | Chưa làm |
-| S2-22 | Triển khai staging, so ngày công với tính tay, demo cuối sprint | — | 0,5 | S2-19, S2-20, S2-21 | Dev A + B | 10 | Chưa làm |
+| S2-20 | Test API: lịch, chấm công, tính lại, ma trận quyền; thêm endpoint mới vào `MATRIX` | US14–US22 | 1 | S2-10, S2-11 | Dev A | 9 | Xong |
+| S2-21 | Thử M2 trên iPhone và Android thật tại quán: cài PWA, GPS trong nhà, chặn quyền | US17–US20 | 0,5 | S2-18 | Dev B | 9 | Đang làm |
+| S2-22 | Triển khai staging, so ngày công với tính tay, demo cuối sprint | — | 0,5 | S2-19, S2-20, S2-21 | Dev A + B | 10 | Đang làm |
 
 ## Thứ tự làm theo ngày
 
@@ -136,7 +136,9 @@ app/
 - Bấm lặp vẫn ghi log, engine lấy lần vào sớm nhất và lần ra muộn nhất; nút khoá lại trong lúc gửi.
 - GPS chỉ chạy trên HTTPS, nên thử điện thoại phải dùng bản staging.
 
-**Hiệu năng.** Yêu cầu VÀO CA dưới 1 giây trên 4G không đạt được nếu server vẫn ở Mỹ: một lần chấm cần khoảng 10 truy vấn, tức hơn 2 giây chỉ riêng CSDL ở mức 217 ms mỗi truy vấn. Service tính lại phải đọc gộp theo khoảng ngày, không truy vấn từng ngày. Mở kết nối mới tới Supabase mất 0,5–1,5 giây, nên đo cả lần chấm đầu tiên sau khi rảnh, không chỉ lần chạy liên tiếp.
+**Hiệu năng.** Yêu cầu VÀO CA dưới 1 giây phụ thuộc vào việc server nằm cùng vùng với CSDL. Với `prepare: false` (bắt buộc cho Transaction pooler), mỗi truy vấn có tham số tốn 2 lượt đi về và không ghép được, nên một lần chấm mất khoảng 50 lượt: đo được 2,6 giây ở độ trễ 49 ms, và chỉ khoảng 20 ms khi CSDL không có độ trễ. Vì vậy phải chạy `sin1`, và chạy `npm run dev` nối Supabase từ Việt Nam sẽ luôn chậm. Mở kết nối mới tới Supabase mất thêm 0,5–1,5 giây, nên đo cả lần chấm đầu tiên sau khi rảnh.
+
+Sửa cài đặt công ty với 120 nhân viên × 62 ngày mất khoảng 3,5 giây khi CSDL không có độ trễ; với quán 10 nhân viên thì khoảng một phần mười. Khi lên quy mô lớn hơn mới cần chuyển sang tính lại ở nền.
 
 ## Định nghĩa hoàn thành và kịch bản demo
 
@@ -163,6 +165,24 @@ Sprint 2 chỉ đóng khi cả bảy điều kiện dưới đây đều đạt.
 9. Quản lý mở màn kiểm tra ngày công, so từng dòng với bảng tính tay.
 10. Sửa lịch của một ngày đã chấm → ngày công đổi ngay trên màn kiểm tra.
 11. Mở CI, chỉ 53 test T01–T53 đều xanh.
+
+## Phiếu thử tại quán (S2-21, S2-22)
+
+Dùng bản staging có HTTPS, vì GPS không chạy trên HTTP. Ghi Đạt/Không đạt và tên máy vào từng dòng.
+
+| # | Việc | iPhone (Safari iOS 16+) | Android (Chrome 10+) |
+| --- | --- | --- | --- |
+| 1 | Mở `/m?ma=PHONHO`, mã công ty tự điền, đăng nhập | | |
+| 2 | Cài lên màn hình chính, mở từ biểu tượng, phiên còn giữ | | |
+| 3 | Lần đầu mở, trình duyệt hỏi quyền vị trí | | |
+| 4 | Đứng trong quán: "Trong vùng · X m", X có hợp lý không | | |
+| 5 | Đứng ngoài bán kính: "Ngoài vùng · X m" | | |
+| 6 | Từ chối quyền: hiện hướng dẫn, nút bị khoá, làm theo hướng dẫn bật lại được | | |
+| 7 | Bấm VÀO CA trên 4G: có kết quả dưới 1 giây, kể cả lần đầu trong ngày | | |
+| 8 | Bấm lại, tắt mở app, nút vẫn đúng trạng thái | | |
+| 9 | RA CA sau giờ hết ca từ 30 phút: thấy "Đã gửi đề xuất OT" | | |
+
+**So với tính tay:** với mỗi người, ghi giờ vào, giờ ra, ca, rồi tự tính phút làm, công, muộn, về sớm, OT theo đặc tả; mở `/app/bang-cong?date=<ngày>` và so từng cột. Lệch ở đâu ghi lại nguyên dữ liệu đầu vào để thành ca kiểm thử mới.
 
 ## Rủi ro và cách xử lý
 

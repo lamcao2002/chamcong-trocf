@@ -137,6 +137,37 @@ describe('POST /app/punch (US18, US19)', () => {
     ).toHaveLength(1);
   });
 
+  it('chấm và sửa lịch cùng lúc đều thành công, ngày công không trùng dòng', async () => {
+    const { id, session } = await newEmployee();
+    const body = { type: 'in', ...NEAR, chosenShiftId: shifts.SANG.id };
+    const results = await Promise.all([
+      punch(session, body),
+      scheduleToday(id, [shifts.SANG.id]),
+      punch(session, body),
+      scheduleToday(id, [shifts.SANG.id, shifts.TOI.id]),
+    ]);
+    expect(results.map(({ status }) => status).sort()).toEqual([200, 200, 201, 201]);
+    const rows =
+      await sql`select shift_id from day_records where employee_id = ${id} and date = ${vietnamToday()}`;
+    expect(new Set(rows.map(({ shift_id }) => shift_id)).size).toBe(rows.length);
+  });
+
+  it('API mới không trả PIN, bản băm hay phiên', async () => {
+    const { id, session } = await newEmployee();
+    await scheduleToday(id, [shifts.SANG.id]);
+    await punch(session, { type: 'in', ...NEAR, chosenShiftId: shifts.SANG.id });
+    const monday = addDays(vietnamToday(), -((new Date(`${vietnamToday()}T00:00:00Z`).getUTCDay() + 6) % 7));
+    const responses = await Promise.all([
+      api('GET', '/app/home', { cookie: session }),
+      api('GET', `/schedule?week=${monday}`, { cookie: admin }),
+      api('GET', `/day/${id}/${vietnamToday()}`, { cookie: admin }),
+    ]);
+    for (const { status, text } of responses) {
+      expect(status).toBe(200);
+      expect(text).not.toMatch(/pinHash|pin_hash|"pin"|tokenHash|failedPin/);
+    }
+  });
+
   it('ca đêm hôm qua: lần ra sáng nay về đúng ngày bắt đầu', async () => {
     const night = shiftBody();
     const created = await api('POST', '/shifts', {

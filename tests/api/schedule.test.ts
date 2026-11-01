@@ -256,6 +256,38 @@ describe('tính lại ngày công (US22)', () => {
     expect(await records(id, yesterday)).toMatchObject([{ late_min: 14 }]);
   });
 
+  it('kỳ đã công bố không bị tính lại khi sửa cấu hình', async () => {
+    const id = await newEmployee();
+    await punch(id, yesterday, 'in', '07:14');
+    await punch(id, yesterday, 'out', '12:00');
+    await save(admin, [cell(id, yesterday, [shifts.SANG.id])]);
+    const [period] =
+      await sql`insert into payroll_periods (company_id, period_key, from_date, to_date, published)
+      select company_id, ${`TEST${Date.now()}`}, ${addDays(yesterday, -30)}, ${yesterday}, true
+      from employees where id = ${id} returning id`;
+
+    await api('PATCH', '/company', { cookie: admin, body: { graceMode: 'phan_vuot' } });
+    await api('PATCH', '/company', { cookie: admin, body: { graceMode: 'toan_bo' } }).finally(
+      () => sql`delete from payroll_periods where id = ${period!.id}`,
+    );
+    // Hai lần đổi bù trừ nhau nên kiểm tra thời điểm tính, không kiểm tra số phút
+    const [frozen] = await sql`select computed_at from day_records
+      where employee_id = ${id} and date = ${yesterday}`;
+    const [saved] = await sql`select at from audit_logs where action = 'schedule.update'
+      order by at desc limit 1`;
+    expect(frozen!.computed_at.getTime()).toBeLessThanOrEqual(saved!.at.getTime() + 2000);
+    expect(await records(id, yesterday)).toMatchObject([{ late_min: 14 }]);
+  });
+
+  it('lưu lịch của một người không đụng ngày công của người khác', async () => {
+    const first = await newEmployee();
+    const second = await newEmployee();
+    await save(admin, [cell(second, yesterday, [shifts.SANG.id])]);
+    const before = await sql`select computed_at from day_records where employee_id = ${second}`;
+    await save(admin, [cell(first, yesterday, [shifts.SANG.id])]);
+    expect(await sql`select computed_at from day_records where employee_id = ${second}`).toEqual(before);
+  });
+
   it('chuyển Đã nghỉ giữ công đến ngày nghỉ, cả khi tính lại về sau', async () => {
     const id = await newEmployee();
     await punch(id, yesterday, 'in', '06:58');
@@ -293,6 +325,20 @@ describe('cron tính lại (S2-11)', () => {
   });
 });
 
+describe('cron chạy lặp', () => {
+  it('chạy hai lần cho cùng kết quả, không nhân đôi dòng', async () => {
+    const authorization = `Bearer ${CRON_SECRET}`;
+    const id = await newEmployee('Tạp vụ');
+    const day = addDays(vietnamToday(), -1);
+    const once = await fetch(`${BASE_URL}/api/internal/recompute`, { headers: { authorization } });
+    expect(once.status).toBe(200);
+    const first = await records(id, day);
+    const twice = await fetch(`${BASE_URL}/api/internal/recompute`, { headers: { authorization } });
+    expect(twice.status).toBe(200);
+    expect(await records(id, day)).toEqual(first);
+  });
+});
+
 describe('cách ly công ty', () => {
   it('không xếp được nhân viên hay ca của công ty khác', async () => {
     const [company] =
@@ -306,5 +352,11 @@ describe('cách ly công ty', () => {
     const date = addDays(vietnamToday(), 1);
     expect((await save(admin, [cell(boss!.id, date, [shifts.SANG.id])])).status).toBe(400);
     expect((await save(admin, [cell(id, date, [foreignShift!.id])])).status).toBe(400);
+    expect((await api('GET', `/day/${boss!.id}/${date}`, { cookie: admin })).status).toBe(404);
+
+    const week = mondayOf(vietnamToday());
+    const grid = await api('GET', `/schedule?week=${week}`, { cookie: admin });
+    expect(grid.text).not.toContain(boss!.id);
+    expect(grid.text).not.toContain(foreignShift!.id);
   });
 });

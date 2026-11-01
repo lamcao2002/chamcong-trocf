@@ -97,66 +97,95 @@ export async function loadEmployeeRules(db: Reader, employeeIds: readonly string
   );
 }
 
+function groupBy<T>(rows: readonly T[], keyOf: (row: T) => string) {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = keyOf(row);
+    const group = groups.get(key);
+    if (group) group.push(row);
+    else groups.set(key, [row]);
+  }
+  return groups;
+}
+
+const byEmployee = <T extends { employeeId: string }>(rows: readonly T[]) =>
+  groupBy(rows, ({ employeeId }) => employeeId);
+
 /** Đọc gộp một lần cho cả khoảng ngày, không truy vấn theo từng ngày. */
 async function loadInputs(tx: Reader, companyId: string, employeeIds: string[], from: string, to: string) {
-  const [company] = await tx.select().from(companies).where(eq(companies.id, companyId));
-  const rules = await loadEmployeeRules(tx, employeeIds);
-  const shiftRows = await tx.select().from(shifts).where(eq(shifts.companyId, companyId));
-  const cells = await tx
-    .select()
-    .from(scheduleCells)
-    .where(
-      and(inArray(scheduleCells.employeeId, employeeIds), between(scheduleCells.date, addDays(from, -1), to)),
-    );
-  const holidayRows = await tx
-    .select({ date: holidays.date })
-    .from(holidays)
-    .where(and(eq(holidays.companyId, companyId), between(holidays.date, from, to)));
-  const punches = await tx
-    .select()
-    .from(attendanceLogs)
-    .where(
-      and(
-        inArray(attendanceLogs.employeeId, employeeIds),
-        between(attendanceLogs.at, atMinute(from, -2 * DAY_MINUTES), atMinute(to, 3 * DAY_MINUTES)),
+  const [
+    companyRows,
+    rules,
+    shiftRows,
+    cells,
+    holidayRows,
+    punches,
+    requestRows,
+    explanationRows,
+    approvalRows,
+  ] = await Promise.all([
+    tx.select().from(companies).where(eq(companies.id, companyId)),
+    loadEmployeeRules(tx, employeeIds),
+    tx.select().from(shifts).where(eq(shifts.companyId, companyId)),
+    tx
+      .select()
+      .from(scheduleCells)
+      .where(
+        and(
+          inArray(scheduleCells.employeeId, employeeIds),
+          between(scheduleCells.date, addDays(from, -1), to),
+        ),
       ),
-    );
-  const requestRows = await tx
-    .select()
-    .from(requests)
-    .where(
-      and(
-        inArray(requests.employeeId, employeeIds),
-        eq(requests.status, 'approved'),
-        lte(requests.fromDate, to),
-        gte(requests.toDate, from),
+    tx
+      .select({ date: holidays.date })
+      .from(holidays)
+      .where(and(eq(holidays.companyId, companyId), between(holidays.date, from, to))),
+    tx
+      .select()
+      .from(attendanceLogs)
+      .where(
+        and(
+          inArray(attendanceLogs.employeeId, employeeIds),
+          between(attendanceLogs.at, atMinute(from, -2 * DAY_MINUTES), atMinute(to, 3 * DAY_MINUTES)),
+        ),
       ),
-    );
-  const explanationRows = await tx
-    .select()
-    .from(explanations)
-    .where(and(inArray(explanations.employeeId, employeeIds), between(explanations.date, from, to)));
-  const approvalRows = await tx
-    .select()
-    .from(approvals)
-    .where(
-      and(
-        inArray(approvals.employeeId, employeeIds),
-        between(approvals.date, from, to),
-        isNull(approvals.revokedAt),
+    tx
+      .select()
+      .from(requests)
+      .where(
+        and(
+          inArray(requests.employeeId, employeeIds),
+          eq(requests.status, 'approved'),
+          lte(requests.fromDate, to),
+          gte(requests.toDate, from),
+        ),
       ),
-    );
+    tx
+      .select()
+      .from(explanations)
+      .where(and(inArray(explanations.employeeId, employeeIds), between(explanations.date, from, to))),
+    tx
+      .select()
+      .from(approvals)
+      .where(
+        and(
+          inArray(approvals.employeeId, employeeIds),
+          between(approvals.date, from, to),
+          isNull(approvals.revokedAt),
+        ),
+      ),
+  ]);
 
   return {
-    company: company!,
+    company: companyRows[0]!,
     rules,
     shifts: shiftRows as EngineShift[],
-    cells,
+    cells: new Map(cells.map((cell) => [`${cell.employeeId}|${cell.date}`, cell])),
     holidayDates: new Set(holidayRows.map(({ date }) => date)),
-    punches,
-    requests: requestRows,
-    explanations: explanationRows,
-    approvals: approvalRows,
+    punches: byEmployee(punches),
+    requests: byEmployee(requestRows),
+    explanations: byEmployee(explanationRows),
+    approvals: byEmployee(approvalRows),
   };
 }
 
@@ -167,14 +196,13 @@ function dayInput(loaded: Loaded, employeeId: string, date: string): DayInput | 
   if (!rules) return null;
   const { otRates, ...employee } = rules;
   const { company, shifts: library } = loaded;
-  const mine = <T extends { employeeId: string }>(rows: T[]) =>
-    rows.filter((row) => row.employeeId === employeeId);
   const cellOf = (day: string) => {
-    const cell = loaded.cells.find((row) => row.employeeId === employeeId && row.date === day);
+    const cell = loaded.cells.get(`${employeeId}|${day}`);
     return cell ? { shiftIds: cell.shiftIds, isOff: cell.isOff } : null;
   };
   const dayStart = atMinute(date, -DAY_MINUTES).getTime();
   const dayEnd = atMinute(date, 2 * DAY_MINUTES).getTime();
+  const mine = <T>(rows: Map<string, T[]>) => rows.get(employeeId) ?? [];
 
   return {
     date,

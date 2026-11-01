@@ -721,6 +721,17 @@ describe('ngoài bộ ca kiểm thử', () => {
     expect(records.map(({ shiftId, status }) => [shiftId, status])).toEqual([[null, 'ngoai_lich']]);
   });
 
+  it.each(Array.from({ length: 24 }, (_, hour) => hour))('chấm lúc %i giờ luôn ra kết quả hợp lệ', (hour) => {
+    const at = `${String(hour).padStart(2, '0')}:30`;
+    const chosen = { chosenShiftId: SANG.id };
+    const noSchedule = computeDay(input({ punches: [punch('in', at, chosen)] }), AFTER_WINDOW);
+    expect(noSchedule).toHaveLength(1);
+    expect(noSchedule[0]!.needsReview).toBe(true);
+
+    const scheduled = computeDay(onShift(SANG, [punch('in', at, chosen)]), AFTER_WINDOW);
+    expect(scheduled.filter(({ shiftId }) => shiftId === SANG.id)).toHaveLength(1);
+  });
+
   it('chọn đúng ca có lịch nhưng chấm sau giờ ra không tạo hai dòng cùng ca', () => {
     const chosen = { chosenShiftId: SANG.id };
     const records = computeDay(onShift(SANG, [punch('in', '20:21', chosen)]), AFTER_WINDOW);

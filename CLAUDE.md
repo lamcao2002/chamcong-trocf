@@ -69,6 +69,9 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S2-12 → S2-14 Xếp ca | Code xong API và màn A4, đã thử trên Chrome 375 và 1440 px |
 | S2-15 → S2-18 Chấm công | Code xong API và màn M2, đã thử trên Chrome giả lập GPS; **chưa thử điện thoại thật** |
 | S2-19 Kiểm tra ngày công | Code xong `GET /day` và màn tạm ở `/app/bang-cong`, Sprint 3 thay bằng Bảng công |
+| S2-20 Test API | Code xong: 163 test, gồm chạy song song, kỳ đã công bố, chặn trang theo quyền |
+| S2-21 Thử điện thoại thật | **Chưa làm**, cần người thử tại quán, phiếu thử ở `docs/product/05-sprint-2.md` |
+| S2-22 Triển khai, demo | Đã đẩy nhánh `feat/sprint2`; **chưa so ngày công với tính tay, chưa demo** |
 
 Cập nhật bảng này khi xong một việc.
 
