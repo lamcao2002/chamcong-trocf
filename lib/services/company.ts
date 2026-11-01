@@ -7,6 +7,10 @@ import { getDb } from '@/lib/db/client';
 import { companies } from '@/lib/db/schema';
 import type { CompanyInput } from '@/lib/validation/company';
 import { actorOf } from './actor';
+import { recomputeOpenPeriod, rulesChanged } from './recompute';
+
+/** Quy tắc làm đổi ngày công; đổi tên hay địa chỉ thì khỏi tính lại. */
+const COMPANY_RULES = ['graceMode', 'otBefore', 'otMin', 'otFromRequest'] as const;
 
 export async function getCompany(ctx: AuthContext) {
   const [company] = await getDb().select().from(companies).where(eq(companies.id, ctx.company.id));
@@ -34,6 +38,7 @@ export async function updateCompany(ctx: AuthContext, input: Partial<CompanyInpu
       before,
       after: company,
     });
+    if (rulesChanged(before, company!, COMPANY_RULES)) await recomputeOpenPeriod(tx, ctx.company.id);
     return company!;
   });
 }

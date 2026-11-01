@@ -7,6 +7,7 @@ import { getDb } from '@/lib/db/client';
 import { employees, locations, positionLocations, positions, positionShifts, shifts } from '@/lib/db/schema';
 import type { PositionInput } from '@/lib/validation/position';
 import { actorOf } from './actor';
+import { recomputeOpenPeriod, rulesChanged } from './recompute';
 import { assertOwned } from './references';
 
 export async function listPositions(ctx: AuthContext) {
@@ -41,6 +42,17 @@ export async function listPositions(ctx: AuthContext) {
     headcount: headcounts.find((row) => row.positionId === position.id)?.total ?? 0,
   }));
 }
+
+/** Trường làm đổi ngày công; đổi tên hay mức lương thì khỏi tính lại. */
+const POSITION_RULES = [
+  'shiftMode',
+  'fixedShiftId',
+  'workDays',
+  'otWeekday',
+  'otSaturday',
+  'otOffday',
+  'otHoliday',
+] as const;
 
 export type PositionView = Awaited<ReturnType<typeof listPositions>>[number];
 
@@ -103,6 +115,17 @@ export async function updatePosition(
       before,
       after: input,
     });
+    if (rulesChanged(before, position!, POSITION_RULES)) {
+      const holders = await tx
+        .select({ id: employees.id })
+        .from(employees)
+        .where(eq(employees.positionId, id));
+      await recomputeOpenPeriod(
+        tx,
+        ctx.company.id,
+        holders.map((holder) => holder.id),
+      );
+    }
     return position!;
   });
 }

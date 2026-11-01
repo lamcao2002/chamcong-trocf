@@ -21,6 +21,13 @@ export function weekDay(date: string): number {
   return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
+/** Ngày cách `date` một số ngày, cùng định dạng `YYYY-MM-DD`. */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MINUTES * MINUTE_MS)
+    .toISOString()
+    .slice(0, 10);
+}
+
 /** "23:38"; phút vượt qua nửa đêm quay về đầu ngày. */
 export function clock(minute: number): string {
   const wrapped = ((minute % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;

@@ -1,3 +1,4 @@
+import { offsetFrom, toMinutes } from '@/lib/domain/shift';
 import { expectedShifts, type ExpectedReason } from './expected-shifts';
 import {
   matchPunches,
@@ -7,9 +8,10 @@ import {
   type TimedPunch,
 } from './match-punches';
 import { atMinute, clock, duration, minuteOfDay, weekDay } from './time';
-import type { DayInput, DayRecord, DayStatus, EngineShift, Suggestion } from './types';
+import type { DayInput, DayRecord, DayStatus, EngineApproval, EngineShift, Suggestion } from './types';
 
 const SATURDAY = 6;
+const DAY_MINUTES = 24 * 60;
 /** Sau mốc này lần vào chưa có lần ra mới thành thiếu giờ, khớp cửa sổ ghép lần ra. */
 const OPEN_SHIFT_MINUTES = 6 * 60;
 
@@ -47,12 +49,56 @@ function blankRecord({ date, isHoliday }: DayInput, shiftId: string | null, stat
   };
 }
 
+/** Đề xuất còn hiệu lực khi cờ tương ứng chưa được duyệt. */
+const SUGGESTION_FLAGS: Record<Suggestion['kind'], readonly string[]> = {
+  approve_cong: ['thieu_vao', 'thieu_ra'],
+  approve_ot: ['ot_cho'],
+  approve_gps: ['gps'],
+  confirm_shift: ['sai_ca'],
+  approve_shift: ['ngoai_lich'],
+};
+
 function finish(record: DayRecord): DayRecord {
-  const otPending = record.otProposed > 0;
+  const { flags, otProposed, otApproved, suggestions } = record;
+  const otDecided = otProposed > 0 || otApproved > 0;
   return {
     ...record,
-    otState: otPending ? 'cho_duyet' : 'none',
-    needsReview: record.flags.some((flag) => REVIEW_FLAGS.has(flag)),
+    otState: flags.includes('ot_cho') ? 'cho_duyet' : otDecided ? 'da_duyet' : 'none',
+    needsReview: flags.some((flag) => REVIEW_FLAGS.has(flag)),
+    suggestions: suggestions.filter(({ kind }) =>
+      SUGGESTION_FLAGS[kind].some((flag) => flags.includes(flag)),
+    ),
+  };
+}
+
+/** Cờ mà một quyết định của quản lý đóng lại. */
+function closedFlags({
+  otMinutes,
+  approveGps,
+  confirmShiftId,
+  approveMissing,
+  congOverride,
+}: EngineApproval) {
+  return [
+    ...(otMinutes === null ? [] : ['ot_cho']),
+    ...(approveGps ? ['gps'] : []),
+    ...(confirmShiftId ? ['sai_ca', 'ngoai_lich'] : []),
+    ...(approveMissing || congOverride !== null ? ['thieu_vao', 'thieu_ra', 'vang', 'ngoai_lich'] : []),
+  ];
+}
+
+/** Duyệt không sửa lần chấm gốc: áp sau cùng lên kết quả đã tính, hoàn duyệt là bỏ khỏi đầu vào. */
+function applyApproval(record: DayRecord, approvals: DayInput['approvals']): DayRecord {
+  const approval = approvals.find(({ shiftId }) => shiftId === record.shiftId);
+  if (!approval) return record;
+  const closed = closedFlags(approval);
+  return {
+    ...record,
+    flags: record.flags.filter((flag) => !closed.includes(flag)),
+    cong: approval.congOverride ?? (approval.approveMissing ? 1 : record.cong),
+    otApproved: approval.otMinutes ?? record.otApproved,
+    waivedLate: approval.waiveLate,
+    waivedEarly: approval.waiveEarly,
   };
 }
 
@@ -98,7 +144,9 @@ function latenessMinutes(shift: EngineShift, raw: number, graceMode: DayInput['c
   return graceMode === 'toan_bo' ? raw : raw - shift.graceMin;
 }
 
-type Overtime = { minutes: number; why: string };
+type Interval = [from: number, to: number];
+
+type Overtime = { minutes: number; why: string; intervals: Interval[] };
 
 /** Bước E: OT luôn chỉ là đề xuất. Lễ tính toàn bộ phút làm, phần trước/sau ca đủ ngưỡng cộng thêm. */
 function overtime(
@@ -114,25 +162,50 @@ function overtime(
   const countAfter = after >= threshold;
   const extra = (countBefore ? before : 0) + (countAfter ? after : 0);
   const reason = `vượt mức tối thiểu tính OT`;
+  const intervals: Interval[] = [
+    ...(countBefore ? [[inMinute, window.start] as Interval] : []),
+    ...(countAfter ? [[window.end, outMinute] as Interval] : []),
+  ];
 
   if (isHoliday) {
     const minutes = worked + extra;
-    return minutes > 0 ? { minutes, why: `Đi làm ngày lễ, tính OT ${duration(minutes)}` } : null;
+    const inShift: Interval = [Math.max(inMinute, window.start), Math.min(outMinute, window.end)];
+    return minutes > 0
+      ? { minutes, why: `Đi làm ngày lễ, tính OT ${duration(minutes)}`, intervals: [inShift, ...intervals] }
+      : null;
   }
   if (extra === 0) return null;
   if (countAfter && !countBefore) {
     const why = `Ra ca lúc ${clock(outMinute)}, sau giờ hết ca (${clock(window.end)}) ${duration(after)} — ${reason}`;
-    return { minutes: extra, why };
+    return { minutes: extra, why, intervals };
   }
   if (countBefore && !countAfter) {
     const why = `Vào ca lúc ${clock(inMinute)}, trước giờ vào ca (${clock(window.start)}) ${duration(before)} — ${reason}`;
-    return { minutes: extra, why };
+    return { minutes: extra, why, intervals };
   }
-  return { minutes: extra, why: `Làm ngoài giờ ca ${duration(extra)} — ${reason}` };
+  return { minutes: extra, why: `Làm ngoài giờ ca ${duration(extra)} — ${reason}`, intervals };
 }
 
-function otSuggestion({ minutes, why }: Overtime): Suggestion {
-  return { kind: 'approve_ot', label: `Duyệt ${minutes} phút`, why, otMinutes: minutes };
+/** Phút OT nằm trong khung của đơn làm thêm đã duyệt; phần vượt đơn vẫn chờ duyệt (T15). */
+function minutesCoveredByRequest({ minutes, intervals }: Overtime, { company, requests }: DayInput): number {
+  if (!company.otFromRequest) return 0;
+  let covered = 0;
+  for (const request of requests) {
+    if (request.type !== 'overtime') continue;
+    const from = toMinutes(request.from);
+    const span = offsetFrom(request.from, request.to);
+    // Mốc của ca đêm nằm trên trục sau nửa đêm nên xét khung đơn ở cả hai ngày
+    for (const start of [from, from + DAY_MINUTES]) {
+      for (const [intervalFrom, intervalTo] of intervals) {
+        covered += Math.max(0, Math.min(intervalTo, start + span) - Math.max(intervalFrom, start));
+      }
+    }
+  }
+  return Math.min(minutes, covered);
+}
+
+function otSuggestion(pending: number, why: string): Suggestion {
+  return { kind: 'approve_ot', label: `Duyệt ${pending} phút`, why, otMinutes: pending };
 }
 
 const GPS_SUGGESTION: Suggestion = {
@@ -151,16 +224,30 @@ function shiftSuggestion(shift: EngineShift): Suggestion {
 }
 
 /** Bước F: dòng trên thắng, theo bảng trạng thái của đặc tả. */
-function pickStatus(record: DayRecord, open: boolean, cong: number): DayStatus {
-  const { flags, lateMin, earlyMin } = record;
+function pickStatus(record: DayRecord, open: boolean): DayStatus {
+  const { flags, lateMin, earlyMin, waivedLate, waivedEarly, cong, offDay, inAt, outAt } = record;
   if (open) return 'dang_lam';
+  if (flags.includes('vang')) return 'vang';
   if (flags.includes('thieu_vao') || flags.includes('thieu_ra')) return 'thieu_gio';
   if (flags.includes('sai_ca')) return 'sai_ca';
   if (flags.includes('gps')) return 'ngoai_vung';
   if (flags.includes('ngoai_lich')) return 'ngoai_lich';
   if (flags.includes('ot_cho')) return 'ot_cho';
-  if (lateMin > 0 || earlyMin > 0) return 'muon';
-  return cong >= 1 ? 'du' : 'nua_cong';
+  if ((lateMin > 0 && !waivedLate) || (earlyMin > 0 && !waivedEarly)) return 'muon';
+  if (cong >= 1 || offDay) return 'du';
+  return inAt || outAt ? 'nua_cong' : 'vang';
+}
+
+/** Áp duyệt rồi mới chốt phạt và trạng thái, để ngày đã duyệt không còn hiện là cần xử lý. */
+function settle(record: DayRecord, input: DayInput, open = false): DayRecord {
+  const applied = applyApproval(record, input.approvals);
+  const lateMin = applied.waivedLate ? 0 : applied.lateMin;
+  const earlyMin = applied.waivedEarly ? 0 : applied.earlyMin;
+  return finish({
+    ...applied,
+    penalty: (lateMin + earlyMin) * input.penaltyPerMin,
+    status: pickStatus(applied, open),
+  });
 }
 
 type ShiftRecordOptions = {
@@ -176,8 +263,14 @@ function noPunchRecord(slot: ShiftPunches, { input, nowMinute }: Context, expect
   if (input.isHoliday && input.employee.shiftMode === 'fixed') {
     return finish({ ...base, status: 'le', cong: expectedCong });
   }
+  const leave = input.requests.find((request) => request.type === 'leave');
+  if (leave) {
+    const cong = leave.leaveType === 'annual' ? expectedCong : 0;
+    return finish({ ...base, status: 'nghi_phep', cong });
+  }
   if (nowMinute < end) return finish(base);
-  return finish({ ...base, status: 'vang', flags: ['vang'] });
+  const reason = input.explanations.find(({ shiftId }) => shiftId === shift.id)?.reason;
+  return settle({ ...base, flags: ['vang'], notes: reason ? [`Giải trình: ${reason}`] : [] }, input);
 }
 
 function shiftRecord(slot: ShiftPunches, context: Context, options: ShiftRecordOptions = {}): DayRecord {
@@ -196,6 +289,9 @@ function shiftRecord(slot: ShiftPunches, context: Context, options: ShiftRecordO
   const lateMin = inMinute === null ? 0 : latenessMinutes(shift, inMinute - window.start, graceMode);
   const earlyMin = outMinute === null ? 0 : latenessMinutes(shift, window.end - outMinute, graceMode);
   const ot = overtime(slot, worked, input);
+  const otApproved = ot ? minutesCoveredByRequest(ot, input) : 0;
+  const otPending = ot ? ot.minutes - otApproved : 0;
+  const explanation = input.explanations.find(({ shiftId }) => shiftId === shift.id)?.reason;
 
   const chosenElsewhere = punches.some(
     ({ chosenShiftId }) => chosenShiftId !== null && chosenShiftId !== shift.id,
@@ -207,10 +303,13 @@ function shiftRecord(slot: ShiftPunches, context: Context, options: ShiftRecordO
     ...(chosenElsewhere && !options.temporary ? ['sai_ca'] : []),
     ...(outOfZone ? ['gps'] : []),
     ...(options.temporary ? ['ngoai_lich'] : []),
-    ...(ot ? ['ot_cho'] : []),
+    ...(otPending > 0 ? ['ot_cho'] : []),
   ];
 
   const suggestions: Suggestion[] = [
+    ...(explanation
+      ? [{ kind: 'approve_cong' as const, label: 'Duyệt 1 công', why: `Có giải trình: ${explanation}` }]
+      : []),
     ...(flags.includes('sai_ca')
       ? [
           {
@@ -223,25 +322,27 @@ function shiftRecord(slot: ShiftPunches, context: Context, options: ShiftRecordO
       : []),
     ...(outOfZone ? [GPS_SUGGESTION] : []),
     ...(options.temporary ? [shiftSuggestion(shift)] : []),
-    ...(ot ? [otSuggestion(ot)] : []),
+    ...(ot ? [otSuggestion(otPending, ot.why)] : []),
   ];
 
+  const shown = evidence(input.date, inMinute, outMinute);
   const record: DayRecord = {
     ...blankRecord(input, shift.id, 'du'),
-    ...evidence(input.date, inMinute, outMinute),
+    ...shown,
+    notes: [...shown.notes, ...(explanation ? [`Giải trình: ${explanation}`] : [])],
     workedMin: worked,
     cong,
     expectedCong,
     lateMin,
     earlyMin,
     otProposed: ot?.minutes ?? 0,
+    otApproved,
     otRate: ot ? otRate(input, false) : 0,
-    penalty: (lateMin + earlyMin) * input.penaltyPerMin,
     missing: flags.filter((flag) => flag === 'thieu_vao' || flag === 'thieu_ra').length,
     flags,
     suggestions,
   };
-  return finish({ ...record, status: pickStatus(record, open, cong) });
+  return settle(record, input, open);
 }
 
 /** Lần chấm không ghép được ca nào; gom một dòng không gắn ca để Hộp việc xử lý (T32). */
@@ -250,15 +351,18 @@ function unmatchedRecord(punches: readonly TimedPunch[], input: DayInput): DayRe
     punches.filter((punch) => punch.type === type).map(({ minute }) => minute);
   const ins = minutes('in');
   const outs = minutes('out');
-  return finish({
-    ...blankRecord(input, null, 'ngoai_lich'),
-    ...evidence(
-      input.date,
-      ins.length > 0 ? Math.min(...ins) : null,
-      outs.length > 0 ? Math.max(...outs) : null,
-    ),
-    flags: ['ngoai_lich'],
-  });
+  return settle(
+    {
+      ...blankRecord(input, null, 'ngoai_lich'),
+      ...evidence(
+        input.date,
+        ins.length > 0 ? Math.min(...ins) : null,
+        outs.length > 0 ? Math.max(...outs) : null,
+      ),
+      flags: ['ngoai_lich'],
+    },
+    input,
+  );
 }
 
 /** Đi làm ngày nghỉ tuần: không có ca nên không có công, toàn bộ phút làm là OT đề xuất (T35). */
@@ -267,23 +371,32 @@ function offDayRecord(punches: readonly TimedPunch[], input: DayInput): DayRecor
   const outs = punches.filter(({ type }) => type === 'out').map(({ minute }) => minute);
   const inMinute = ins.length > 0 ? Math.min(...ins) : null;
   const outMinute = outs.length > 0 ? Math.max(...outs) : null;
-  const base = { ...blankRecord(input, null, 'ot_cho'), ...evidence(input.date, inMinute, outMinute) };
-  const offDay = { ...base, offDay: true };
+  const offDay = {
+    ...blankRecord(input, null, 'ot_cho'),
+    ...evidence(input.date, inMinute, outMinute),
+    offDay: true,
+  };
 
   if (inMinute === null || outMinute === null) {
-    const flag = inMinute === null ? 'thieu_vao' : 'thieu_ra';
-    return finish({ ...offDay, status: 'thieu_gio', flags: [flag], missing: 1 });
+    return settle({ ...offDay, flags: [inMinute === null ? 'thieu_vao' : 'thieu_ra'], missing: 1 }, input);
   }
   const minutes = Math.max(0, outMinute - inMinute);
   const why = `Đi làm ngày nghỉ tuần ${duration(minutes)}, tính toàn bộ là OT`;
-  return finish({
-    ...offDay,
-    workedMin: minutes,
-    otProposed: minutes,
-    otRate: otRate(input, true),
-    flags: ['ot_cho'],
-    suggestions: [otSuggestion({ minutes, why })],
-  });
+  const ot: Overtime = { minutes, why, intervals: [[inMinute, outMinute]] };
+  const otApproved = minutesCoveredByRequest(ot, input);
+  const pending = minutes - otApproved;
+  return settle(
+    {
+      ...offDay,
+      workedMin: minutes,
+      otProposed: minutes,
+      otApproved,
+      otRate: otRate(input, true),
+      flags: pending > 0 ? ['ot_cho'] : [],
+      suggestions: [otSuggestion(pending, why)],
+    },
+    input,
+  );
 }
 
 /** Ngày không có ca kỳ vọng: lần chấm nếu có thành OT ngày nghỉ hoặc ca ngoài lịch. */
@@ -303,10 +416,15 @@ function withoutExpectedShift(
   const fixedId = reason === 'off' ? input.employee.fixedShiftId : null;
   const temporary = input.shifts.find(({ id }) => id === (chosenId ?? fixedId));
   if (!temporary) return [unmatchedRecord(unmatched, input)];
+  const confirmed = input.approvals.some(
+    ({ shiftId, confirmShiftId }) => shiftId === temporary.id && confirmShiftId,
+  );
 
   const { slots, unmatched: outside } = matchPunches([shiftWindow(temporary)], unmatched, []);
   return [
-    ...slots.map((slot) => shiftRecord(slot, context, { temporary: true, noCong: reason === 'off' })),
+    ...slots.map((slot) =>
+      shiftRecord(slot, context, { temporary: true, noCong: reason === 'off' && !confirmed }),
+    ),
     ...(outside.length > 0 ? [unmatchedRecord(outside, input)] : []),
   ];
 }

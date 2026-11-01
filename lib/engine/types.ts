@@ -97,7 +97,7 @@ export type DayInput = {
 };
 
 export type Suggestion = {
-  kind: 'approve_ot' | 'approve_gps' | 'confirm_shift' | 'approve_shift';
+  kind: 'approve_cong' | 'approve_ot' | 'approve_gps' | 'confirm_shift' | 'approve_shift';
   label: string;
   why: string;
   otMinutes?: number;

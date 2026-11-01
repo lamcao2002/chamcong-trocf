@@ -134,8 +134,6 @@ type Case = {
   title: string;
   input: DayInput;
   now?: Date;
-  /** Cần áp đơn và duyệt, sẽ bật ở S2-08. */
-  pending?: boolean;
   check: (records: DayRecord[]) => void;
 };
 
@@ -243,14 +241,12 @@ const CASES: Case[] = [
   {
     id: 'T14',
     title: 'duyệt OT khác đề xuất',
-    pending: true,
     input: { ...T10, approvals: [approval({ shiftId: CA2.id, otMinutes: 90 })] },
     check: expectOne({ otApproved: 90, needsReview: false }),
   },
   {
     id: 'T15',
     title: 'OT theo đơn đã duyệt',
-    pending: true,
     input: {
       ...T10,
       company: { ...T10.company, otFromRequest: true },
@@ -261,7 +257,6 @@ const CASES: Case[] = [
   {
     id: 'T16',
     title: 'không tính OT',
-    pending: true,
     input: { ...T10, approvals: [approval({ shiftId: CA2.id, otMinutes: 0 })] },
     check: expectOne({ otApproved: 0, needsReview: false }),
   },
@@ -292,7 +287,6 @@ const CASES: Case[] = [
   {
     id: 'T20',
     title: 'thiếu giờ có giải trình',
-    pending: true,
     input: { ...T17, explanations: [{ shiftId: SANG.id, reason: 'ra 12:05 quên bấm' }] },
     check: (records) => expect(label(records[0])).toBe('Duyệt 1 công'),
   },
@@ -434,21 +428,18 @@ const CASES: Case[] = [
   {
     id: 'T36',
     title: 'phép năm',
-    pending: true,
     input: onShift(CA1, [], { requests: [annualLeave] }),
     check: expectOne({ status: 'nghi_phep', cong: 1 }),
   },
   {
     id: 'T37',
     title: 'phép năm, ca ghép',
-    pending: true,
     input: onShift(SANG, [], { requests: [annualLeave] }),
     check: expectOne({ status: 'nghi_phep', cong: 0.5 }),
   },
   {
     id: 'T38',
     title: 'nghỉ ốm',
-    pending: true,
     input: onShift(CA1, [], { requests: [{ type: 'leave', leaveType: 'sick' }] }),
     check: expectOne({ status: 'nghi_phep', cong: 0, needsReview: false }),
   },
@@ -505,14 +496,12 @@ const CASES: Case[] = [
   {
     id: 'T47',
     title: 'tha muộn',
-    pending: true,
     input: { ...T03, penaltyPerMin: 1000, approvals: [approval({ waiveLate: true })] },
     check: expectOne({ lateMin: 14, waivedLate: true, penalty: 0 }),
   },
   {
     id: 'T48',
     title: 'duyệt vắng thành 1 công',
-    pending: true,
     input: { ...T19, approvals: [approval({ congOverride: 1 })] },
     check: expectOne({ cong: 1, needsReview: false }),
   },
@@ -525,7 +514,6 @@ const CASES: Case[] = [
   {
     id: 'T50',
     title: 'hoàn duyệt trở về kết quả hệ thống',
-    pending: true,
     // Dòng duyệt đã thu hồi không được service truyền vào engine
     input: T19,
     check: expectOne({ status: 'vang', cong: 0, needsReview: true }),
@@ -566,8 +554,8 @@ describe('bộ ca kiểm thử của đặc tả', () => {
     expect(CASES.map(({ id }) => id)).toEqual(expected);
   });
 
-  for (const { id, title, input: dayInput, now, pending, check } of CASES) {
-    (pending ? it.skip : it)(`${id} ${title}`, () => check(computeDay(dayInput, now ?? AFTER_WINDOW)));
+  for (const { id, title, input: dayInput, now, check } of CASES) {
+    it(`${id} ${title}`, () => check(computeDay(dayInput, now ?? AFTER_WINDOW)));
   }
 });
 
@@ -633,6 +621,75 @@ describe('ngoài bộ ca kiểm thử', () => {
       new Date('2026-10-12T12:00:00+07:00'),
     );
     expect(record[0]).toMatchObject({ offDay: true, otRate: 150 });
+  });
+
+  it('T14, T16, T47, T48 chốt trạng thái sau khi áp duyệt', () => {
+    const decided = (dayInput: DayInput) => computeDay(dayInput, AFTER_WINDOW)[0];
+    const approved = { ...T10, approvals: [approval({ shiftId: CA2.id, otMinutes: 90 })] };
+    expect(decided(approved)).toMatchObject({ status: 'du', otState: 'da_duyet', suggestions: [] });
+    const waived = { ...T03, approvals: [approval({ waiveLate: true })] };
+    expect(decided(waived)).toMatchObject({ status: 'du' });
+    const paid = { ...T19, approvals: [approval({ congOverride: 1 })] };
+    expect(decided(paid)).toMatchObject({ status: 'du' });
+    const unpaid = { ...T19, approvals: [approval({ congOverride: 0 })] };
+    expect(decided(unpaid)).toMatchObject({ status: 'vang', cong: 0, needsReview: false });
+  });
+
+  it('duyệt vị trí chỉ đóng cờ GPS, OT vẫn chờ', () => {
+    const both = onShift(CA2, [punch('in', '14:00', { inZone: false }), punch('out', '23:00')]);
+    const record = computeDay(
+      { ...both, approvals: [approval({ shiftId: CA2.id, approveGps: true })] },
+      AFTER_WINDOW,
+    )[0];
+    expect(record).toMatchObject({ status: 'ot_cho', needsReview: true });
+    expect(record!.flags).toEqual(['ot_cho']);
+  });
+
+  it('duyệt thiếu giờ coi như đủ công', () => {
+    const record = computeDay(
+      { ...T17, approvals: [approval({ shiftId: SANG.id, approveMissing: true })] },
+      AFTER_WINDOW,
+    )[0];
+    expect(record).toMatchObject({ cong: 1, needsReview: false, suggestions: [] });
+  });
+
+  it('xác nhận ca đã làm ngày Cho nghỉ thì có công', () => {
+    const offDay = fixed(CA1, pair('06:00', '14:00'), {
+      schedule: offCell,
+      approvals: [approval({ confirmShiftId: CA1.id })],
+    });
+    expect(computeDay(offDay, AFTER_WINDOW)[0]).toMatchObject({ cong: 1, needsReview: false });
+  });
+
+  it('đơn làm thêm phủ hết OT thì không còn chờ duyệt', () => {
+    const covered = {
+      ...T10,
+      company: { ...T10.company, otFromRequest: true },
+      requests: [{ type: 'overtime', from: '22:00', to: '23:45' } as const],
+    };
+    expect(computeDay(covered, AFTER_WINDOW)[0]).toMatchObject({
+      status: 'du',
+      otApproved: 98,
+      otState: 'da_duyet',
+      needsReview: false,
+    });
+  });
+
+  it('đơn làm thêm sau nửa đêm phủ được OT của ca đêm', () => {
+    const night = onShift(
+      DEM,
+      [punch('in', '22:00'), { ...punch('out', '07:00'), at: time('07:00', NEXT_DATE) }],
+      {
+        company: { ...input().company, otFromRequest: true },
+        requests: [{ type: 'overtime', from: '06:00', to: '06:30' }],
+      },
+    );
+    expect(computeDay(night, AFTER_WINDOW)[0]).toMatchObject({ otProposed: 60, otApproved: 30 });
+  });
+
+  it('có đơn phép nhưng vẫn đi làm thì tính theo lần chấm', () => {
+    const worked = onShift(CA1, pair('06:00', '14:00'), { requests: [annualLeave] });
+    expect(computeDay(worked, AFTER_WINDOW)[0]).toMatchObject({ status: 'du', cong: 1 });
   });
 
   it('muộn đúng bằng mức cho phép chưa tính muộn', () => {

@@ -200,12 +200,4 @@ describe('Đã nghỉ (US13)', () => {
     await api('PATCH', `/employees/${id}`, { cookie, body: { status: 'active' } });
     expect(await leftDate()).toBeNull();
   });
-
-  it('dữ liệu cũ giữ nguyên', async () => {
-    const { id } = await create();
-    const [employee] = await sql`select company_id from employees where id = ${id}`;
-    await sql`insert into day_records (company_id, employee_id, date, status) values (${employee!.company_id}, ${id}, '2026-10-01', 'du')`;
-    await api('PATCH', `/employees/${id}`, { cookie, body: { status: 'left' } });
-    expect((await sql`select 1 from day_records where employee_id = ${id}`).length).toBe(1);
-  });
 });

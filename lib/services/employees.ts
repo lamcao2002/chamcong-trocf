@@ -26,6 +26,7 @@ import { generatePin } from '@/lib/domain/pin';
 import type { EmployeeCreateInput, EmployeePatchInput } from '@/lib/validation/employee';
 import { actorOf } from './actor';
 import { vietnamToday } from '@/lib/domain/date';
+import { recomputeOpenPeriod } from './recompute';
 import { assertOwned } from './references';
 
 /** Không có `pin_hash` và bộ đếm PIN: mọi đọc nhân viên ra API đều qua danh sách cột này. */
@@ -42,6 +43,9 @@ const PUBLIC_COLUMNS = {
   positionId: employees.positionId,
   payOverride: employees.payOverride,
 };
+
+/** Trường làm đổi ngày công của người đó. */
+const EMPLOYEE_RULES = ['positionId', 'onboardDate', 'status', 'payOverride'] as const;
 
 const EMAIL_TAKEN = new ApiError(409, 'Email đã có người dùng', { email: 'Email đã có người dùng' });
 
@@ -223,6 +227,10 @@ export async function updateEmployee(
         before,
         after: { ...fields, ...leftDate, shiftIds, locationIds },
       });
+      const touchesCong =
+        shiftIds !== undefined ||
+        EMPLOYEE_RULES.some((key) => fields[key] !== undefined && fields[key] !== before[key]);
+      if (touchesCong) await recomputeOpenPeriod(tx, ctx.company.id, [id]);
     });
   } catch (error) {
     throw isUniqueViolation(error) ? EMAIL_TAKEN : error;

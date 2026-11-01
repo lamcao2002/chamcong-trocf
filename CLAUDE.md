@@ -62,7 +62,11 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S2-01 Hạ tầng | `vercel.json` vùng `sin1`, `loading.tsx` cho `(shell)` và `/m` xong, chưa triển khai; **còn đặt `APP_ENV=staging` trên Vercel và đo lại trên staging** |
 | S2-02 Chốt quyết định | Xong: 17 quyết định đã ghi vào đặc tả, thêm T51–T53 |
 | S2-03 `employees.left_date` | Code xong, đã chạy trên PostgreSQL tạm — **chưa áp lên Supabase, phải migrate trước khi triển khai** |
-| S2-04 → S2-07 Engine bước A–F | Code xong trong `lib/engine/`: 43/53 ca chạy xanh; 10 ca cần đơn và duyệt đang `skip`, S2-08 bật lại |
+| S2-04 → S2-08 Engine | Code xong trong `lib/engine/`: 53/53 ca chạy xanh, gồm áp đơn và duyệt |
+| S2-09 Service tính lại | Code xong `lib/services/recompute.ts`, đã chạy trên PostgreSQL tạm |
+| S2-10 Gắn tính lại | Xong với lịch, ca, vị trí, nhân viên, ngày lễ, cài đặt; **còn `/app/punch` chờ S2-16** |
+| S2-11 Cron | Code xong; **cần đặt `CRON_SECRET` trên Vercel** |
+| S2-12 API lịch | Code xong `GET`, `PUT /schedule`, chưa có màn A4 (S2-13) |
 
 Cập nhật bảng này khi xong một việc.
 
@@ -90,6 +94,7 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Route API bọc `withAuth`, trang quản trị gọi `requireAdminPage` (`lib/auth/guard.ts`); truy vấn lọc bằng `scopeToCompany`/`scopeToStaff`, luật quyền ở `lib/auth/policy.ts`
 - `@ant-design/cssinjs` ghim bản 1.x cùng `antd` 5: lên 2.x sẽ có hai bản, `AntdRegistry` mất CSS phía server và trang nháy form thô
 - Service ở `lib/services/`: mọi truy vấn lọc `company_id`, ID từ client qua `assertOwned`, ghi kèm `writeAudit`; route chỉ parse rồi gọi service
+- Mọi thao tác làm đổi ngày công gọi `recomputeDays` hoặc `recomputeOpenPeriod` trong cùng transaction; `day_records` là kết quả tính lại được, không ghi tay
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
