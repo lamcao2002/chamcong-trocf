@@ -1,12 +1,17 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, useTransition, type CSSProperties } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Drawer, Empty, Grid } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { AdjustDrawer, type AdjustTarget } from '@/components/admin/AdjustDrawer';
+import { useToast } from '@/components/common/useToast';
+import { apiRequest, type ApiResult } from '@/lib/api/client';
 import { formatDate } from '@/lib/format';
 import type { InboxItem, InboxKind, InboxView, OverviewView } from '@/lib/services/inbox';
 import { themeCssVars } from '@/lib/theme/tokens';
+import { decisionOf, InboxActions } from './InboxActions';
 import { InboxDetail } from './InboxDetail';
 import styles from './inbox.module.css';
 
@@ -23,14 +28,89 @@ type InboxPanelProps = {
 /** Màn A2: 4 thẻ số hôm nay, danh sách việc lọc theo loại, chi tiết việc đang chọn (US23–US25). */
 export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
   const desktop = Grid.useBreakpoint().lg ?? false;
+  const router = useRouter();
+  const toast = useToast();
   const [filter, setFilter] = useState<Filter>('all');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // Ẩn ngay việc vừa xử lý, không đợi danh sách mới về
+  const [doneKeys, setDoneKeys] = useState<readonly string[]>([]);
+  const [adjusting, setAdjusting] = useState<AdjustTarget | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [, startRefresh] = useTransition();
+
+  useEffect(() => setDoneKeys([]), [inbox]);
+
+  const visible = inbox.items.filter(({ key }) => !doneKeys.includes(key));
+  const counts = visible.reduce<Partial<Record<InboxKind, number>>>((all, { kind }) => {
+    all[kind] = (all[kind] ?? 0) + 1;
+    return all;
+  }, {});
 
   // Chip về 0 thì biến mất: bộ lọc đang chọn không còn việc nào thì quay về Tất cả
-  const active: Filter = filter !== 'all' && inbox.counts[filter] ? filter : 'all';
-  const items = active === 'all' ? inbox.items : inbox.items.filter(({ kind }) => kind === active);
+  const active: Filter = filter !== 'all' && counts[filter] ? filter : 'all';
+  const items = active === 'all' ? visible : visible.filter(({ kind }) => kind === active);
   const opened = items.find(({ key }) => key === selectedKey) ?? null;
   const selected = opened ?? (desktop ? (items[0] ?? null) : null);
+
+  const moveOn = (key: string) => {
+    const index = items.findIndex((item) => item.key === key);
+    setSelectedKey((items[index + 1] ?? items[index - 1])?.key ?? null);
+  };
+
+  const finish = (item: InboxItem, message: string) => {
+    toast.success(message);
+    moveOn(item.key);
+    setDoneKeys((keys) => [...keys, item.key]);
+    startRefresh(() => router.refresh());
+  };
+
+  const run = async (item: InboxItem, call: Promise<ApiResult<object>>, message: string) => {
+    setBusy(true);
+    const result = await call;
+    setBusy(false);
+    if (result.ok) {
+      finish(item, message);
+      return;
+    }
+    toast.error(result.error);
+    startRefresh(() => router.refresh());
+  };
+
+  const approve = (item: InboxItem) => {
+    const decision = item.suggestion ? decisionOf(item.suggestion, item.otProposed) : null;
+    if (!decision) return;
+    const { employeeId, date, shiftId } = item;
+    void run(
+      item,
+      apiRequest('/api/v1/approvals', 'POST', { employeeId, date, shiftId, ...decision }),
+      'Đã duyệt',
+    );
+  };
+
+  const decide = (item: InboxItem, decision: 'approve' | 'reject', note?: string) => {
+    const url = `/api/v1/requests/${item.requestId}/decide`;
+    const message = decision === 'approve' ? 'Đã duyệt đơn' : 'Đã từ chối đơn';
+    void run(item, apiRequest(url, 'POST', { decision, note }), message);
+  };
+
+  const actions = (item: InboxItem) => (
+    <InboxActions
+      item={item}
+      busy={busy}
+      onApprove={() => approve(item)}
+      onAdjust={() =>
+        setAdjusting({
+          employeeId: item.employeeId,
+          date: item.date,
+          shiftId: item.shiftId,
+          title: `${item.employeeName} · ${formatDate(item.date)}`,
+          onSaved: () => finish(item, 'Đã lưu duyệt'),
+        })
+      }
+      onLater={() => moveOn(item.key)}
+      onDecide={(decision, note) => decide(item, decision, note)}
+    />
+  );
 
   const chip = (value: Filter, label: string, count: number) => (
     <button
@@ -114,21 +194,21 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
           </nav>
         </header>
 
-        {inbox.total === 0 ? (
+        {visible.length === 0 ? (
           <Empty description="Không còn việc nào cần xử lý" />
         ) : (
           <>
             <div className={styles.chips}>
-              {chip('all', 'Tất cả', inbox.total)}
+              {chip('all', 'Tất cả', visible.length)}
               {KIND_ORDER.map((kind) => {
-                const count = inbox.counts[kind];
-                const label = inbox.items.find((item) => item.kind === kind)?.kindLabel ?? '';
+                const count = counts[kind];
+                const label = visible.find((item) => item.kind === kind)?.kindLabel ?? '';
                 return count ? chip(kind, label, count) : null;
               })}
             </div>
             <div className={styles.split}>
               <div className={styles.list}>{items.map(row)}</div>
-              {desktop && selected ? <InboxDetail item={selected} /> : null}
+              {desktop && selected ? <InboxDetail item={selected} actions={actions(selected)} /> : null}
             </div>
           </>
         )}
@@ -145,10 +225,12 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
         >
           {/* Drawer nằm ngoài AdminShell nên phải đặt lại biến CSS */}
           <div style={themeCssVars(brandColor ?? undefined) as CSSProperties}>
-            {opened ? <InboxDetail item={opened} /> : null}
+            {opened ? <InboxDetail item={opened} actions={actions(opened)} /> : null}
           </div>
         </Drawer>
       )}
+
+      <AdjustDrawer target={adjusting} onClose={() => setAdjusting(null)} />
     </div>
   );
 }

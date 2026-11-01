@@ -35,6 +35,8 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'PUT', path: '/schedule', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'GET', path: `/day/${NIL}/2026-11-02`, allowed: ['manager', 'hr', 'admin'] },
   { method: 'GET', path: '/inbox', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'GET', path: '/timesheet', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'GET', path: `/timesheet/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
   { method: 'GET', path: '/overview/today', allowed: ['manager', 'hr', 'admin'] },
   { method: 'POST', path: '/approvals', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'DELETE', path: `/approvals/${NIL}`, allowed: ['manager', 'hr', 'admin'] },

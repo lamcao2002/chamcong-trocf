@@ -11,15 +11,12 @@ Sprint 3 khép vòng xử lý ngày công: sau **10 ngày làm việc**, nhân v
 
 ## Hiện trạng đầu sprint
 
-Code Sprint 2 đã hoàn thành và có bản Preview, nhưng sprint chưa đóng được; năm điểm dưới đây phải xử lý trước hoặc song song với ngày 1.
+Sprint 2 đã merge vào `main` và chạy trên Production ở `sin1`, mỗi truy vấn tới CSDL khoảng 3 ms; `/api/internal/recompute` đã từ chối lời gọi không có khoá. Hai điểm dưới đây còn phải làm tại quán.
 
 | Điểm | Hiện trạng | Xử lý |
 | --- | --- | --- |
-| Bản Preview bị khoá | Vercel Authentication chặn mọi người không đăng nhập Vercel, nên nhân viên không mở được trên điện thoại | Merge `feat/sprint2` vào `main`, hoặc tắt Deployment Protection cho Preview |
-| Tốc độ thật | Bản đang công khai vẫn ở `iad1`, khoảng 212 ms mỗi truy vấn; chưa đo được `sin1` | Đo lại ngay sau khi có bản `sin1` mở được, đóng S2-01 |
 | Thử tại quán | S2-21, S2-22 chưa làm: chưa thử điện thoại thật, chưa so ngày công với tính tay | Làm theo phiếu thử trong [Sprint 2](05-sprint-2.md) trước khi thu dữ liệu thật |
-| Môi trường Vercel | `CRON_SECRET` chưa xác nhận đã đặt; cron chỉ chạy trên Production nên chưa có `vang`, `thieu_gio` tự động | Đặt biến và xác nhận cron chạy một đêm, Hộp việc phụ thuộc vào đây |
-| Quán thử | PRD yêu cầu tìm quán trước Sprint 3, chưa có | Chốt trước ngày 1; không có quán thì demo bằng dữ liệu nhập tay |
+| Quán thử | PRD yêu cầu tìm quán trước Sprint 3, chưa có | Chốt sớm; không có quán thì demo bằng dữ liệu nhập tay |
 
 ## Quyết định đã chốt
 
@@ -59,17 +56,17 @@ Cả 13 điểm được chốt theo đề xuất dưới đây ngày 01/11/2026
 | S3-08 | API `POST /requests/:id/decide`: duyệt, từ chối, quên chấm thêm lần chấm tổng hợp, tính lại | US30, US31, US33 | 1 | S3-03, S3-06 | Dev A | 4 | Xong |
 | S3-09 | Thanh dưới app nhân viên, nút "+", sheet Tạo đơn với 3 loại đơn | US29–US31 | 1,5 | S3-06 | Dev B | 2–3 | Xong |
 | S3-10 | Màn A2: 4 thẻ số, danh sách việc, chip lọc có đếm, chi tiết có thanh giờ và "Vì sao hệ thống đề xuất" | US23–US25 | 1,5 | S3-04, S3-05 | Dev B | 4–5 | Xong |
-| S3-11 | Duyệt theo đề xuất, tự sang việc kế, drawer Điều chỉnh khác, duyệt/từ chối đơn | US25, US26, US33 | 1 | S3-08, S3-10 | Dev B | 6 | Chưa làm |
-| S3-12 | API `GET /timesheet`, `/timesheet/:employeeId`: lưới kỳ, cột tổng, ghép dữ liệu đã chốt với tính tại chỗ | US27, US28 | 1 | S3-02 | Dev A | 5 | Chưa làm |
-| S3-13 | Màn A3: lưới tháng, 12 ký hiệu, cột tổng, tháng trước/sau, tìm tên, lọc vị trí; thay màn tạm | US27 | 1,5 | S3-12 | Dev A | 6–7 | Chưa làm |
-| S3-14 | Drawer ngày (hệ thống tính, điều chỉnh, Hoàn duyệt) và bảng công một người | US28 | 1 | S3-03, S3-13 | Dev A | 8 | Chưa làm |
-| S3-15 | API `GET /app/schedule`, `/app/timesheet` | M3 | 0,5 | S3-12 | Dev A | 6 | Chưa làm |
-| S3-16 | Màn M3: lịch tuần này/tuần sau, lịch tháng có chấm màu, chi tiết ngày, gửi giải trình | US32 | 1,5 | S3-07, S3-15 | Dev B | 7–8 | Chưa làm |
-| S3-17 | Đơn của tôi, trạng thái đơn, nháp giải trình lưu trên máy | US32, US33 | 0,5 | S3-16 | Dev B | 8 | Chưa làm |
-| S3-18 | Đo và tối ưu lưới 120 nhân viên × 31 ngày trên staging | US27 | 0,25 | S3-13 | Dev A | 9 | Chưa làm |
-| S3-19 | Test API, ma trận quyền, Playwright cho 3 luồng chính trong CI | US23–US33 | 1 | S3-14, S3-17 | Dev A | 9 | Chưa làm |
-| S3-20 | Thu một tuần dữ liệu thật hoặc nhập tay, xử lý hết Hộp việc | — | 0,5 | S3-11, S3-17 | Dev B | 9 | Chưa làm |
-| S3-21 | Triển khai staging, demo cuối sprint | — | 0,25 | S3-18, S3-19, S3-20 | Dev A + B | 10 | Chưa làm |
+| S3-11 | Duyệt theo đề xuất, tự sang việc kế, drawer Điều chỉnh khác, duyệt/từ chối đơn | US25, US26, US33 | 1 | S3-08, S3-10 | Dev B | 6 | Xong |
+| S3-12 | API `GET /timesheet`, `/timesheet/:employeeId`: lưới kỳ, cột tổng, ghép dữ liệu đã chốt với tính tại chỗ | US27, US28 | 1 | S3-02 | Dev A | 5 | Xong |
+| S3-13 | Màn A3: lưới tháng, 12 ký hiệu, cột tổng, tháng trước/sau, tìm tên, lọc vị trí; thay màn tạm | US27 | 1,5 | S3-12 | Dev A | 6–7 | Xong |
+| S3-14 | Drawer ngày (hệ thống tính, điều chỉnh, Hoàn duyệt) và bảng công một người | US28 | 1 | S3-03, S3-13 | Dev A | 8 | Xong |
+| S3-15 | API `GET /app/schedule`, `/app/timesheet` | M3 | 0,5 | S3-12 | Dev A | 6 | Xong |
+| S3-16 | Màn M3: lịch tuần này/tuần sau, lịch tháng có chấm màu, chi tiết ngày, gửi giải trình | US32 | 1,5 | S3-07, S3-15 | Dev B | 7–8 | Xong |
+| S3-17 | Đơn của tôi, trạng thái đơn, nháp giải trình lưu trên máy | US32, US33 | 0,5 | S3-16 | Dev B | 8 | Xong |
+| S3-18 | Đo và tối ưu lưới 120 nhân viên × 31 ngày trên staging | US27 | 0,25 | S3-13 | Dev A | 9 | Xong |
+| S3-19 | Test API, ma trận quyền, Playwright cho 3 luồng chính trong CI | US23–US33 | 1 | S3-14, S3-17 | Dev A | 9 | Xong |
+| S3-20 | Thu một tuần dữ liệu thật hoặc nhập tay, xử lý hết Hộp việc | — | 0,5 | S3-11, S3-17 | Dev B | 9 | Đang làm |
+| S3-21 | Triển khai staging, demo cuối sprint | — | 0,25 | S3-18, S3-19, S3-20 | Dev A + B | 10 | Đang làm |
 
 ## Thứ tự làm theo ngày
 

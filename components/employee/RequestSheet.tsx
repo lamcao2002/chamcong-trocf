@@ -29,10 +29,11 @@ type RequestSheetProps = {
   open: boolean;
   choices: AppHome['choices'];
   onClose: () => void;
+  onSent: () => void;
 };
 
 /** Sheet Tạo đơn: nghỉ phép, quên chấm, làm thêm (US29–US31). Quy tắc chặn nằm ở server. */
-export function RequestSheet({ open, choices, onClose }: RequestSheetProps) {
+export function RequestSheet({ open, choices, onClose, onSent }: RequestSheetProps) {
   const toast = useToast();
   const [form] = Form.useForm();
   const [type, setType] = useState<RequestType>('leave');
@@ -57,6 +58,7 @@ export function RequestSheet({ open, choices, onClose }: RequestSheetProps) {
     if (result.ok) {
       toast.success('Đã gửi đơn');
       onClose();
+      onSent();
       return;
     }
     toast.error(result.error);

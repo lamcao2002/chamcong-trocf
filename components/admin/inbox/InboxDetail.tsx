@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { formatClock, formatDate } from '@/lib/format';
 import type { InboxItem } from '@/lib/services/inbox';
 import styles from './inbox.module.css';
@@ -44,7 +45,7 @@ function TimeBar({ item }: { item: InboxItem }) {
 }
 
 /** Chi tiết một việc: thanh giờ, bằng chứng, lý do hệ thống đề xuất (US25). */
-export function InboxDetail({ item }: { item: InboxItem }) {
+export function InboxDetail({ item, actions }: { item: InboxItem; actions: ReactNode }) {
   const dates =
     item.date === item.toDate
       ? formatDate(item.date)
@@ -75,6 +76,7 @@ export function InboxDetail({ item }: { item: InboxItem }) {
           ))}
         </ul>
       ) : null}
+      {actions}
     </div>
   );
 }

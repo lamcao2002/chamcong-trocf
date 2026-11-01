@@ -60,7 +60,7 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 
 | Việc | Trạng thái |
 |---|---|
-| S2-01 Hạ tầng | `vercel.json` vùng `sin1`, `loading.tsx` cho `(shell)` và `/m` xong, chưa triển khai; **còn đặt `APP_ENV=staging` trên Vercel và đo lại trên staging** |
+| S2-01 Hạ tầng | Xong: Production chạy `sin1`, khoảng 3 ms mỗi truy vấn tới CSDL |
 | S2-02 Chốt quyết định | Xong: 17 quyết định đã ghi vào đặc tả, thêm T51–T53 |
 | S2-03 `employees.left_date` | Code xong, đã chạy trên PostgreSQL tạm — **chưa áp lên Supabase, phải migrate trước khi triển khai** |
 | S2-04 → S2-08 Engine | Code xong trong `lib/engine/`: 53/53 ca chạy xanh, gồm áp đơn và duyệt |
@@ -69,10 +69,10 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S2-11 Cron | Code xong; **cần đặt `CRON_SECRET` trên Vercel** |
 | S2-12 → S2-14 Xếp ca | Code xong API và màn A4, đã thử trên Chrome 375 và 1440 px |
 | S2-15 → S2-18 Chấm công | Code xong API và màn M2, đã thử trên Chrome giả lập GPS; **chưa thử điện thoại thật** |
-| S2-19 Kiểm tra ngày công | Code xong `GET /day` và màn tạm ở `/app/bang-cong`, Sprint 3 thay bằng Bảng công |
+| S2-19 Kiểm tra ngày công | Xong, màn tạm đã thay bằng Bảng công ở S3-13 |
 | S2-20 Test API | Code xong: 163 test, gồm chạy song song, kỳ đã công bố, chặn trang theo quyền |
 | S2-21 Thử điện thoại thật | **Chưa làm**, cần người thử tại quán, phiếu thử ở `docs/product/05-sprint-2.md` |
-| S2-22 Triển khai, demo | Bản Preview từ `feat/sprint2` đã lên nhưng bị Vercel Authentication chặn; **chưa merge `main`, chưa so với tính tay, chưa demo** |
+| S2-22 Triển khai, demo | Đã merge `main`; **chưa so với tính tay, chưa demo** |
 
 Cập nhật bảng này khi xong một việc.
 
@@ -84,8 +84,14 @@ Cập nhật bảng này khi xong một việc.
 | S3-02 Kỳ công | Code xong `lib/domain/period.ts` |
 | S3-03 → S3-05 Duyệt, Hộp việc, 4 thẻ số | Code xong API; đọc ngày công chung qua `readDayRecords` |
 | S3-06 → S3-08 Đơn, giải trình, quyết định đơn | Code xong API, đã chạy trên PostgreSQL tạm |
-| S3-09 Thanh dưới, sheet Tạo đơn | Code xong, đã thử trên Chrome 375 px; tab Lịch & công, Lương còn là màn tạm |
-| S3-10 Màn A2 | Code xong xem và lọc việc; nút Duyệt, Điều chỉnh làm ở S3-11 |
+| S3-09 Thanh dưới, sheet Tạo đơn | Code xong, đã thử trên Chrome 375 px; tab Lương còn là màn tạm tới Sprint 4 |
+| S3-10, S3-11 Màn A2 | Code xong: xem, lọc, duyệt, Điều chỉnh khác, duyệt và từ chối đơn |
+| S3-12 → S3-14 Bảng công | Code xong lưới, drawer ngày, bảng công một người |
+| S3-15 → S3-17 Màn M3 | Code xong lịch, lịch tháng, giải trình, Đơn của tôi; **chưa thử điện thoại thật** |
+| S3-18 Hiệu năng lưới | 131 nhân viên × 31 ngày khoảng 155 ms trên máy; **chưa đo trên Vercel** |
+| S3-19 Test | Code xong: test API, Playwright 3 luồng trong CI (`npm run test:e2e`) |
+| S3-20 Dữ liệu thật | Mới mô phỏng một tuần trên PostgreSQL tạm; **chưa có dữ liệu thật tại quán** |
+| S3-21 Triển khai, demo | Đã đẩy nhánh `feat/sprint-3`; **chưa merge, chưa demo** |
 
 ## Lệnh
 
@@ -95,6 +101,7 @@ npm run db:up        # Postgres docker
 npm run dev
 npm run check        # lint + typecheck + format + test — chạy trước khi commit
 npm run test:api     # test API qua HTTP: cần app đang chạy, DATABASE_URL phải là localhost
+npm run test:e2e     # Playwright trên app đang chạy; PW_CHANNEL=chrome để dùng Chrome của máy
 npm run db:generate  # sau khi sửa lib/db/schema.ts, commit cả thư mục drizzle/
 npm run db:migrate
 npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production bị chặn

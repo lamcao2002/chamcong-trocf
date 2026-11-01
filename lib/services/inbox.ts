@@ -86,6 +86,8 @@ function recordItems(
         shiftStartAt: start === null ? null : atMinute(record.date, start),
         shiftEndAt: start === null ? null : atMinute(record.date, start + shiftSpanMinutes(shift!)),
         requestId: null as string | null,
+        /** OT đã duyệt là con số tổng, gồm cả phần đơn làm thêm đã duyệt sẵn. */
+        otProposed: record.otProposed,
       };
     },
   );
@@ -157,6 +159,7 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
         shiftStartAt: null,
         shiftEndAt: null,
         requestId: request.id,
+        otProposed: 0,
       },
     ];
   });

@@ -1,9 +1,9 @@
 import 'server-only';
-import { and, asc, between, eq, gte, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, between, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm';
 import { notFound } from '@/lib/api/errors';
 import { scopeToCompany, scopeToStaff, type AuthContext } from '@/lib/auth/policy';
 import { getDb, type Db } from '@/lib/db/client';
-import { attendanceLogs, dayRecords, employees, positions, shifts } from '@/lib/db/schema';
+import { approvals, attendanceLogs, dayRecords, employees, positions, shifts } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import { addDays, atMinute } from '@/lib/engine/time';
 import type { DayRecord, Suggestion } from '@/lib/engine/types';
@@ -79,36 +79,6 @@ export function staffInScope(ctx: AuthContext, from: string) {
     .orderBy(asc(employees.name));
 }
 
-/** Bảng ngày công một ngày của người trong phạm vi quản lý; màn tạm trước Bảng công Sprint 3. */
-export async function listDay(ctx: AuthContext, date: string) {
-  const db = getDb();
-  const staff = await staffInScope(ctx, date);
-  const library = await db
-    .select({ id: shifts.id, name: shifts.name })
-    .from(shifts)
-    .where(scopeToCompany(ctx, shifts.companyId));
-  const records = await readDayRecords(
-    db,
-    ctx.company.id,
-    staff.map(({ id }) => id),
-    date,
-    date,
-  );
-
-  return staff.flatMap(({ id, name, positionName }) =>
-    records
-      .filter(({ employeeId }) => employeeId === id)
-      .map((record) => ({
-        ...record,
-        employeeName: name,
-        positionName,
-        shiftName: library.find((shift) => shift.id === record.shiftId)?.name ?? null,
-      })),
-  );
-}
-
-export type DayRow = Awaited<ReturnType<typeof listDay>>[number];
-
 /** Chi tiết một người một ngày: lần chấm gốc và ngày công hệ thống tính (US28 dùng lại ở Sprint 3). */
 export async function getDayDetail(ctx: AuthContext, employeeId: string, date: string) {
   const db = getDb();
@@ -142,6 +112,17 @@ export async function getDayDetail(ctx: AuthContext, employeeId: string, date: s
     )
     .orderBy(asc(attendanceLogs.at));
   const records = await readDayRecords(db, ctx.company.id, [employeeId], date, date);
+  const library = await db
+    .select({ id: shifts.id, name: shifts.name })
+    .from(shifts)
+    .where(scopeToCompany(ctx, shifts.companyId));
 
-  return { employee, date, punches, records };
+  const approved = await db
+    .select()
+    .from(approvals)
+    .where(and(eq(approvals.employeeId, employeeId), eq(approvals.date, date), isNull(approvals.revokedAt)));
+
+  return { employee, date, punches, records, approvals: approved, shifts: library };
 }
+
+export type DayDetail = Awaited<ReturnType<typeof getDayDetail>>;

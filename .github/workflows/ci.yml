@@ -112,6 +112,8 @@ jobs:
           npm run start &
           npx --yes wait-on@8 --timeout 60000 http://localhost:3000/api/v1/health
           npm run test:api
+          npx playwright install --with-deps chromium
+          npm run test:e2e
 
       - name: Schema has no un-generated changes
         if: hashFiles('drizzle/meta/_journal.json') != ''

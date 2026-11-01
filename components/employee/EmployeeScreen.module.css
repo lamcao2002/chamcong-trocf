@@ -265,3 +265,118 @@
   outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0;
+  font-weight: 600;
+}
+
+.monthNav button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.monthNav button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendarHead {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.calendarDay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.calendarDay:disabled {
+  background: none;
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.calendarDay:focus-visible {
+  outline: 2px solid var(--brand);
+}
+
+.calendarToday {
+  font-weight: 800;
+  box-shadow: inset 0 0 0 2px var(--brand);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.dot_du,
+.dot_ot_duyet {
+  background: var(--brand);
+}
+
+.dot_nua,
+.dot_muon,
+.dot_ca,
+.dot_ot_cho {
+  background: var(--warn-fg);
+}
+
+.dot_vang,
+.dot_thieu,
+.dot_vung {
+  background: var(--danger-fg);
+}
+
+.dot_phep {
+  background: var(--info-fg);
+}
+
+.dot_le {
+  background: var(--text-muted);
+}
+
+.dayRecord {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+
+.dayRecord:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.explain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}

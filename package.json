@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:api": "vitest run --config vitest.api.config.ts",
+    "test:e2e": "playwright test",
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
@@ -46,6 +47,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.0",
+    "@playwright/test": "^1.52.0",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",

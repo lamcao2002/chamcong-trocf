@@ -10,6 +10,7 @@ import { buildAntdTheme } from '@/lib/theme/tokens';
 import { EmployeeNav, useHashTab } from './EmployeeNav';
 import { PunchScreen } from './PunchScreen';
 import { RequestSheet } from './RequestSheet';
+import { ScheduleTab } from './ScheduleTab';
 import styles from './EmployeeScreen.module.css';
 
 type EmployeeHomeProps = {
@@ -25,6 +26,7 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
   const logout = useLogout('/m');
   const tab = useHashTab();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [requestsKey, setRequestsKey] = useState(0);
 
   return (
     <>
@@ -45,18 +47,22 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
         <div hidden={tab !== 'cham'}>
           <PunchScreen home={home} />
         </div>
-        {tab === 'cham' ? null : (
+        {tab === 'lich' ? <ScheduleTab requestsKey={requestsKey} /> : null}
+        {tab === 'luong' ? (
           <main className={styles.body}>
             <div className={styles.card}>
-              <h1 className={styles.title}>{tab === 'lich' ? 'Lịch & công' : 'Lương'}</h1>
-              <p className={styles.muted}>
-                {tab === 'lich' ? 'Màn này sẽ có ở bản tới.' : 'Phiếu lương sẽ có ở Sprint 4.'}
-              </p>
+              <h1 className={styles.title}>Lương</h1>
+              <p className={styles.muted}>Phiếu lương sẽ có ở Sprint 4.</p>
             </div>
           </main>
-        )}
+        ) : null}
         <EmployeeNav tab={tab} onCreate={() => setSheetOpen(true)} />
-        <RequestSheet open={sheetOpen} choices={home.choices} onClose={() => setSheetOpen(false)} />
+        <RequestSheet
+          open={sheetOpen}
+          choices={home.choices}
+          onClose={() => setSheetOpen(false)}
+          onSent={() => setRequestsKey((key) => key + 1)}
+        />
       </ConfigProvider>
     </>
   );

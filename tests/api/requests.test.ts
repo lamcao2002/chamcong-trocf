@@ -210,6 +210,36 @@ describe('đơn làm thêm (US31)', () => {
   });
 });
 
+describe('nút Duyệt sau khi đơn làm thêm đã duyệt một phần', () => {
+  it('gửi con số tổng thì không làm mất phần đã duyệt sẵn', async () => {
+    const { id, session } = await newEmployee();
+    await punch(id, yesterday, 'in', '17:00');
+    await punch(id, yesterday, 'out', '23:38');
+    await schedule(id, yesterday, [shifts.TOI.id]);
+    const { request } = (
+      await send(session, {
+        type: 'overtime',
+        date: yesterday,
+        when: 'after',
+        from: '22:00',
+        to: '23:00',
+        reason: 'Dọn kho',
+      })
+    ).body;
+    await decide(request.id, { decision: 'approve' });
+
+    const { inbox } = (await api('GET', `/inbox?period=${yesterday.slice(0, 7)}`, { cookie: admin })).body;
+    const item = inbox.items.find((row: any) => row.employeeId === id && row.kind === 'ot_cho');
+    expect(item.suggestion.label).toBe('Duyệt 38 phút');
+    expect(item.otProposed).toBe(98);
+    await api('POST', '/approvals', {
+      cookie: admin,
+      body: { employeeId: id, date: yesterday, shiftId: shifts.TOI.id, otMinutes: item.otProposed },
+    });
+    expect(await record(id)).toMatchObject({ ot_approved: 98, ot_state: 'da_duyet' });
+  });
+});
+
 describe('quyết định đơn (US33)', () => {
   it('từ chối có lý do, nhân viên thấy trạng thái, không quyết định lại được', async () => {
     const { id, session } = await newEmployee();
