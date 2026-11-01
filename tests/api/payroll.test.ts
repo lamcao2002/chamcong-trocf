@@ -283,6 +283,39 @@ describe('công bố (US36)', () => {
     expect((await payroll()).status.stale).toBe(true);
   });
 
+  describe('ngày chốt', () => {
+    const patch = (body: object) => api('PATCH', '/company', { cookie: admin, body });
+    const company = async () => (await api('GET', '/company', { cookie: admin })).body.company;
+
+    it('đổi được khi chưa có kỳ công bố, khoá từ lần công bố đầu tiên', async () => {
+      await sql`delete from payslips`;
+      await sql`delete from payroll_periods`;
+      expect((await company()).cutoffLocked).toBe(false);
+      expect((await patch({ cutoffDay: 25 })).status).toBe(200);
+      expect((await patch({ cutoffDay: null })).status).toBe(200);
+
+      await publish();
+      expect((await company()).cutoffLocked).toBe(true);
+      const before = await auditCount('company.update');
+      const blocked = await patch({ cutoffDay: 25 });
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.fields.cutoffDay).toContain('không đổi được');
+      expect(await auditCount('company.update')).toBe(before);
+      expect((await company()).cutoffDay).toBeNull();
+    });
+
+    it('bị khoá vẫn lưu được trường khác, gửi lại đúng ngày chốt cũ không bị chặn', async () => {
+      const { name } = await company();
+      expect((await patch({ cutoffDay: null, name: `${name} ` })).status).toBe(200);
+      expect((await patch({ address: 'Địa chỉ mới' })).status).toBe(200);
+    });
+
+    it('đổi ngày chốt kèm trường khác thì không lưu trường nào', async () => {
+      expect((await patch({ cutoffDay: 10, name: 'Không được lưu' })).status).toBe(409);
+      expect((await company()).name).not.toBe('Không được lưu');
+    });
+  });
+
   it('cron đầu tiên sau khi công bố không báo sai, kể cả người vắng chưa có dòng ngày công', async () => {
     await unpublish();
     const { id } = await newEmployee('Tạp vụ');

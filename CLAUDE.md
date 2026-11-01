@@ -104,6 +104,7 @@ Cập nhật bảng này khi xong một việc.
 | S4-08 → S4-11 Màn A5 | Code xong tổng quan, danh sách, sao kê, thưởng/phạt, hộp công bố, báo cần công bố lại |
 | S4-12 Màn M4 | Code xong danh sách kỳ và phiếu; **chưa thử điện thoại thật** |
 | S4-13 Test | Code xong test API và Playwright luồng công bố |
+| S4-14 Chuẩn bị production | Code xong `npm run company:create`, khoá ngày chốt sau kỳ công bố đầu tiên, chặn seed theo CSDL đích (`lib/db/target.ts`) |
 
 ## Lệnh
 
@@ -116,7 +117,8 @@ npm run test:api     # test API qua HTTP: cần app đang chạy, DATABASE_URL p
 npm run test:e2e     # Playwright trên app đang chạy; PW_CHANNEL=chrome để dùng Chrome của máy
 npm run db:generate  # sau khi sửa lib/db/schema.ts, commit cả thư mục drizzle/
 npm run db:migrate
-npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production bị chặn
+npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN và CONFIRM_DB, production bị chặn
+npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn Văn A" --admin-email=a@quan.vn  # CSDL ngoài máy cần CONFIRM_DB
 ```
 
 ## Quy ước code

@@ -6,6 +6,7 @@ import { scopeToCompany, type AuthContext } from '@/lib/auth/policy';
 import { getDb } from '@/lib/db/client';
 import {
   adjustments,
+  companies,
   employees,
   payrollPeriods,
   payslips,
@@ -14,6 +15,7 @@ import {
   shifts,
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
+import { periodByKey } from '@/lib/domain/period';
 import {
   computePay,
   type PayDay,
@@ -301,6 +303,17 @@ export async function publishPayroll(ctx: AuthContext, periodKey?: string) {
   const publishedAt = new Date();
 
   return getDb().transaction(async (tx) => {
+    // Giữ dòng công ty tới hết transaction: `updateCompany` chờ ở đây rồi mới thấy kỳ vừa công bố
+    const [company] = await tx
+      .select({ cutoffDay: companies.cutoffDay })
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .for('share');
+    const current = periodByKey(period.key, company?.cutoffDay ?? null);
+    if (current.from !== period.from || current.to !== period.to) {
+      throw new ApiError(409, 'Ngày chốt vừa đổi, hãy tải lại trang Lương rồi công bố');
+    }
+
     // Phiếu lấy số tính tại chỗ cho ngày gần đây; ghi lại để `day_records` khớp phiếu, nếu không lần
     // cron kế tiếp sẽ thấy dòng mới và báo cần công bố lại dù tiền không đổi
     const liveFrom = firstLiveDay(today);

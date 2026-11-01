@@ -53,6 +53,21 @@ DATABASE_URL_DIRECT="postgresql://...:5432/postgres" APP_ENV=staging DATABASE_UR
 
 Quy tắc: migration chỉ **thêm** (expand) trong một release; xoá cột/bảng ở release sau (contract). Không sửa file migration đã merge vào `main`.
 
+## Nạp dữ liệu và tạo công ty
+
+Script ghi dữ liệu tự nhận diện CSDL theo chuỗi kết nối, không tin `APP_ENV`. Với CSDL ngoài máy, lần chạy đầu sẽ dừng và in giá trị cần gõ vào `CONFIRM_DB`; đọc kỹ tên project trong đó trước khi chạy lại.
+
+```bash
+# Dữ liệu mẫu trên staging; production luôn bị chặn, CSDL đã có công ty khác cũng bị chặn
+APP_ENV=staging SEED_PIN=<pin> CONFIRM_DB="<giá trị script in ra>" npm run db:seed
+
+# Quán mới: tạo công ty và Quản trị viên đầu tiên. PIN tự sinh, chỉ in một lần
+CONFIRM_DB="<giá trị script in ra>" npm run company:create -- \
+  --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn Văn A" --admin-email=a@quan.vn
+```
+
+Không ghi `CONFIRM_DB` vào `.env.local`: biến này chỉ có tác dụng khi gõ lại cho từng lần chạy.
+
 ## 5. GitHub Secrets (cho CI về sau)
 
 Sprint 1 CI chỉ dùng PostgreSQL service tạm, **không cần secret**. Khi bật tự động migrate staging (Sprint 2+), thêm:

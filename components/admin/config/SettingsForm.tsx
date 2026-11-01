@@ -168,8 +168,14 @@ export function SettingsForm({ company }: { company: CompanyView }) {
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
-            <Form.Item label="Ngày chốt kỳ lương" name="cutoffDay" extra="Để trống là tròn tháng.">
-              <InputNumber min={1} max={31} style={{ width: '100%' }} />
+            <Form.Item
+              label="Ngày chốt kỳ lương"
+              name="cutoffDay"
+              extra={
+                company.cutoffLocked ? 'Đã có kỳ công bố nên không đổi được.' : 'Để trống là tròn tháng.'
+              }
+            >
+              <InputNumber min={1} max={31} disabled={company.cutoffLocked} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
         </Row>

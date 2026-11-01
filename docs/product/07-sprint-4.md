@@ -112,7 +112,7 @@ Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_
 | S4-11 | Hộp xác nhận công bố, báo "cần công bố lại" | US36 | 0,5 | S4-06, S4-08 | Dev B | 7 | Xong |
 | S4-12 | Màn M4: danh sách kỳ, phiếu đã công bố; thay màn tạm | US36 | 0,75 | S4-07 | Dev B | 8 | Xong |
 | S4-13 | Test API, ma trận quyền, Playwright luồng công bố; test Lương khớp Bảng công | US34–US36 | 1 | S4-07 | Dev A | 6–7 | Xong |
-| S4-14 | Script tạo công ty và Quản trị viên đầu tiên, chặn đổi ngày chốt, chặn seed nhầm | — | 0,5 | S4-01 | Dev A | 7 | Chưa làm |
+| S4-14 | Script tạo công ty và Quản trị viên đầu tiên, chặn đổi ngày chốt, chặn seed nhầm | — | 0,5 | S4-01 | Dev A | 7 | Xong |
 | S4-15 | Project Supabase production, biến môi trường, tên miền, khoá mới, sổ tay triển khai | — | 0,5 | S4-14, S4-21 | Dev A | 8 | Chưa làm |
 | S4-16 | Sao lưu hằng ngày giữ 30 ngày, thử khôi phục thật một lần | — | 0,75 | S4-15 | Dev A | 8–9 | Chưa làm |
 | S4-17 | Giám sát: cảnh báo `/api/v1/health`, báo khi cron lỗi | — | 0,25 | S4-15 | Dev A | 9 | Chưa làm |

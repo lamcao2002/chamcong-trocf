@@ -1,11 +1,11 @@
 /**
  * Nạp dữ liệu mẫu "Cà phê Phố Nhỏ" vào CSDL của DATABASE_URL_DIRECT (hoặc DATABASE_URL).
- * Dùng: npm run db:seed   (chạy lại không đổi gì; từ chối chạy trên production)
+ * Dùng: npm run db:seed   (chạy lại không đổi gì; từ chối production, CSDL ngoài máy phải có CONFIRM_DB)
  *
  * PIN: lấy từ SEED_PIN; riêng APP_ENV=local mặc định 1234.
  */
 import { config } from 'dotenv';
-import { eq } from 'drizzle-orm';
+import { eq, ne } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { hashPin } from '../auth/pin';
@@ -20,6 +20,7 @@ import {
   SEED_POSITIONS,
   SEED_SHIFTS,
 } from './seed-data';
+import { assertSeedTarget, isLocalDatabase } from './target';
 
 config({ path: ['.env.local', '.env'], quiet: true });
 
@@ -34,13 +35,24 @@ function resolvePin(appEnv: string): string {
 
 async function main() {
   const env = parseServerEnv(process.env);
-  if (env.APP_ENV === 'production') throw new Error('Không seed dữ liệu mẫu lên production.');
+  const url = migrationUrl(env);
+  assertSeedTarget(env.APP_ENV, url, process.env.CONFIRM_DB);
   const pinHash = await hashPin(resolvePin(env.APP_ENV));
 
-  const client = postgres(migrationUrl(env), { max: 1, prepare: false, onnotice: () => {} });
+  const client = postgres(url, { max: 1, prepare: false, onnotice: () => {} });
   try {
     const db = drizzle(client, { schema });
     const seeded = await db.transaction(async (tx) => {
+      // Có công ty khác trên CSDL ngoài máy nghĩa là đang chứa dữ liệu thật, dù khai báo là staging
+      if (!isLocalDatabase(url)) {
+        const [other] = await tx
+          .select({ code: schema.companies.code })
+          .from(schema.companies)
+          .where(ne(schema.companies.code, SEED_COMPANY.code))
+          .limit(1);
+        if (other) throw new Error(`CSDL này đã có công ty ${other.code}, không nạp dữ liệu mẫu.`);
+      }
+
       const [existing] = await tx
         .select({ id: schema.companies.id })
         .from(schema.companies)
