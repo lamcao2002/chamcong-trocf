@@ -10,6 +10,11 @@ export function formatNumber(value: number): string {
   return String(Math.trunc(value)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
+/** Số lẻ kiểu Việt Nam: 0,5. */
+export function formatDecimal(value: number): string {
+  return String(value).replace('.', ',');
+}
+
 /** Ngày ISO yyyy-mm-dd thành dd/mm/yyyy. */
 export function formatDate(iso: string): string {
   const [year, month, day] = iso.split('-');

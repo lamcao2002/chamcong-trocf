@@ -1,6 +1,7 @@
 import 'server-only';
-import { and, between, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, between, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { ApiError } from '@/lib/api/errors';
 import { writeAudit, type Tx } from '@/lib/audit';
 import { getDb } from '@/lib/db/client';
 import {
@@ -163,7 +164,13 @@ async function loadInputs(tx: Reader, companyId: string, employeeIds: string[], 
     tx
       .select()
       .from(explanations)
-      .where(and(inArray(explanations.employeeId, employeeIds), between(explanations.date, from, to))),
+      .where(
+        and(
+          inArray(explanations.employeeId, employeeIds),
+          between(explanations.date, from, to),
+          ne(explanations.status, 'rejected'),
+        ),
+      ),
     tx
       .select()
       .from(approvals)
@@ -230,29 +237,50 @@ function dayInput(loaded: Loaded, employeeId: string, date: string): DayInput | 
 }
 
 /**
- * Tính một ngày mà không ghi: `chua_toi`, `dang_lam` đổi theo đồng hồ, nên dòng đã lưu của những ngày
- * cron chưa chốt có thể cũ. Màn đọc dùng hàm này thay cho đọc thẳng `day_records`.
+ * Tính một khoảng ngày mà không ghi: `chua_toi`, `dang_lam` đổi theo đồng hồ, nên dòng đã lưu của
+ * những ngày cron chưa chốt có thể cũ.
  */
-export async function computeDayLive(
+export async function computeDaysLive(
   db: Reader,
   companyId: string,
   employeeIds: string[],
-  date: string,
+  from: string,
+  to: string,
   now: Date = new Date(),
 ) {
-  if (employeeIds.length === 0) return new Map<string, DayRecord[]>();
-  const loaded = await loadInputs(db, companyId, employeeIds, date, date);
-  return new Map(
-    employeeIds.map((employeeId) => {
+  if (employeeIds.length === 0 || from > to) return [];
+  const loaded = await loadInputs(db, companyId, employeeIds, from, to);
+  const rows: (DayRecord & { employeeId: string })[] = [];
+  for (const employeeId of employeeIds) {
+    for (let date = from; date <= to; date = addDays(date, 1)) {
       const input = dayInput(loaded, employeeId, date);
-      return [employeeId, input ? computeDay(input, now) : []];
-    }),
-  );
+      if (!input) continue;
+      for (const record of computeDay(input, now)) rows.push({ ...record, employeeId });
+    }
+  }
+  return rows;
 }
 
-/** Ngày cron đã chốt: dòng trong `day_records` không còn đổi theo đồng hồ. */
-export function isSettledDay(date: string, today: string): boolean {
-  return date < addDays(today, -CRON_DAYS_BACK);
+/** Ngày đầu tiên cron chưa chốt: từ đây trở đi màn đọc phải tính tại chỗ. */
+export function firstLiveDay(today: string): string {
+  return addDays(today, -CRON_DAYS_BACK);
+}
+
+/** Kỳ đã công bố là bản chụp: không nhận thay đổi nào cho tới khi Sprint 4 có "cần công bố lại". */
+export async function assertNotPublished(tx: Reader, companyId: string, from: string, to: string) {
+  const [published] = await tx
+    .select({ key: payrollPeriods.periodKey })
+    .from(payrollPeriods)
+    .where(
+      and(
+        eq(payrollPeriods.companyId, companyId),
+        eq(payrollPeriods.published, true),
+        lte(payrollPeriods.fromDate, to),
+        gte(payrollPeriods.toDate, from),
+      ),
+    )
+    .limit(1);
+  if (published) throw new ApiError(409, `Kỳ ${published.key} đã công bố, không sửa được`);
 }
 
 /** Bỏ các trường chỉ dùng trong tính toán, xem chú thích ở `DayRecord`. */

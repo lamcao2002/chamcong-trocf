@@ -49,7 +49,7 @@ Cả 17 điểm được chốt theo đề xuất dưới đây ngày 01/11/2026
 
 | ID | Việc | Story | Ước lượng (ngày) | Phụ thuộc | Người | Ngày | Trạng thái |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| S2-01 | Hạ tầng: `vercel.json` vùng `sin1`, `APP_ENV=staging`, `loading.tsx` cho `(shell)` và `/m`, đo lại tốc độ | — | 0,5 | — | Dev A | 1 | Đang làm |
+| S2-01 | Hạ tầng: `vercel.json` vùng `sin1`, `APP_ENV=staging`, `loading.tsx` cho `(shell)` và `/m`, đo lại tốc độ | — | 0,5 | — | Dev A | 1 | Xong |
 | S2-02 | Chốt 17 quyết định, cập nhật đặc tả, thêm luật mới vào bộ ca kiểm thử | US21 | 0,25 | — | Dev A | 1 | Xong |
 | S2-03 | Migration `employees.left_date`, đặt ngày khi chuyển Đã nghỉ, cho dữ liệu cũ một giá trị mặc định | US13, US22 | 0,25 | S2-02 | Dev A | 1 | Xong |
 | S2-04 | Kiểu đầu vào/đầu ra của engine, dữ liệu mẫu, khung test T01–T53 (đang đỏ) | US21 | 0,5 | S2-02 | Dev A | 2 | Xong |
@@ -182,7 +182,7 @@ Dùng bản staging có HTTPS, vì GPS không chạy trên HTTP. Ghi Đạt/Khô
 | 8 | Bấm lại, tắt mở app, nút vẫn đúng trạng thái | | |
 | 9 | RA CA sau giờ hết ca từ 30 phút: thấy "Đã gửi đề xuất OT" | | |
 
-**So với tính tay:** với mỗi người, ghi giờ vào, giờ ra, ca, rồi tự tính phút làm, công, muộn, về sớm, OT theo đặc tả; mở `/app/bang-cong?date=<ngày>` và so từng cột. Lệch ở đâu ghi lại nguyên dữ liệu đầu vào để thành ca kiểm thử mới.
+**So với tính tay:** với mỗi người, ghi giờ vào, giờ ra, ca, rồi tự tính phút làm, công, muộn, về sớm, OT theo đặc tả; mở `/app/bang-cong`, bấm ô của ngày đó và so từng số. Lệch ở đâu ghi lại nguyên dữ liệu đầu vào để thành ca kiểm thử mới.
 
 ## Rủi ro và cách xử lý
 

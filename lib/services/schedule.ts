@@ -18,7 +18,7 @@ import { addDays } from '@/lib/engine/time';
 import type { EngineShift } from '@/lib/engine/types';
 import type { ScheduleSaveInput } from '@/lib/validation/schedule';
 import { actorOf } from './actor';
-import { loadEmployeeRules, recomputeDays } from './recompute';
+import { assertNotPublished, loadEmployeeRules, recomputeDays } from './recompute';
 import { assertOwned } from './references';
 
 const WEEK_DAYS = 7;
@@ -165,6 +165,9 @@ export async function saveSchedule(ctx: AuthContext, { cells }: ScheduleSaveInpu
       cells.flatMap(({ shiftIds }) => shiftIds),
       'cells',
     );
+
+    const days = cells.map(({ date }) => date).sort();
+    await assertNotPublished(tx, ctx.company.id, days[0]!, days[days.length - 1]!);
 
     const allowed = await allowedShiftIds(tx, staff);
     for (const { employeeId, date, shiftIds } of cells) {

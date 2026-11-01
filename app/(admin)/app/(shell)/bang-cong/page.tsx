@@ -1,25 +1,24 @@
 import type { Metadata } from 'next';
 import { AdminPage } from '@/components/admin/AdminPage';
-import { DayCheckPanel } from '@/components/admin/timesheet/DayCheckPanel';
+import { TimesheetPanel } from '@/components/admin/timesheet/TimesheetPanel';
 import { requireAdminPage } from '@/lib/auth/guard';
-import { vietnamToday } from '@/lib/domain/date';
-import { listDay } from '@/lib/services/day';
-import { isoDate } from '@/lib/validation/common';
+import { getTimesheet } from '@/lib/services/timesheet';
+import { periodKeySchema } from '@/lib/validation/request';
 
 export const metadata: Metadata = { title: 'Bảng công' };
 
 type TimesheetPageProps = {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ period?: string }>;
 };
 
 export default async function TimesheetPage({ searchParams }: TimesheetPageProps) {
   const ctx = await requireAdminPage('timesheet');
-  const parsed = isoDate.safeParse((await searchParams).date);
-  const date = parsed.success ? parsed.data : vietnamToday();
+  const parsed = periodKeySchema.safeParse((await searchParams).period);
+  const timesheet = await getTimesheet(ctx, parsed.success ? parsed.data : undefined);
 
   return (
-    <AdminPage title="Bảng công" subtitle="Bản tạm: ngày công từng ngày, chỉ đọc">
-      <DayCheckPanel date={date} rows={await listDay(ctx, date)} />
+    <AdminPage title="Bảng công" subtitle="Công của cả nhóm theo kỳ">
+      <TimesheetPanel timesheet={timesheet} />
     </AdminPage>
   );
 }
