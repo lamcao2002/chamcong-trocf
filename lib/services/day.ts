@@ -1,94 +1,109 @@
 import 'server-only';
-import { and, asc, eq, gte, lt, or } from 'drizzle-orm';
+import { and, asc, between, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import { notFound } from '@/lib/api/errors';
 import { scopeToCompany, scopeToStaff, type AuthContext } from '@/lib/auth/policy';
-import { getDb } from '@/lib/db/client';
+import { getDb, type Db } from '@/lib/db/client';
 import { attendanceLogs, dayRecords, employees, positions, shifts } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
-import { atMinute } from '@/lib/engine/time';
-import type { DayRecord } from '@/lib/engine/types';
-import { computeDayLive, isSettledDay } from './recompute';
+import { addDays, atMinute } from '@/lib/engine/time';
+import type { DayRecord, Suggestion } from '@/lib/engine/types';
+import { computeDaysLive, firstLiveDay } from './recompute';
 
 const DAY_MINUTES = 24 * 60;
 
-const RECORD_FIELDS = [
-  'shiftId',
-  'status',
-  'inAt',
-  'outAt',
-  'workedMin',
-  'cong',
-  'lateMin',
-  'earlyMin',
-  'otProposed',
-  'otApproved',
-  'flags',
-  'needsReview',
-  'notes',
-] as const;
+export type DayView = Omit<DayRecord, 'otRate' | 'penalty'> & { employeeId: string };
 
-type RecordView = Pick<DayRecord, (typeof RECORD_FIELDS)[number]>;
+/**
+ * Nguồn đọc ngày công duy nhất của mọi màn: ngày đã chốt lấy `day_records`, ngày gần đây tính tại
+ * chỗ. Hộp việc, Bảng công và app nhân viên cùng đi qua đây nên không thể ra số khác nhau.
+ */
+export async function readDayRecords(
+  db: Db,
+  companyId: string,
+  employeeIds: string[],
+  from: string,
+  to: string,
+  now: Date = new Date(),
+): Promise<DayView[]> {
+  if (employeeIds.length === 0) return [];
+  const today = vietnamToday(now);
+  const liveFrom = firstLiveDay(today);
+  const lastStored = addDays(liveFrom, -1);
+  const storedTo = to < lastStored ? to : lastStored;
 
-function recordView(record: RecordView): RecordView {
-  return Object.fromEntries(RECORD_FIELDS.map((field) => [field, record[field]])) as RecordView;
+  const [stored, live] = await Promise.all([
+    from > storedTo
+      ? []
+      : db
+          .select()
+          .from(dayRecords)
+          .where(
+            and(
+              eq(dayRecords.companyId, companyId),
+              inArray(dayRecords.employeeId, employeeIds),
+              between(dayRecords.date, from, storedTo),
+            ),
+          ),
+    computeDaysLive(
+      db,
+      companyId,
+      employeeIds,
+      from > liveFrom ? from : liveFrom,
+      to < today ? to : today,
+      now,
+    ),
+  ]);
+
+  return [
+    ...stored.map((row) => ({
+      ...row,
+      suggestions: (row.suggestion ?? []) as Suggestion[],
+      notes: row.notes as string[],
+    })),
+    ...live,
+  ];
 }
 
-/** Ngày đã chốt đọc `day_records`; ngày gần đây tính tại chỗ vì trạng thái đổi theo đồng hồ. */
-async function recordsOfDay(ctx: AuthContext, employeeIds: string[], date: string) {
-  const db = getDb();
-  const records = new Map<string, RecordView[]>();
-  if (!isSettledDay(date, vietnamToday())) {
-    const live = await computeDayLive(db, ctx.company.id, employeeIds, date);
-    for (const [id, rows] of live) records.set(id, rows.map(recordView));
-    return records;
-  }
-
-  const rows = await db
-    .select()
-    .from(dayRecords)
-    .where(and(eq(dayRecords.date, date), scopeToCompany(ctx, dayRecords.companyId)));
-  for (const id of employeeIds) {
-    const own = rows.filter(({ employeeId }) => employeeId === id);
-    records.set(
-      id,
-      own.map((row) => recordView({ ...row, notes: row.notes as string[] })),
-    );
-  }
-  return records;
-}
-
-/** Bảng ngày công một ngày của người trong phạm vi quản lý; màn tạm trước Bảng công Sprint 3. */
-export async function listDay(ctx: AuthContext, date: string) {
-  const db = getDb();
-  const staff = await db
+/** Người trong phạm vi quản lý còn làm tính từ ngày `from`. */
+export function staffInScope(ctx: AuthContext, from: string) {
+  return getDb()
     .select({ id: employees.id, name: employees.name, positionName: positions.name })
     .from(employees)
     .leftJoin(positions, eq(positions.id, employees.positionId))
     .where(
       and(
         scopeToStaff(ctx, { companyId: employees.companyId, employeeId: employees.id }),
-        or(eq(employees.status, 'active'), gte(employees.leftDate, date)),
+        or(eq(employees.status, 'active'), gte(employees.leftDate, from)),
       ),
     )
     .orderBy(asc(employees.name));
+}
+
+/** Bảng ngày công một ngày của người trong phạm vi quản lý; màn tạm trước Bảng công Sprint 3. */
+export async function listDay(ctx: AuthContext, date: string) {
+  const db = getDb();
+  const staff = await staffInScope(ctx, date);
   const library = await db
     .select({ id: shifts.id, name: shifts.name })
     .from(shifts)
     .where(scopeToCompany(ctx, shifts.companyId));
-  const records = await recordsOfDay(
-    ctx,
+  const records = await readDayRecords(
+    db,
+    ctx.company.id,
     staff.map(({ id }) => id),
+    date,
     date,
   );
 
   return staff.flatMap(({ id, name, positionName }) =>
-    (records.get(id) ?? []).map((record) => ({
-      ...record,
-      employeeId: id,
-      employeeName: name,
-      positionName,
-      shiftName: library.find((shift) => shift.id === record.shiftId)?.name ?? null,
-    })),
+    records
+      .filter(({ employeeId }) => employeeId === id)
+      .map((record) => ({
+        ...record,
+        employeeName: name,
+        positionName,
+        shiftName: library.find((shift) => shift.id === record.shiftId)?.name ?? null,
+      })),
   );
 }
 
@@ -126,7 +141,7 @@ export async function getDayDetail(ctx: AuthContext, employeeId: string, date: s
       ),
     )
     .orderBy(asc(attendanceLogs.at));
-  const records = await recordsOfDay(ctx, [employeeId], date);
+  const records = await readDayRecords(db, ctx.company.id, [employeeId], date, date);
 
-  return { employee, date, punches, records: records.get(employeeId) ?? [] };
+  return { employee, date, punches, records };
 }

@@ -10,7 +10,7 @@ import { vietnamToday } from '@/lib/domain/date';
 import { vietnamHolidays } from '@/lib/domain/holiday';
 import type { HolidayInput } from '@/lib/validation/holiday';
 import { actorOf } from './actor';
-import { recomputeCompanyDay, recomputeOpenPeriod } from './recompute';
+import { assertNotPublished, recomputeCompanyDay, recomputeOpenPeriod } from './recompute';
 
 export function listHolidays(ctx: AuthContext) {
   return getDb()
@@ -25,6 +25,7 @@ export type HolidayView = Awaited<ReturnType<typeof listHolidays>>[number];
 export async function createHoliday(ctx: AuthContext, input: HolidayInput) {
   try {
     return await getDb().transaction(async (tx) => {
+      await assertNotPublished(tx, ctx.company.id, input.date, input.date);
       const [holiday] = await tx
         .insert(holidays)
         .values({ ...input, companyId: ctx.company.id })
@@ -51,6 +52,7 @@ export async function deleteHoliday(ctx: AuthContext, id: string) {
       .where(and(eq(holidays.id, id), scopeToCompany(ctx, holidays.companyId)))
       .returning();
     if (!holiday) throw notFound('ngày lễ');
+    await assertNotPublished(tx, ctx.company.id, holiday.date, holiday.date);
     await writeAudit(tx, actorOf(ctx), {
       action: 'holiday.delete',
       entity: 'holiday',

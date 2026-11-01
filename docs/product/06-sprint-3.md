@@ -50,15 +50,15 @@ Cả 13 điểm được chốt theo đề xuất dưới đây ngày 01/11/2026
 | ID | Việc | Story | Ước lượng (ngày) | Phụ thuộc | Người | Ngày | Trạng thái |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | S3-01 | Chốt 13 quyết định, cập nhật đặc tả, thêm ca kiểm thử mới | — | 0,25 | — | Dev A | 1 | Xong |
-| S3-02 | Hàm kỳ công từ `cutoff_day`: kỳ chứa một ngày, kỳ trước/sau, biên cuối tháng | US24, US27 | 0,25 | S3-01 | Dev A | 1 | Chưa làm |
-| S3-03 | API `POST /approvals`, `DELETE /approvals/:id`: gộp dòng duyệt, chặn tự duyệt và kỳ đã công bố, tính lại trong giao dịch | US25, US26, US28 | 1 | S3-01 | Dev A | 1–2 | Chưa làm |
-| S3-04 | API `GET /inbox`: việc từ `day_records`, đơn chờ, giải trình, đếm theo loại, lọc người quản lý | US24, US33 | 1 | S3-02, S3-03 | Dev A | 2–3 | Chưa làm |
-| S3-05 | API `GET /overview/today`: 4 thẻ số, tính tại chỗ theo `now` | US23 | 0,5 | S3-02 | Dev A | 3 | Chưa làm |
-| S3-06 | API `POST`, `GET /app/requests`: kiểm tra từng loại đơn, tính phép còn lại, chặn vượt phép | US29–US31 | 1 | S3-01 | Dev B | 1 | Chưa làm |
-| S3-07 | API `POST /app/explanations`: lý do từ 10 ký tự, gửi lại thì cập nhật | US32 | 0,25 | S3-01 | Dev B | 2 | Chưa làm |
-| S3-08 | API `POST /requests/:id/decide`: duyệt, từ chối, quên chấm thêm lần chấm tổng hợp, tính lại | US30, US31, US33 | 1 | S3-03, S3-06 | Dev A | 4 | Chưa làm |
-| S3-09 | Thanh dưới app nhân viên, nút "+", sheet Tạo đơn với 3 loại đơn | US29–US31 | 1,5 | S3-06 | Dev B | 2–3 | Chưa làm |
-| S3-10 | Màn A2: 4 thẻ số, danh sách việc, chip lọc có đếm, chi tiết có thanh giờ và "Vì sao hệ thống đề xuất" | US23–US25 | 1,5 | S3-04, S3-05 | Dev B | 4–5 | Chưa làm |
+| S3-02 | Hàm kỳ công từ `cutoff_day`: kỳ chứa một ngày, kỳ trước/sau, biên cuối tháng | US24, US27 | 0,25 | S3-01 | Dev A | 1 | Xong |
+| S3-03 | API `POST /approvals`, `DELETE /approvals/:id`: gộp dòng duyệt, chặn tự duyệt và kỳ đã công bố, tính lại trong giao dịch | US25, US26, US28 | 1 | S3-01 | Dev A | 1–2 | Xong |
+| S3-04 | API `GET /inbox`: việc từ `day_records`, đơn chờ, giải trình, đếm theo loại, lọc người quản lý | US24, US33 | 1 | S3-02, S3-03 | Dev A | 2–3 | Xong |
+| S3-05 | API `GET /overview/today`: 4 thẻ số, tính tại chỗ theo `now` | US23 | 0,5 | S3-02 | Dev A | 3 | Xong |
+| S3-06 | API `POST`, `GET /app/requests`: kiểm tra từng loại đơn, tính phép còn lại, chặn vượt phép | US29–US31 | 1 | S3-01 | Dev B | 1 | Xong |
+| S3-07 | API `POST /app/explanations`: lý do từ 10 ký tự, gửi lại thì cập nhật | US32 | 0,25 | S3-01 | Dev B | 2 | Xong |
+| S3-08 | API `POST /requests/:id/decide`: duyệt, từ chối, quên chấm thêm lần chấm tổng hợp, tính lại | US30, US31, US33 | 1 | S3-03, S3-06 | Dev A | 4 | Xong |
+| S3-09 | Thanh dưới app nhân viên, nút "+", sheet Tạo đơn với 3 loại đơn | US29–US31 | 1,5 | S3-06 | Dev B | 2–3 | Xong |
+| S3-10 | Màn A2: 4 thẻ số, danh sách việc, chip lọc có đếm, chi tiết có thanh giờ và "Vì sao hệ thống đề xuất" | US23–US25 | 1,5 | S3-04, S3-05 | Dev B | 4–5 | Xong |
 | S3-11 | Duyệt theo đề xuất, tự sang việc kế, drawer Điều chỉnh khác, duyệt/từ chối đơn | US25, US26, US33 | 1 | S3-08, S3-10 | Dev B | 6 | Chưa làm |
 | S3-12 | API `GET /timesheet`, `/timesheet/:employeeId`: lưới kỳ, cột tổng, ghép dữ liệu đã chốt với tính tại chỗ | US27, US28 | 1 | S3-02 | Dev A | 5 | Chưa làm |
 | S3-13 | Màn A3: lưới tháng, 12 ký hiệu, cột tổng, tháng trước/sau, tìm tên, lọc vị trí; thay màn tạm | US27 | 1,5 | S3-12 | Dev A | 6–7 | Chưa làm |

@@ -81,6 +81,11 @@ Cập nhật bảng này khi xong một việc.
 | Việc | Trạng thái |
 |---|---|
 | S3-01 Chốt quyết định | Xong: 13 quyết định đã ghi vào đặc tả, thêm T54–T59 và bảng ký hiệu ô |
+| S3-02 Kỳ công | Code xong `lib/domain/period.ts` |
+| S3-03 → S3-05 Duyệt, Hộp việc, 4 thẻ số | Code xong API; đọc ngày công chung qua `readDayRecords` |
+| S3-06 → S3-08 Đơn, giải trình, quyết định đơn | Code xong API, đã chạy trên PostgreSQL tạm |
+| S3-09 Thanh dưới, sheet Tạo đơn | Code xong, đã thử trên Chrome 375 px; tab Lịch & công, Lương còn là màn tạm |
+| S3-10 Màn A2 | Code xong xem và lọc việc; nút Duyệt, Điều chỉnh làm ở S3-11 |
 
 ## Lệnh
 
@@ -107,6 +112,7 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - `@ant-design/cssinjs` ghim bản 1.x cùng `antd` 5: lên 2.x sẽ có hai bản, `AntdRegistry` mất CSS phía server và trang nháy form thô
 - Service ở `lib/services/`: mọi truy vấn lọc `company_id`, ID từ client qua `assertOwned`, ghi kèm `writeAudit`; route chỉ parse rồi gọi service
 - Mọi thao tác làm đổi ngày công gọi `recomputeDays` hoặc `recomputeOpenPeriod` trong cùng transaction; `day_records` là kết quả tính lại được, không ghi tay
+- Mọi màn đọc ngày công đi qua `readDayRecords` (`lib/services/day.ts`), không đọc thẳng `day_records`; việc trong Hộp việc định danh bằng nhân viên × ngày × ca × cờ, không dùng `day_records.id`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)

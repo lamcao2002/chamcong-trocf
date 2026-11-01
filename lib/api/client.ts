@@ -5,7 +5,7 @@ const CONNECTION_ERROR = 'Không kết nối được, vui lòng thử lại';
 /** Gọi API từ trình duyệt; không ném lỗi, kết quả luôn có `ok`. */
 export async function apiRequest<T extends object = object>(
   url: string,
-  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   body?: unknown,
 ): Promise<ApiResult<T>> {
   try {

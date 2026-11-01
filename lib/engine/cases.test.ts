@@ -681,6 +681,8 @@ describe('ngoài bộ ca kiểm thử', () => {
     expect(decided(paid)).toMatchObject({ status: 'du' });
     const unpaid = { ...T19, approvals: [approval({ congOverride: 0 })] };
     expect(decided(unpaid)).toMatchObject({ status: 'vang', cong: 0, needsReview: false });
+    const half = { ...T19, approvals: [approval({ congOverride: 0.5 })] };
+    expect(decided(half)).toMatchObject({ status: 'nua_cong', cong: 0.5, needsReview: false });
   });
 
   it('duyệt vị trí chỉ đóng cờ GPS, OT vẫn chờ', () => {

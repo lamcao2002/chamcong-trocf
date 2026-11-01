@@ -235,7 +235,7 @@ function pickStatus(record: DayRecord, open: boolean): DayStatus {
   if (flags.includes('ot_cho')) return 'ot_cho';
   if ((lateMin > 0 && !waivedLate) || (earlyMin > 0 && !waivedEarly)) return 'muon';
   if (cong >= 1 || offDay) return 'du';
-  return inAt || outAt ? 'nua_cong' : 'vang';
+  return cong > 0 || inAt || outAt ? 'nua_cong' : 'vang';
 }
 
 /** Áp duyệt rồi mới chốt phạt và trạng thái, để ngày đã duyệt không còn hiện là cần xử lý. */
