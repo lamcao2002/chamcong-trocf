@@ -16,7 +16,8 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 |---|---|
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
-| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **50 ca kiểm thử T01–T50**, 9 câu hỏi mở |
+| `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
+| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **53 ca kiểm thử T01–T53**, quyết định đã chốt |
 | `docs/product/01-ke-hoach-mvp.md` | Kế hoạch 5 bước, 4 quyết định đã chốt |
 | `docs/website-analysis/` | Phân tích sản phẩm gốc: UI tokens (05), data model (07), flows (06) |
 | `docs/setup-supabase.md` | Hạ tầng dev/staging |
@@ -52,7 +53,14 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-17 → S1-19 Nhân sự, drawer, Đã nghỉ | Code xong, đã chạy qua giao diện trên Chrome |
 | S1-20 Test API | Code xong — `npm run test:api`, CI chạy trên build thật |
 | S1-21 Nhập dữ liệu demo, thử M1 trên điện thoại | Mới chạy kịch bản demo trên Chrome giả lập; **chưa thử iPhone/Android thật** |
-| S1-22 Triển khai staging, demo | Đã đẩy nhánh `feat/s1-11-s1-22` để Vercel tạo bản Preview; **chưa xác nhận staging chạy được**, chưa demo |
+| S1-22 Triển khai staging, demo | Bản Vercel từ `main` chạy được, `/api/v1/health` báo `db: up`; chưa demo |
+
+## Tiến độ Sprint 2
+
+| Việc | Trạng thái |
+|---|---|
+| S2-01 Hạ tầng | `vercel.json` vùng `sin1`, `loading.tsx` cho `(shell)` và `/m` xong, chưa triển khai; **còn đặt `APP_ENV=staging` trên Vercel và đo lại trên staging** |
+| S2-02 Chốt quyết định | Xong: 17 quyết định đã ghi vào đặc tả, thêm T51–T53 |
 
 Cập nhật bảng này khi xong một việc.
 
@@ -76,6 +84,7 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Màu/bo góc lấy từ `lib/theme/tokens.ts`, không hardcode; CSS module dùng biến từ `themeCssVars()`
 - Trang quản trị nằm trong `app/(admin)/app/(shell)/`, bọc bằng `AdminPage`; thêm mục menu ở `lib/navigation/admin.ts`
 - Form sửa dùng `FormDrawer`, trang có nút lưu tổng dùng `UnsavedBar` (`components/common/`): cả hai đã tự chặn rời trang; toast dùng `useToast`
+- Trong `(shell)` đã có `loading.tsx`: chặn quyền ở page chuyển hướng phía client (HTTP 200), chỉ phiên hết hạn ở layout mới trả 307
 - Route API bọc `withAuth`, trang quản trị gọi `requireAdminPage` (`lib/auth/guard.ts`); truy vấn lọc bằng `scopeToCompany`/`scopeToStaff`, luật quyền ở `lib/auth/policy.ts`
 - `@ant-design/cssinjs` ghim bản 1.x cùng `antd` 5: lên 2.x sẽ có hai bản, `AntdRegistry` mất CSS phía server và trang nháy form thô
 - Service ở `lib/services/`: mọi truy vấn lọc `company_id`, ID từ client qua `assertOwned`, ghi kèm `writeAudit`; route chỉ parse rồi gọi service
@@ -83,5 +92,5 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
-- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T50
+- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T53
 - Văn bản giao diện tiếng Việt; số `1.234.567đ`, ngày `dd/mm/yyyy`

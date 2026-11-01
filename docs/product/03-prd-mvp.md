@@ -210,4 +210,4 @@ MVP xong khi quán thử dùng trọn một kỳ tháng và lương app tính kh
 - [ ] Chạy ổn trên ít nhất 1 iPhone và 1 Android của nhân viên thật
 - [ ] Đã triển khai production có sao lưu hằng ngày
 
-**Phụ thuộc còn mở:** 9 câu hỏi cuối [Đặc tả bộ tính ngày công](https://claude.ai/artifact/67rpzF2DcocSBs4gtn22ik) cần chốt trước Sprint 2; chọn nơi chạy (vd Vercel + Supabase) và tên miền trước khi kết thúc Sprint 1; tìm quán thử trước Sprint 3.
+**Phụ thuộc còn mở:** các câu hỏi của [Đặc tả bộ tính ngày công](02-dac-ta-engine-ngay-cong.md) đã chốt ngày 01/11/2026, riêng công ca ghép cần xác nhận bằng bảng lương thật trước Sprint 4; chọn tên miền trước Sprint 4; tìm quán thử trước Sprint 3.
