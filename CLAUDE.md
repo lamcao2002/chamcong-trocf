@@ -101,7 +101,9 @@ Cập nhật bảng này khi xong một việc.
 | S4-01 Chốt quyết định | 19 quyết định đã ghi vào `docs/product/07-sprint-4.md`, thêm P15–P17 và S4-21; **chưa đối chiếu với bảng lương của quán** |
 | S4-02 Bộ tính lương | Code xong `lib/payroll/compute-pay.ts`: 18/18 ca P01–P18, hàm thuần |
 | S4-03 → S4-07 API lương | Code xong `/payroll`, `/adjustments`, `/payroll/publish`, `/app/payslips`; kỳ đã công bố dùng cờ `stale` thay cho 409 |
-| S4-08 → S4-10 Màn A5 | Code xong tổng quan, danh sách, sao kê, thưởng/phạt; nút Công bố làm ở S4-11 |
+| S4-08 → S4-11 Màn A5 | Code xong tổng quan, danh sách, sao kê, thưởng/phạt, hộp công bố, báo cần công bố lại |
+| S4-12 Màn M4 | Code xong danh sách kỳ và phiếu; **chưa thử điện thoại thật** |
+| S4-13 Test | Code xong test API và Playwright luồng công bố |
 
 ## Lệnh
 

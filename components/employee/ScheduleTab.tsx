@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { Button, Drawer, Input, Skeleton, Tag } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { useToast } from '@/components/common/useToast';
@@ -9,6 +9,7 @@ import { vietnamToday } from '@/lib/domain/date';
 import { addDays, mondayOf, weekDay } from '@/lib/engine/time';
 import { dayStatusLabel, formatClock, formatDate, formatDayLabel, formatDecimal } from '@/lib/format';
 import type { MyScheduleView, MyTimesheetView } from '@/lib/services/timesheet';
+import { themeCssVars } from '@/lib/theme/tokens';
 import styles from './EmployeeScreen.module.css';
 
 const MIN_REASON = 10;
@@ -200,7 +201,7 @@ function MyRequests({ reloadKey }: { reloadKey: number }) {
 }
 
 /** Màn M3: lịch tuần, lịch tháng có chấm màu, chi tiết ngày, giải trình, đơn của tôi (US32, US33). */
-export function ScheduleTab({ requestsKey }: { requestsKey: number }) {
+export function ScheduleTab({ requestsKey, brandColor }: { requestsKey: number; brandColor: string | null }) {
   const toast = useToast();
   const [month, setMonth] = useState<string | undefined>();
   const [view, setView] = useState<MyTimesheetView | null>(null);
@@ -288,15 +289,18 @@ export function ScheduleTab({ requestsKey }: { requestsKey: number }) {
         destroyOnHidden
         onClose={() => setSelectedDate(null)}
       >
-        {selected ? (
-          <DayDetailView
-            day={selected}
-            onSent={() => {
-              setSelectedDate(null);
-              void load();
-            }}
-          />
-        ) : null}
+        {/* Drawer nằm ngoài vùng đặt biến CSS của màn */}
+        <div style={themeCssVars(brandColor ?? undefined) as CSSProperties}>
+          {selected ? (
+            <DayDetailView
+              day={selected}
+              onSent={() => {
+                setSelectedDate(null);
+                void load();
+              }}
+            />
+          ) : null}
+        </div>
       </Drawer>
     </main>
   );

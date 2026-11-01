@@ -95,6 +95,50 @@
   font-variant-numeric: tabular-nums;
 }
 
+.staleBanner {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--warn-fg);
+  border-radius: var(--radius-md);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.publish {
+  margin-top: 10px;
+}
+
+.notices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notices li {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
+
+.notices .noticeWarn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.notices .noticeOt {
+  background: var(--ot-bg);
+  color: var(--ot-fg);
+}
+
+.notices .noticeInfo {
+  background: var(--bg-app);
+  color: var(--text-muted);
+}
+
 .link {
   color: var(--brand);
   font-weight: 600;

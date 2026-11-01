@@ -109,9 +109,9 @@ Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_
 | S4-08 | Màn A5: thẻ kỳ, tiến độ x/N, thẻ phụ, danh sách nhân viên có chip lọc | US34 | 1,5 | S4-03 | Dev B | 4–5 | Xong |
 | S4-09 | Sao kê "Vì sao ra số này", phần OT chờ với thực lĩnh dự phóng | US34 | 1 | S4-08 | Dev B | 6 | Xong |
 | S4-10 | Modal thưởng/phạt, xoá khoản | US35 | 0,5 | S4-05, S4-09 | Dev B | 7 | Xong |
-| S4-11 | Hộp xác nhận công bố, báo "cần công bố lại" | US36 | 0,5 | S4-06, S4-08 | Dev B | 7 | Chưa làm |
-| S4-12 | Màn M4: danh sách kỳ, phiếu đã công bố; thay màn tạm | US36 | 0,75 | S4-07 | Dev B | 8 | Chưa làm |
-| S4-13 | Test API, ma trận quyền, Playwright luồng công bố; test Lương khớp Bảng công | US34–US36 | 1 | S4-07 | Dev A | 6–7 | Chưa làm |
+| S4-11 | Hộp xác nhận công bố, báo "cần công bố lại" | US36 | 0,5 | S4-06, S4-08 | Dev B | 7 | Xong |
+| S4-12 | Màn M4: danh sách kỳ, phiếu đã công bố; thay màn tạm | US36 | 0,75 | S4-07 | Dev B | 8 | Xong |
+| S4-13 | Test API, ma trận quyền, Playwright luồng công bố; test Lương khớp Bảng công | US34–US36 | 1 | S4-07 | Dev A | 6–7 | Xong |
 | S4-14 | Script tạo công ty và Quản trị viên đầu tiên, chặn đổi ngày chốt, chặn seed nhầm | — | 0,5 | S4-01 | Dev A | 7 | Chưa làm |
 | S4-15 | Project Supabase production, biến môi trường, tên miền, khoá mới, sổ tay triển khai | — | 0,5 | S4-14, S4-21 | Dev A | 8 | Chưa làm |
 | S4-16 | Sao lưu hằng ngày giữ 30 ngày, thử khôi phục thật một lần | — | 0,75 | S4-15 | Dev A | 8–9 | Chưa làm |

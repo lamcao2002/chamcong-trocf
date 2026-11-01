@@ -83,3 +83,34 @@ test('nhân viên gửi đơn quên chấm, quản lý duyệt, app thấy trạ
   await expect(phone.getByText('Đơn của tôi')).toBeVisible();
   await expect(phone.getByText('Đã duyệt', { exact: true })).toBeVisible();
 });
+
+test('quản lý công bố phiếu, nhân viên xem phiếu trong app', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  await scheduleToday(api, staff);
+
+  const phone = await staffPage(browser, staff);
+  const request = phone.context().request;
+  for (const type of ['in', 'out']) {
+    const punched = await request.post('/api/v1/app/punch', {
+      data: { type, lat: 21.02452, lng: 105.85308, accuracy: 10, chosenShiftId: staff.shiftId },
+    });
+    expect(punched.status()).toBe(201);
+  }
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/luong');
+  await admin.getByRole('button', { name: /^Công bố (phiếu lương|lại)$/ }).click();
+  const dialog = admin.getByRole('dialog');
+  await expect(dialog.getByText(/sẽ thấy phiếu lương kỳ này/)).toBeVisible();
+  await dialog.getByRole('button', { name: /^Công bố \d+ phiếu$/ }).click();
+  await expect(admin.getByText(/^Đã công bố (lại )?phiếu lương$/)).toBeVisible();
+  await expect(admin.getByText('Đã công bố', { exact: true })).toBeVisible();
+
+  await phone.goto('/m#/luong');
+  await expect(phone.getByRole('heading', { name: 'Phiếu lương' })).toBeVisible();
+  await phone.locator('main button', { hasText: 'Công bố' }).first().click();
+  const slip = phone.getByRole('dialog');
+  await expect(slip.getByText('Thực lĩnh')).toBeVisible();
+  await expect(slip.getByText(/bản đã công bố/)).toBeVisible();
+});

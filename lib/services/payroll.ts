@@ -14,15 +14,31 @@ import {
   shifts,
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
-import { computePay, type PayDay, type PayProfile } from '@/lib/payroll/compute-pay';
+import {
+  computePay,
+  type PayDay,
+  type PayLine,
+  type PayProfile,
+  type PayResult,
+} from '@/lib/payroll/compute-pay';
 import type { AdjustmentInput } from '@/lib/validation/payroll';
 import { actorOf } from './actor';
 import { assertCanDecide } from './approvals';
 import { readDayRecords, staffInScope } from './day';
-import { loadEmployeeRules } from './recompute';
+import { firstLiveDay, loadEmployeeRules, recomputeDays } from './recompute';
 import { periodFor } from './timesheet';
 
 const DEFAULT_STD_DAYS = 26;
+
+/** Tổng hợp trong bản chụp, gồm cả mức lương lúc công bố vì schema không lưu lịch sử cấu hình. */
+type PayslipSummary = PayResult['summary'] & {
+  positionName: string | null;
+  payType: PayProfile['payType'];
+  payAmount: number;
+  stdDays: number;
+  from: string;
+  to: string;
+};
 
 type Staff = Awaited<ReturnType<typeof staffInScope>>[number];
 
@@ -285,6 +301,16 @@ export async function publishPayroll(ctx: AuthContext, periodKey?: string) {
   const publishedAt = new Date();
 
   return getDb().transaction(async (tx) => {
+    // Phiếu lấy số tính tại chỗ cho ngày gần đây; ghi lại để `day_records` khớp phiếu, nếu không lần
+    // cron kế tiếp sẽ thấy dòng mới và báo cần công bố lại dù tiền không đổi
+    const liveFrom = firstLiveDay(today);
+    await recomputeDays(tx, {
+      companyId,
+      employeeIds: staff.map(({ id }) => id),
+      from: period.from > liveFrom ? period.from : liveFrom,
+      to: period.to,
+    });
+
     const [record] = await tx
       .insert(payrollPeriods)
       .values({
@@ -374,5 +400,8 @@ export async function getMyPayslip(ctx: AuthContext, periodKey: string) {
     .innerJoin(payrollPeriods, eq(payrollPeriods.id, payslips.periodId))
     .where(and(eq(payslips.employeeId, ctx.employee.id), eq(payrollPeriods.periodKey, periodKey)));
   if (!slip) throw notFound('phiếu lương');
-  return slip;
+  return { ...slip, lines: slip.lines as PayLine[], summary: slip.summary as PayslipSummary };
 }
+
+export type PayslipView = Awaited<ReturnType<typeof getMyPayslip>>;
+export type PayslipRow = Awaited<ReturnType<typeof listMyPayslips>>[number];

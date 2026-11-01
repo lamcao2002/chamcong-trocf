@@ -128,6 +128,39 @@ describe('sao kê (US34)', () => {
   });
 });
 
+describe('Lương khớp Bảng công', () => {
+  it('công, muộn, OT trên ba nguồn là một', async () => {
+    const { id, session } = await newEmployee();
+    await punch(id, yesterday, 'in', '17:14');
+    await punch(id, yesterday, 'out', '23:00');
+    await schedule(id, yesterday, [shifts.TOI.id]);
+    await api('POST', '/approvals', {
+      cookie: admin,
+      body: { employeeId: id, date: yesterday, shiftId: shifts.TOI.id, otMinutes: 45 },
+    });
+
+    const pay = (await statement(id)).summary;
+    const grid = (await api('GET', `/timesheet?period=${period}`, { cookie: admin })).body.timesheet;
+    const totals = grid.employees.find((row: any) => row.id === id).totals;
+    const mine = (await api('GET', `/app/timesheet?month=${period}`, { cookie: session })).body.timesheet
+      .totals;
+
+    expect(pay).toMatchObject({
+      cong: totals.cong,
+      lateMin: totals.lateMin,
+      otApprovedMin: totals.otApproved,
+    });
+    expect(mine).toMatchObject({ cong: totals.cong, lateMin: totals.lateMin, otApproved: totals.otApproved });
+    expect(pay.lateMin).toBe(14);
+  });
+
+  it('tổng quỹ khớp từng sao kê của cả công ty', async () => {
+    const view = await payroll();
+    const statements = await Promise.all(view.employees.map(({ id }: any) => statement(id)));
+    expect(statements.map(({ net }: any) => net)).toEqual(view.employees.map(({ net }: any) => net));
+  });
+});
+
 describe('thưởng/phạt (US35)', () => {
   it('cộng trừ thẳng vào thực lĩnh, có audit, xoá được', async () => {
     const { id } = await newEmployee();
@@ -153,6 +186,16 @@ describe('thưởng/phạt (US35)', () => {
     expect((await adjust(id, 'bonus', -5)).status).toBe(400);
     expect((await adjust(id, 'bonus', 1000, '')).status).toBe(400);
     expect((await adjust(id, 'khac', 1000)).status).toBe(400);
+  });
+
+  it('không thêm được cho người công ty khác', async () => {
+    const [company] =
+      await sql`insert into companies (code, name) values (${`L${Date.now()}`}, 'Khác') returning id`;
+    const [other] = await sql`insert into employees (company_id, email, name, pin_hash, onboard_date)
+      values (${company!.id}, 'y@khac.vn', 'Y', 'h', '2026-01-01') returning id`;
+    expect((await adjust(other!.id, 'bonus', 1000)).status).toBe(404);
+    expect((await api('GET', `/payroll/${other!.id}`, { cookie: admin })).status).toBe(404);
+    expect((await payroll()).employees.some((row: any) => row.id === other!.id)).toBe(false);
   });
 
   it('Nhân sự không tự thưởng cho mình', async () => {
@@ -240,8 +283,10 @@ describe('công bố (US36)', () => {
     expect((await payroll()).status.stale).toBe(true);
   });
 
-  it('cron chạy lại ra cùng số không báo cần công bố lại', async () => {
+  it('cron đầu tiên sau khi công bố không báo sai, kể cả người vắng chưa có dòng ngày công', async () => {
     await unpublish();
+    const { id } = await newEmployee('Tạp vụ');
+    expect(await sql`select 1 from day_records where employee_id = ${id}`).toHaveLength(0);
     await publish();
     const response = await fetch(`${process.env.API_BASE_URL}/api/internal/recompute`, {
       headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
@@ -260,6 +305,30 @@ describe('công bố (US36)', () => {
     expect(own.net).toBe(0);
     expect((await api('GET', '/app/payslips', { cookie: admin })).status).toBe(401);
     expect((await api('GET', '/app/payslips/abc', { cookie: first.session })).status).toBe(404);
+  });
+
+  it('người đã nghỉ giữa kỳ vẫn có phiếu', async () => {
+    await unpublish();
+    const { id } = await newEmployee();
+    await workedDay(id);
+    await api('PATCH', `/employees/${id}`, { cookie: admin, body: { status: 'left' } });
+    await publish();
+    expect(await sql`select net from payslips where employee_id = ${id}`).toEqual([{ net: '125000' }]);
+  });
+
+  it('phiếu không có PIN hay bản băm', async () => {
+    await unpublish();
+    const { session } = await newEmployee();
+    await publish();
+    const responses = await Promise.all([
+      api('GET', '/app/payslips', { cookie: session }),
+      api('GET', `/app/payslips/${period}`, { cookie: session }),
+      api('GET', `/payroll?period=${period}`, { cookie: admin }),
+    ]);
+    for (const { status, text } of responses) {
+      expect(status).toBe(200);
+      expect(text).not.toMatch(/pinHash|pin_hash|"pin"|tokenHash/);
+    }
   });
 
   it('kỳ chưa bắt đầu không công bố được, Quản lý nhóm không có quyền', async () => {

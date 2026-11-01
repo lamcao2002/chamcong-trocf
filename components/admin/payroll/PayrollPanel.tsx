@@ -8,6 +8,7 @@ import { formatDate, formatDecimal, formatMoney } from '@/lib/format';
 import type { PayrollView } from '@/lib/services/payroll';
 import { themeCssVars } from '@/lib/theme/tokens';
 import { PayStatementView } from './PayStatementView';
+import { PublishDialog } from './PublishDialog';
 import styles from './payroll.module.css';
 
 type Row = PayrollView['employees'][number];
@@ -59,6 +60,12 @@ export function PayrollPanel({ payroll, brandColor }: PayrollPanelProps) {
 
   return (
     <div className={styles.stack}>
+      {status.stale ? (
+        <p className={styles.staleBanner} role="status">
+          <strong>Cần công bố lại.</strong> Số liệu đã đổi sau lần công bố: nhân viên đang thấy tổng{' '}
+          {formatMoney(status.publishedNet)}, hiện tính ra {formatMoney(payroll.fund)}.
+        </p>
+      ) : null}
       <div className={styles.summary}>
         <section className={styles.main} aria-label="Kỳ lương">
           <div className={styles.mainHead}>
@@ -89,6 +96,7 @@ export function PayrollPanel({ payroll, brandColor }: PayrollPanelProps) {
           <span className={styles.muted}>
             {payroll.readyCount}/{payroll.headcount} người sẵn sàng
           </span>
+          <PublishDialog payroll={payroll} />
         </section>
 
         <div className={styles.side}>
