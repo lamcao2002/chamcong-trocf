@@ -5,7 +5,7 @@ import postgres from 'postgres';
 import { getServerEnv } from '@/lib/env';
 import * as schema from './schema';
 
-type Db = PostgresJsDatabase<typeof schema>;
+export type Db = PostgresJsDatabase<typeof schema>;
 
 // Giữ một kết nối duy nhất khi Next.js nạp lại module ở chế độ dev
 const globalForDb = globalThis as unknown as { __db?: Db; __sql?: postgres.Sql };

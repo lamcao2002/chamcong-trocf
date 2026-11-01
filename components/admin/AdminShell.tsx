@@ -19,6 +19,7 @@ import {
   SettingOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
+import { useLogout } from '@/components/common/useLogout';
 import { ROLE_LABELS, type Role } from '@/lib/auth/roles';
 import {
   activeNavKey,
@@ -89,6 +90,7 @@ function writeCollapsed(collapsed: boolean) {
 /** Khung trang quản trị: menu trái từ 992px, thanh dưới + drawer "Thêm" dưới 992px. */
 export function AdminShell({ viewer, children }: AdminShellProps) {
   const pathname = usePathname();
+  const logout = useLogout('/app/login');
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -173,8 +175,12 @@ export function AdminShell({ viewer, children }: AdminShellProps) {
                   items: [
                     { key: 'who', disabled: true, label: `${viewer.name} · ${ROLE_LABELS[viewer.role]}` },
                     { type: 'divider' },
-                    // Nối với POST /auth/logout ở S1-07
-                    { key: 'logout', disabled: true, icon: <LogoutOutlined />, label: 'Đăng xuất' },
+                    {
+                      key: 'logout',
+                      icon: <LogoutOutlined />,
+                      label: 'Đăng xuất',
+                      onClick: () => void logout(),
+                    },
                   ],
                 }}
               >

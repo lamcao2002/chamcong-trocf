@@ -15,7 +15,7 @@ cp .env.example .env.local
 npm run db:up               # PostgreSQL 16 trong docker, cổng 5432
 npm run db:migrate          # tạo 21 bảng
 npm run db:seed             # công ty mẫu PHONHO, đăng nhập ha@phonho.vn, PIN 1234
-npm run dev                 # http://localhost:3000 → chuyển tới /app
+npm run dev                 # http://localhost:3000/app → mã PHONHO, ha@phonho.vn, PIN 1234
 ```
 
 Kiểm tra kết nối: `curl http://localhost:3000/api/v1/health` → `{"ok":true,"db":"up",...}`.
@@ -34,6 +34,7 @@ Tài liệu sản phẩm (PRD, Sprint, đặc tả engine) nằm trong `docs/pro
 | `npm run format` / `format:check` | Prettier |
 | `npm test` / `test:watch` | Vitest |
 | `npm run check` | lint + typecheck + format + test (giống CI) |
+| `npm run test:api` | test API qua HTTP; cần `npm run start` đang chạy trên CSDL đã migrate + seed. Đặt `API_BASE_URL` nếu không dùng cổng 3000. Từ chối chạy nếu `DATABASE_URL` không phải localhost |
 | `npm run db:up` / `db:down` | bật/tắt PostgreSQL docker |
 | `npm run db:generate` | sinh migration SQL từ `lib/db/schema.ts` vào `drizzle/` |
 | `npm run db:migrate` | áp dụng migration |
@@ -49,16 +50,21 @@ app/
   api/v1/health/      GET kiểm tra env + DB
   layout.tsx          font Be Vietnam Pro, AntdRegistry
   providers.tsx       ConfigProvider (vi_VN, theme từ token)
-components/           UI dùng chung (admin/: khung quản trị; common/: drawer form, thanh chưa lưu, toast, chặn rời trang)
+components/           UI dùng chung (admin/: khung quản trị; employee/: app nhân viên; common/: form đăng nhập, drawer form, thanh chưa lưu, toast, chặn rời trang)
+public/m/             PWA manifest và biểu tượng của app nhân viên
 lib/
   env.ts              đọc & kiểm tra biến môi trường (zod)
   db/client.ts        kết nối postgres-js + drizzle (server-only)
   db/schema.ts        21 bảng dữ liệu
   db/seed.ts          dữ liệu mẫu (nội dung ở db/seed-data.ts)
   auth/pin.ts         băm và kiểm tra PIN (argon2)
+  services/           nghiệp vụ, truy vấn theo công ty, ghi audit
+  domain/             hàm thuần: ca, ngày lễ, GPS, PIN
+  validation/         schema zod dùng chung form + API
   theme/tokens.ts     màu, bo góc, gradient header → theme AntD + biến CSS
   navigation/admin.ts menu quản trị theo quyền
 scripts/migrate.ts    chạy migration
+tests/api/            test API qua HTTP
 drizzle/              file migration sinh ra (commit vào git)
 docs/                 hướng dẫn hạ tầng
 .github/workflows/    CI

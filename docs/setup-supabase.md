@@ -36,7 +36,6 @@ Thay `[YOUR-PASSWORD]` trong chuỗi bằng mật khẩu DB. Nếu mật khẩu 
 | `DATABASE_URL` | docker / dev pooler | staging pooler 6543 | (Sprint 4) |
 | `DATABASE_URL_DIRECT` | trống / dev 5432 | staging 5432 | (Sprint 4) |
 | `APP_TIMEZONE` | `Asia/Ho_Chi_Minh` | `Asia/Ho_Chi_Minh` | `Asia/Ho_Chi_Minh` |
-| `SESSION_SECRET` | chuỗi ngẫu nhiên ≥ 32 ký tự | khác local | khác staging |
 
 Vercel: **Project → Settings → Environment Variables**, chọn đúng scope *Preview* / *Production*. Tạo secret: `openssl rand -base64 48`.
 

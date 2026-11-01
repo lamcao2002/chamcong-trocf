@@ -8,3 +8,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   manager: 'Quản lý nhóm',
   app: 'Nhân viên',
 };
+
+/** Nhóm quyền theo PRD: "QL", "Nhân sự+", "Quản trị". */
+export const MANAGERS: readonly Role[] = ['admin', 'hr', 'manager'];
+export const HR_UP: readonly Role[] = ['admin', 'hr'];
+export const ADMIN_ONLY: readonly Role[] = ['admin'];
