@@ -201,3 +201,42 @@ describe('Đã nghỉ (US13)', () => {
     expect(await leftDate()).toBeNull();
   });
 });
+
+describe('thêm hàng loạt (STF-10)', () => {
+  const person = (positionId: string | null = null) => {
+    const { name, email } = employeeBody({ name: 'Người lô' });
+    return { name, email, positionId };
+  };
+  const bulk = (employees: unknown[]) => api('POST', '/employees/bulk', { cookie, body: { employees } });
+
+  it('tạo cả lô, ai cũng đăng nhập được bằng PIN riêng, một dòng nhật ký không có PIN', async () => {
+    const before = await auditCount('employee.bulk_create');
+    const rows = [person(), person()];
+    const result = await bulk(rows);
+    expect(result.status).toBe(201);
+    expect(await auditCount('employee.bulk_create')).toBe(before + 1);
+
+    for (const { email, pin } of result.body.employees) {
+      await expect(login(email, 'app', COMPANY, pin)).resolves.toBeTruthy();
+    }
+    const [row] = await sql`select after from audit_logs
+      where action = 'employee.bulk_create' order by at desc limit 1`;
+    expect(row!.after.count).toBe(2);
+    expect(JSON.stringify(row!.after)).not.toMatch(/pin/i);
+  });
+
+  it('một email đã có thì không tạo ai trong lô', async () => {
+    const fresh = person();
+    const result = await bulk([fresh, { ...person(), email: 'ha@phonho.vn' }]);
+    expect(result.status).toBe(409);
+    expect(result.body.error).toContain('ha@phonho.vn');
+    expect(await sql`select 1 from employees where email = ${fresh.email}`).toHaveLength(0);
+  });
+
+  it('email trùng trong lô, lô rỗng, quá 100 người → 400', async () => {
+    const one = person();
+    expect((await bulk([one, { ...one, name: 'Khác' }])).status).toBe(400);
+    expect((await bulk([])).status).toBe(400);
+    expect((await bulk(Array.from({ length: 101 }, () => person()))).status).toBe(400);
+  });
+});

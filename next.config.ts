@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['antd', '@ant-design/icons'],
   },
   // Chỉ chạy phía server; argon2 là module native nên không đóng gói được
-  serverExternalPackages: ['postgres', 'argon2'],
+  serverExternalPackages: ['postgres', 'argon2', 'exceljs'],
 };
 
 export default nextConfig;

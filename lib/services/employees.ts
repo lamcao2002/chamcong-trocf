@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, eq, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
 import { ApiError, notFound } from '@/lib/api/errors';
 import { isUniqueViolation } from '@/lib/api/server';
 import { writeAudit, type Tx } from '@/lib/audit';
@@ -23,7 +23,7 @@ import {
   shifts,
 } from '@/lib/db/schema';
 import { generatePin } from '@/lib/domain/pin';
-import type { EmployeeCreateInput, EmployeePatchInput } from '@/lib/validation/employee';
+import type { EmployeeBulkInput, EmployeeCreateInput, EmployeePatchInput } from '@/lib/validation/employee';
 import { actorOf } from './actor';
 import { vietnamToday } from '@/lib/domain/date';
 import { recomputeOpenPeriod } from './recompute';
@@ -169,6 +169,61 @@ export async function createEmployee(
         after: { ...fields, shiftIds, locationIds },
       });
       return { id: created!.id, pin };
+    });
+  } catch (error) {
+    throw isUniqueViolation(error) ? EMAIL_TAKEN : error;
+  }
+}
+
+/** Thêm cả lô trong một transaction: dòng nào lỗi thì không tạo ai, để PIN đã hiện luôn khớp thực tế. */
+export async function createEmployeesBulk(ctx: AuthContext, input: EmployeeBulkInput) {
+  const pins = input.employees.map(() => generatePin());
+  const pinHashes = await Promise.all(pins.map(hashPin));
+  const emails = input.employees.map(({ email }) => email);
+
+  try {
+    return await getDb().transaction(async (tx) => {
+      await assertOwned(
+        tx,
+        ctx,
+        positions,
+        input.employees.map(({ positionId }) => positionId),
+        'positionId',
+      );
+      const taken = await tx
+        .select({ email: employees.email })
+        .from(employees)
+        .where(and(scopeToCompany(ctx, employees.companyId), inArray(employees.email, emails)));
+      if (taken.length > 0) {
+        const list = taken.map(({ email }) => email).join(', ');
+        throw new ApiError(409, `Email đã có người dùng: ${list}`);
+      }
+
+      const onboardDate = vietnamToday();
+      const created = await tx
+        .insert(employees)
+        .values(
+          input.employees.map((employee, index) => ({
+            ...employee,
+            companyId: ctx.company.id,
+            pinHash: pinHashes[index]!,
+            onboardDate,
+          })),
+        )
+        .returning({
+          id: employees.id,
+          name: employees.name,
+          email: employees.email,
+          positionId: employees.positionId,
+        });
+      await writeAudit(tx, actorOf(ctx), {
+        action: 'employee.bulk_create',
+        entity: 'employee',
+        after: { count: created.length, employees: created },
+      });
+
+      const pinByEmail = new Map(emails.map((email, index) => [email, pins[index]!]));
+      return created.map(({ id, name, email }) => ({ id, name, email, pin: pinByEmail.get(email)! }));
     });
   } catch (error) {
     throw isUniqueViolation(error) ? EMAIL_TAKEN : error;

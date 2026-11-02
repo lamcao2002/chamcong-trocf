@@ -16,6 +16,7 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 |---|---|
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
+| `docs/product/08-should-have.md` | Danh sách việc SH-01…SH-35 sau MVP, thứ tự nhóm, quyết định đang để mặc định |
 | `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, 18 ca P01–P18, kế hoạch production |
 | `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
@@ -107,6 +108,15 @@ Cập nhật bảng này khi xong một việc.
 | S4-21 Khoá PIN | Code xong: khoá theo tài khoản trong `lib/auth/login.ts`, phản hồi giống tài khoản không tồn tại, Đặt lại PIN mở khoá ngay |
 | S4-14 Chuẩn bị production | Code xong `npm run company:create`, khoá ngày chốt sau kỳ công bố đầu tiên, chặn seed theo CSDL đích (`lib/db/target.ts`) |
 
+## Tiến độ Should Have
+
+| Việc | Trạng thái |
+|---|---|
+| SH-01 Thêm hàng loạt | Code xong `POST /employees/bulk`, bộ đọc `lib/domain/staff-import.ts`, đã thử trên Chrome 375 và 1440 px |
+| SH-02 Gửi link cài app, QR | Code xong; tin nhắn chỉ kèm PIN ngay sau khi tạo hoặc đặt lại PIN; **chưa quét QR bằng điện thoại thật** |
+| SH-03, SH-04 Xuất Excel | Code xong `/timesheet/export`, `/payroll/export`; kỳ đã công bố lấy bản chụp |
+| SH-05 In phiếu | Code xong trang `/app/in-phieu`, in một người hoặc cả kỳ, mỗi người một tờ; **chưa in ra giấy thật** |
+
 ## Lệnh
 
 ```bash
@@ -136,6 +146,7 @@ npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn V�
 - Mọi thao tác làm đổi ngày công gọi `recomputeDays` hoặc `recomputeOpenPeriod` trong cùng transaction; `day_records` là kết quả tính lại được, không ghi tay
 - Mọi màn đọc ngày công đi qua `readDayRecords` (`lib/services/day.ts`), không đọc thẳng `day_records`; việc trong Hộp việc định danh bằng nhân viên × ngày × ca × cờ, không dùng `day_records.id`
 - Tiền chỉ tính trong `lib/payroll/compute-pay.ts`; phiếu đã công bố đọc từ bản chụp `payslips`, không tính lại
+- Excel và phiếu in lấy số qua `getPayrollDocument`; modal hiện PIN phải `destroyOnHidden`, nếu không PIN nằm lại trong DOM
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)

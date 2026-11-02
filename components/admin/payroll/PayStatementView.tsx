@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { App, Button, Skeleton } from 'antd';
+import { PrinterOutlined } from '@ant-design/icons';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
 import { formatDate, formatDecimal, formatMoney } from '@/lib/format';
@@ -77,7 +78,17 @@ export function PayStatementView({ employeeId, periodKey }: PayStatementViewProp
             {formatMoney(statement.payAmount)}
           </p>
         </div>
-        <Button onClick={() => setAdding(true)}>+ Thưởng / phạt</Button>
+        <div className={styles.statementActions}>
+          <Button
+            icon={<PrinterOutlined />}
+            href={`/app/in-phieu?period=${periodKey}&nv=${employeeId}`}
+            target="_blank"
+            rel="noopener"
+          >
+            In phiếu
+          </Button>
+          <Button onClick={() => setAdding(true)}>+ Thưởng / phạt</Button>
+        </div>
       </div>
 
       <div className={styles.kpis}>

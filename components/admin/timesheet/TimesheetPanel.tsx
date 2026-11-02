@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Input, Select } from 'antd';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { ExportButton } from '@/components/common/ExportButton';
 import { SYMBOL_LEGEND } from '@/lib/domain/symbols';
 import { formatDate, formatDayLabel, formatDecimal } from '@/lib/format';
 import type { TimesheetView } from '@/lib/services/timesheet';
@@ -82,6 +83,7 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
           options={positions.map((value) => ({ value, label: value }))}
           onChange={(value) => setPosition(value ?? null)}
         />
+        <ExportButton url={`/api/v1/timesheet/export?period=${timesheet.period.key}`} />
       </div>
 
       <div ref={scroller} className={styles.scroll}>

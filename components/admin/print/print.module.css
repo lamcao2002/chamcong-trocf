@@ -1,0 +1,119 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  background: var(--surface);
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.slip {
+  padding-bottom: 24px;
+}
+
+.slip + .slip {
+  border-top: 1px dashed var(--border);
+  padding-top: 24px;
+}
+
+.company {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.title {
+  margin: 4px 0 2px;
+  font-size: 20px;
+}
+
+.state {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+}
+
+.draft {
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 16px;
+}
+
+.facts div {
+  display: flex;
+  flex-direction: column;
+}
+
+.facts dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lines th,
+.lines td {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.lines .amount {
+  padding-left: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.how {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.net td {
+  border-bottom: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.empty {
+  color: var(--text-muted);
+}
+
+@media print {
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  /* Mỗi người một tờ, để cắt phát riêng mà không lộ lương người khác */
+  .slip:not(:last-child) {
+    break-after: page;
+  }
+
+  .slip + .slip {
+    border-top: 0;
+    padding-top: 0;
+  }
+}

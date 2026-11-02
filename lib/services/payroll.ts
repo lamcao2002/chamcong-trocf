@@ -416,5 +416,71 @@ export async function getMyPayslip(ctx: AuthContext, periodKey: string) {
   return { ...slip, lines: slip.lines as PayLine[], summary: slip.summary as PayslipSummary };
 }
 
+/**
+ * Số liệu cho Excel và phiếu in. Kỳ đã công bố lấy bản chụp, kể cả khi đang chờ công bố lại, để giấy
+ * luôn khớp phiếu nhân viên đang thấy; kỳ chưa công bố tính tại chỗ và được đánh dấu tạm tính.
+ */
+export async function getPayrollDocument(ctx: AuthContext, periodKey?: string, employeeId?: string) {
+  const db = getDb();
+  const { period } = await periodFor(ctx, periodKey, vietnamToday());
+  const [record] = await db
+    .select()
+    .from(payrollPeriods)
+    .where(and(scopeToCompany(ctx, payrollPeriods.companyId), eq(payrollPeriods.periodKey, period.key)));
+
+  if (record?.published) {
+    const rows = await db
+      .select({
+        employeeId: payslips.employeeId,
+        name: employees.name,
+        net: payslips.net,
+        lines: payslips.lines,
+        summary: payslips.summary,
+      })
+      .from(payslips)
+      .innerJoin(employees, eq(employees.id, payslips.employeeId))
+      .where(
+        and(eq(payslips.periodId, record.id), employeeId ? eq(payslips.employeeId, employeeId) : undefined),
+      )
+      .orderBy(asc(employees.name));
+    return {
+      period,
+      state: record.stale ? ('stale' as const) : ('published' as const),
+      slips: rows.map((row) => {
+        const summary = row.summary as PayslipSummary;
+        return {
+          employeeId: row.employeeId,
+          name: row.name,
+          positionName: summary.positionName,
+          payType: summary.payType,
+          cong: summary.cong,
+          otApprovedMin: summary.otApprovedMin,
+          lines: row.lines as PayLine[],
+          net: row.net,
+        };
+      }),
+    };
+  }
+
+  const staff = await staffInScope(ctx, period.from);
+  const wanted = employeeId ? staff.filter(({ id }) => id === employeeId) : staff;
+  const rows = wanted.length > 0 ? await computePeriod(ctx, wanted, period.from, period.to, period.key) : [];
+  return {
+    period,
+    state: 'draft' as const,
+    slips: rows.map(({ id, name, positionName, profile, pay }) => ({
+      employeeId: id,
+      name,
+      positionName,
+      payType: profile.payType,
+      cong: pay.summary.cong,
+      otApprovedMin: pay.summary.otApprovedMin,
+      lines: pay.lines,
+      net: pay.net,
+    })),
+  };
+}
+
+export type PayrollDocument = Awaited<ReturnType<typeof getPayrollDocument>>;
 export type PayslipView = Awaited<ReturnType<typeof getMyPayslip>>;
 export type PayslipRow = Awaited<ReturnType<typeof listMyPayslips>>[number];

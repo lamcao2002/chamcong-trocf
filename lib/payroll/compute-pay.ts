@@ -54,6 +54,19 @@ export type PayResult = {
   };
 };
 
+/** Gom các dòng theo cột của bảng lương; tổng các nhóm luôn bằng thực lĩnh. */
+export function splitPayLines(lines: readonly PayLine[]) {
+  const pick = (test: (line: PayLine) => boolean) => sum(lines.filter(test), ({ amount }) => amount);
+  const manual = ({ key }: PayLine) => key.startsWith('adjustment_');
+  return {
+    base: pick(({ key }) => key === 'base'),
+    paidLeave: pick(({ key }) => key === 'paid_leave'),
+    ot: pick(({ key }) => key.startsWith('ot_')),
+    bonus: pick((line) => manual(line) && line.amount > 0),
+    penalty: pick((line) => manual(line) && line.amount < 0),
+  };
+}
+
 export type PayInput = {
   profile: PayProfile;
   days: readonly PayDay[];

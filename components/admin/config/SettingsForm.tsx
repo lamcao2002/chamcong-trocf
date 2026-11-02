@@ -7,6 +7,7 @@ import { CopyOutlined } from '@ant-design/icons';
 import { UnsavedBar } from '@/components/common/UnsavedBar';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
+import { inviteLink } from '@/lib/domain/invite';
 import { WEEK_DAYS } from '@/lib/format';
 import type { CompanyView } from '@/lib/services/company';
 import { tokens } from '@/lib/theme/tokens';
@@ -43,7 +44,7 @@ export function SettingsForm({ company }: { company: CompanyView }) {
   const [changed, setChanged] = useState<(keyof CompanyInput)[]>([]);
   const [saving, setSaving] = useState(false);
   const [origin] = useState(() => (typeof window === 'undefined' ? '' : window.location.origin));
-  const inviteLink = useMemo(() => `${origin}/m?ma=${company.code}`, [origin, company.code]);
+  const link = useMemo(() => inviteLink(origin, company.code), [origin, company.code]);
 
   const refreshChanged = (edited: Partial<CompanyInput>) => {
     form.setFields(Object.keys(edited).map((name) => ({ name, errors: [] })) as never);
@@ -84,7 +85,7 @@ export function SettingsForm({ company }: { company: CompanyView }) {
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      await navigator.clipboard.writeText(link);
       toast.success('Đã chép link cài app.');
     } catch {
       toast.error('Không chép được, hãy chọn link rồi chép tay.');
@@ -125,7 +126,7 @@ export function SettingsForm({ company }: { company: CompanyView }) {
           Mã công ty: <strong>{company.code}</strong>
         </p>
         <Space.Compact style={{ width: '100%' }}>
-          <Input value={inviteLink} readOnly aria-label="Link cài app" />
+          <Input value={link} readOnly aria-label="Link cài app" />
           <Button icon={<CopyOutlined />} onClick={() => void copyLink()}>
             Chép link
           </Button>

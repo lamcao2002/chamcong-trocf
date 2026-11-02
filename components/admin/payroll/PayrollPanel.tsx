@@ -2,8 +2,9 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { Drawer, Empty, Grid, Input, Progress, Select, Tag } from 'antd';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { Button, Drawer, Empty, Grid, Input, Progress, Select, Tag } from 'antd';
+import { LeftOutlined, PrinterOutlined, RightOutlined } from '@ant-design/icons';
+import { ExportButton } from '@/components/common/ExportButton';
 import { formatDate, formatDecimal, formatMoney } from '@/lib/format';
 import type { PayrollView } from '@/lib/services/payroll';
 import { themeCssVars } from '@/lib/theme/tokens';
@@ -97,6 +98,17 @@ export function PayrollPanel({ payroll, brandColor }: PayrollPanelProps) {
             {payroll.readyCount}/{payroll.headcount} người sẵn sàng
           </span>
           <PublishDialog payroll={payroll} />
+          <div className={styles.exports}>
+            <ExportButton url={`/api/v1/payroll/export?period=${period.key}`} />
+            <Button
+              icon={<PrinterOutlined />}
+              href={`/app/in-phieu?period=${period.key}`}
+              target="_blank"
+              rel="noopener"
+            >
+              In tất cả phiếu
+            </Button>
+          </div>
         </section>
 
         <div className={styles.side}>

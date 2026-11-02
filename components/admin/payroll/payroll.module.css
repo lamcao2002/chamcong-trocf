@@ -390,3 +390,10 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+.exports,
+.statementActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

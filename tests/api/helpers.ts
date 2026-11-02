@@ -30,7 +30,11 @@ export async function api(method: string, path: string, options: { cookie?: stri
   const text = await response.text();
   return {
     status: response.status,
-    body: (text ? JSON.parse(text) : {}) as Record<string, any>,
+    // File xuất ra là nhị phân, chỉ JSON mới có `body`
+    body: (response.headers.get('content-type')?.includes('json') ? JSON.parse(text) : {}) as Record<
+      string,
+      any
+    >,
     cookies: response.headers.getSetCookie(),
     text,
   };

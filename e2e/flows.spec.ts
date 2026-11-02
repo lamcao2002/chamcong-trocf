@@ -114,3 +114,32 @@ test('quản lý công bố phiếu, nhân viên xem phiếu trong app', async (
   await expect(slip.getByText('Thực lĩnh')).toBeVisible();
   await expect(slip.getByText(/bản đã công bố/)).toBeVisible();
 });
+
+test('thêm hàng loạt: dán danh sách, xem trước, nhân viên đăng nhập bằng PIN vừa hiện', async ({
+  browser,
+}) => {
+  const tag = Date.now().toString(36);
+  const good = `lo-${tag}@phonho.vn`;
+  const admin = await adminPage(browser);
+  await admin.goto('/app/nhan-su');
+  await admin.getByRole('button', { name: 'Thêm hàng loạt' }).click();
+
+  const dialog = admin.getByRole('dialog');
+  await dialog.getByLabel('Danh sách nhân viên').fill(`Người Lô ${tag}\t${good}\tphuc vu\nThiếu Email, sai`);
+  await expect(dialog.getByText('1 người sẵn sàng, 1 dòng bỏ qua.')).toBeVisible();
+  await expect(dialog.getByText('Thiếu email hoặc email sai')).toBeVisible();
+  await expect(dialog.getByText('Phục vụ')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Thêm 1 người' }).click();
+
+  const result = admin.getByRole('dialog', { name: 'Đã thêm 1 người' });
+  const pin = await result.locator('tbody strong').innerText();
+  await result.getByRole('button', { name: 'Đã lưu PIN, đóng' }).click();
+  await expect(admin.getByText(`Người Lô ${tag}`)).toBeVisible();
+
+  const login = await (
+    await adminApi()
+  ).post('/api/v1/auth/app/login', {
+    data: { companyCode: 'PHONHO', email: good, pin },
+  });
+  expect(login.status()).toBe(200);
+});
