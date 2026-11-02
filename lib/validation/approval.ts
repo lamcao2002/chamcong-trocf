@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { MAX_BULK_APPROVALS } from '@/lib/domain/approval';
+import { MAX_RANGE_DAYS, rangeDays } from '@/lib/domain/timesheet-view';
 import { isoDate, uuid } from './common';
-import { periodKeySchema } from './request';
 
 const CONG_CHOICES = [0, 0.5, 1];
 
@@ -35,12 +35,18 @@ export const approvalSchema = z
 export type ApprovalInput = z.infer<typeof approvalSchema>;
 
 /** `label` là đề xuất người duyệt đã thấy; số liệu đổi thì nhãn đổi theo và việc đó bị bỏ qua. */
-export const bulkApprovalSchema = z.object({
-  period: periodKeySchema,
-  items: z
-    .array(z.object({ key: z.string().min(1).max(200), label: z.string().min(1).max(200) }))
-    .min(1)
-    .max(MAX_BULK_APPROVALS),
-});
+export const bulkApprovalSchema = z
+  .object({
+    from: isoDate,
+    to: isoDate,
+    items: z
+      .array(z.object({ key: z.string().min(1).max(200), label: z.string().min(1).max(200) }))
+      .min(1)
+      .max(MAX_BULK_APPROVALS),
+  })
+  .refine(({ from, to }) => from <= to && rangeDays(from, to) <= MAX_RANGE_DAYS, {
+    message: 'Khoảng ngày không hợp lệ',
+    path: ['to'],
+  });
 
 export type BulkApprovalInput = z.infer<typeof bulkApprovalSchema>;

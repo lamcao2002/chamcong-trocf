@@ -332,7 +332,7 @@ describe('duyệt hàng loạt theo đề xuất (INB-08, TS-08)', () => {
   const asBulk = (items: any[]) =>
     items.map(({ key, suggestion }) => ({ key, label: suggestion?.label ?? 'x' }));
   const bulk = (items: object[], cookie = admin) =>
-    api('POST', '/approvals/bulk', { cookie, body: { period: period(), items } });
+    api('POST', '/approvals/bulk', { cookie, body: { from: yesterday, to: yesterday, items } });
   const activeApprovals = (employeeId: string) =>
     sql`select * from approvals where employee_id = ${employeeId} and revoked_at is null`;
 
@@ -413,11 +413,24 @@ describe('duyệt hàng loạt theo đề xuất (INB-08, TS-08)', () => {
     expect((await read()).approvable).toEqual([]);
   });
 
-  it('danh sách rỗng hoặc kỳ sai → 400', async () => {
+  it('duyệt theo khoảng đang xem, việc ngoài khoảng bị bỏ qua', async () => {
+    const id = await dayWithTwoIssues();
+    const items = asBulk(await inboxItems(id));
+    const earlier = addDays(yesterday, -5);
+    const body = { from: earlier, to: earlier, items };
+    const outside = await api('POST', '/approvals/bulk', { cookie: admin, body });
+    expect(outside.body.result).toEqual({ approved: 0, skipped: items.length });
+
+    const wide = { from: earlier, to: yesterday, items };
+    const inside = await api('POST', '/approvals/bulk', { cookie: admin, body: wide });
+    expect(inside.body.result).toEqual({ approved: items.length, skipped: 0 });
+  });
+
+  it('danh sách rỗng hoặc khoảng ngày ngược → 400', async () => {
     expect((await bulk([])).status).toBe(400);
     const wrong = await api('POST', '/approvals/bulk', {
       cookie: admin,
-      body: { period: 'abc', items: [{ key: 'a', label: 'b' }] },
+      body: { from: '2026-02-01', to: '2026-01-01', items: [{ key: 'a', label: 'b' }] },
     });
     expect(wrong.status).toBe(400);
   });

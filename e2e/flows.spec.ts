@@ -188,3 +188,24 @@ test('Bảng công: chọn ô cần duyệt rồi Duyệt loạt', async ({ brow
   await expect(admin.getByText('Đã duyệt 1 việc')).toBeVisible();
   await expect(admin.getByRole('button', { name: 'Duyệt loạt' })).toBeDisabled();
 });
+
+test('Bảng công: Kỳ lệch, Tự chọn và Theo tuần', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await outOfZone(api, browser);
+
+  const admin = await adminPage(browser);
+  await admin.goto(`/app/bang-cong?from=${today()}&to=${today()}`);
+  await expect(admin.getByText('Đây là khoảng xem, không phải kỳ lương')).toBeVisible();
+  await expect(admin.getByRole('button', { name: 'Kỳ sau' })).toHaveCount(0);
+
+  await admin.getByText('Theo tuần', { exact: true }).click();
+  await expect(admin).toHaveURL(/view=week/);
+  await admin.getByLabel('Tìm tên').fill(staff.name);
+  await expect(admin.getByRole('button', { name: 'Duyệt loạt' })).toHaveCount(0);
+  await admin.getByRole('button', { name: new RegExp(`^${staff.name}, `) }).click();
+  await expect(admin.getByRole('dialog').getByText('Lần chấm')).toBeVisible();
+
+  await admin.goto('/app/bang-cong?start=16');
+  await expect(admin.getByText('Bắt đầu từ ngày')).toBeVisible();
+  await expect(admin.getByRole('link', { name: 'Kỳ này' })).toBeVisible();
+});

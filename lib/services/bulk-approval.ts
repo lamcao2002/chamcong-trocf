@@ -6,7 +6,7 @@ import { getDb } from '@/lib/db/client';
 import { groupDecisions } from '@/lib/domain/approval';
 import type { BulkApprovalInput } from '@/lib/validation/approval';
 import { ALREADY_DECIDED, assertCanDecide, writeApproval } from './approvals';
-import { getInbox } from './inbox';
+import { inboxBetween } from './inbox';
 import { lockEmployees, recomputeDays } from './recompute';
 
 /**
@@ -14,7 +14,7 @@ import { lockEmployees, recomputeDays } from './recompute';
  * nhãn đã thấy: nhãn lệch nghĩa là số liệu đổi sau khi quản lý xem, việc đó được bỏ qua và báo lại.
  */
 export async function approveSuggested(ctx: AuthContext, input: BulkApprovalInput) {
-  const { items } = await getInbox(ctx, input.period);
+  const { items } = await inboxBetween(ctx, input.from, input.to);
   const current = new Map(items.map((item) => [item.key, item]));
   const picked = input.items.flatMap(({ key, label }) => {
     const item = current.get(key);

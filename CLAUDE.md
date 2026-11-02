@@ -118,6 +118,8 @@ Cập nhật bảng này khi xong một việc.
 | SH-05 In phiếu | Code xong trang `/app/in-phieu`, in một người hoặc cả kỳ, mỗi người một tờ; **chưa in ra giấy thật** |
 | SH-09, SH-10 Duyệt hàng loạt | Code xong `POST /approvals/bulk` (`lib/services/bulk-approval.ts`), chọn nhiều ở Hộp việc; đề xuất lấy lại từ server, số đổi thì bỏ qua và báo lại |
 | SH-12 Duyệt loạt Bảng công | Code xong chế độ chọn ô, dùng chung API với Hộp việc |
+| SH-13 Kỳ lệch, Tự chọn | Code xong `lib/domain/timesheet-view.ts`: chỉ đổi khoảng xem, tối đa 62 ngày; Excel, drawer một người và duyệt loạt đi theo khoảng đó |
+| SH-14 Theo tuần | Code xong `?view=week`, `TimesheetWeek.tsx`; chưa thử điện thoại thật |
 
 ## Lệnh
 
@@ -150,6 +152,7 @@ npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn V�
 - Tiền chỉ tính trong `lib/payroll/compute-pay.ts`; phiếu đã công bố đọc từ bản chụp `payslips`, không tính lại
 - Excel và phiếu in lấy số qua `getPayrollDocument`; modal hiện PIN phải `destroyOnHidden`, nếu không PIN nằm lại trong DOM
 - Duyệt hàng loạt không nhận quyết định từ client: chỉ nhận khoá việc và nhãn đã thấy, đề xuất lấy lại qua `getInbox`
+- Kỳ lệch và Tự chọn chỉ là khoảng xem của Bảng công; Lương, Hộp việc và phiếu luôn theo `companies.cutoff_day`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)

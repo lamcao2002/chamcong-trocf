@@ -162,3 +162,92 @@ describe('ba màn cùng một con số', () => {
     expect((await rowOf(id)).totals).toMatchObject({ cong: 1, otApproved: 60, otPending: 0 });
   });
 });
+
+describe('khoảng xem của Bảng công (TS-02, TS-03)', () => {
+  const read = async (query: string) =>
+    (await api('GET', `/timesheet?${query}`, { cookie: admin })).body.timesheet;
+
+  it('Kỳ lệch đổi khoảng xem, kỳ lương trong Cài đặt giữ nguyên', async () => {
+    const view = await read('start=16&period=2026-10');
+    expect(view).toMatchObject({ mode: 'shifted', start: 16, isPayrollRange: false });
+    expect(view.period).toMatchObject({ from: '2026-09-16', to: '2026-10-15' });
+    expect((await read('')).mode).toBe('payroll');
+    expect((await api('GET', '/company', { cookie: admin })).body.company.cutoffDay).toBeNull();
+  });
+
+  it('Tự chọn trả đúng các ngày, không có kỳ trước và kỳ sau', async () => {
+    const view = await read('from=2026-10-05&to=2026-10-09');
+    expect(view.dates).toHaveLength(5);
+    expect(view).toMatchObject({ mode: 'custom', previousKey: null, nextKey: null });
+  });
+
+  it.each([
+    ['thiếu ngày cuối', 'from=2026-10-05'],
+    ['ngày cuối trước ngày đầu', 'from=2026-10-09&to=2026-10-05'],
+    ['quá 62 ngày', 'from=2026-01-01&to=2026-03-04'],
+    ['ngày bắt đầu 32', 'start=32'],
+    ['chế độ xem lạ', 'view=thang'],
+  ])('%s → 400', async (_name, query) => {
+    expect((await api('GET', `/timesheet?${query}`, { cookie: admin })).status).toBe(400);
+  });
+
+  it('đúng 62 ngày vẫn hợp lệ', async () => {
+    expect((await read('from=2026-01-01&to=2026-03-03')).dates).toHaveLength(62);
+  });
+
+  it('Excel và bảng công một người đi theo đúng khoảng đang xem', async () => {
+    const { id } = await newEmployee();
+    await schedule(id, yesterday, [shifts.TOI.id]);
+    const other = addDays(yesterday, -3);
+    const url = `/timesheet/${id}?from=${other}&to=${other}`;
+    expect((await api('GET', url, { cookie: admin })).body.timesheet.rows).toHaveLength(0);
+
+    const response = await fetch(
+      `${process.env.API_BASE_URL}/api/v1/timesheet/export?from=${yesterday}&to=${yesterday}`,
+      { headers: { cookie: admin } },
+    );
+    expect(response.headers.get('content-disposition')).toContain(`bang-cong-${yesterday}_${yesterday}.xlsx`);
+  });
+});
+
+describe('Bảng công Theo tuần (TS-05)', () => {
+  const read = async (query: string) =>
+    (await api('GET', `/timesheet?${query}`, { cookie: admin })).body.timesheet;
+
+  it('không xin thì không tải dữ liệu tuần', async () => {
+    const view = await read(`period=${period}`);
+    expect(view.week).toBeNull();
+    expect(view.employees.every(({ weekDays }: any) => weekDays.length === 0)).toBe(true);
+  });
+
+  it('có giờ vào–ra, trạng thái, mốc ca; chỉ gồm ngày của tuần đang chọn', async () => {
+    const { id } = await newEmployee();
+    await punch(id, yesterday, 'in', '17:00');
+    await punch(id, yesterday, 'out', '22:00');
+    await schedule(id, yesterday, [shifts.TOI.id]);
+
+    const { weeks } = await read(`period=${period}`);
+    const wanted = weeks.find(({ from, to }: any) => from <= yesterday && yesterday <= to);
+    const view = await read(`period=${period}&view=week&week=${wanted.from}`);
+    expect(view.week).toEqual(wanted);
+
+    const person = view.employees.find((row: any) => row.id === id);
+    expect(person.weekDays.every(({ date }: any) => date >= wanted.from && date <= wanted.to)).toBe(true);
+    const [row] = person.weekDays[0].rows;
+    expect(row.text).toMatch(/17:00–22:00|sau ca|muộn|sớm/);
+    expect(row.shiftName).toBe(shifts.TOI.name);
+    expect(row.shiftStartAt).toBeTruthy();
+    expect(row.congValue).toBeGreaterThan(0);
+
+    const elsewhere = weeks.find(({ from }: any) => from !== wanted.from);
+    if (elsewhere) {
+      const moved = await read(`period=${period}&view=week&week=${elsewhere.from}`);
+      expect(moved.employees.find((entry: any) => entry.id === id).weekDays).toHaveLength(0);
+    }
+  });
+
+  it('tuần lạ thì về tuần mặc định, không lỗi', async () => {
+    const view = await read(`period=${period}&view=week&week=2020-01-01`);
+    expect(view.weeks).toContainEqual(view.week);
+  });
+});

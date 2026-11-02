@@ -40,7 +40,7 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
   const [busy, setBusy] = useState(false);
   const [checked, setChecked] = useState<readonly string[]>([]);
   const [, startRefresh] = useTransition();
-  const bulk = useBulkApprove(inbox.period.key, () => {
+  const bulk = useBulkApprove(inbox.period, () => {
     setChecked([]);
     startRefresh(() => router.refresh());
   });

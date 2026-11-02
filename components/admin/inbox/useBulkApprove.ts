@@ -10,7 +10,7 @@ import type { ApprovableItem } from '@/lib/services/inbox';
 type Result = { result: { approved: number; skipped: number } };
 
 /** Hỏi lại rồi duyệt theo đề xuất; dùng chung cho Hộp việc và Bảng công. */
-export function useBulkApprove(periodKey: string, onDone: () => void) {
+export function useBulkApprove({ from, to }: { from: string; to: string }, onDone: () => void) {
   const { modal } = App.useApp();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -18,7 +18,8 @@ export function useBulkApprove(periodKey: string, onDone: () => void) {
   const submit = async (items: readonly ApprovableItem[]) => {
     setBusy(true);
     const result = await apiRequest<Result>('/api/v1/approvals/bulk', 'POST', {
-      period: periodKey,
+      from,
+      to,
       items: items.map(({ key, label }) => ({ key, label })),
     });
     setBusy(false);

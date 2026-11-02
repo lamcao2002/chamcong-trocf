@@ -129,9 +129,24 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
     .where(eq(companies.id, ctx.company.id));
   const cutoffDay = company?.cutoffDay ?? null;
   const period = periodKey ? periodByKey(periodKey, cutoffDay) : periodOf(today, cutoffDay);
+  const next = nextPeriod(period, cutoffDay);
+  return {
+    period,
+    /** Đầu tháng quản lý vẫn cần xử lý tồn của kỳ trước, nên phải chuyển kỳ được. */
+    previousKey: previousPeriod(period, cutoffDay).key,
+    nextKey: next.from <= today ? next.key : null,
+    ...(await inboxBetween(ctx, period.from, period.to, now)),
+  };
+}
 
+export type InboxView = Awaited<ReturnType<typeof getInbox>>;
+
+/** Việc trong một khoảng ngày; duyệt hàng loạt từ Bảng công dùng được cả khoảng không trùng kỳ lương. */
+export async function inboxBetween(ctx: AuthContext, from: string, to: string, now: Date = new Date()) {
+  const db = getDb();
+  const today = vietnamToday(now);
   const [allStaff, library, ownAllowed] = await Promise.all([
-    staffInScope(ctx, period.from),
+    staffInScope(ctx, from),
     db
       .select({ id: shifts.id, name: shifts.name, startTime: shifts.startTime, endTime: shifts.endTime })
       .from(shifts)
@@ -142,7 +157,7 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
   const ids = staff.map(({ id }) => id);
 
   const [records, pending] = await Promise.all([
-    readDayRecords(db, ctx.company.id, ids, period.from, period.to < today ? period.to : today, now),
+    readDayRecords(db, ctx.company.id, ids, from, to < today ? to : today, now),
     db
       .select()
       .from(requests)
@@ -150,8 +165,8 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
         and(
           scopeToStaff(ctx, { companyId: requests.companyId, employeeId: requests.employeeId }),
           eq(requests.status, 'pending'),
-          lte(requests.fromDate, period.to),
-          gte(requests.toDate, period.from),
+          lte(requests.fromDate, to),
+          gte(requests.toDate, from),
         ),
       ),
   ]);
@@ -196,19 +211,8 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
     return all;
   }, {});
 
-  const next = nextPeriod(period, cutoffDay);
-  return {
-    period,
-    /** Đầu tháng quản lý vẫn cần xử lý tồn của kỳ trước, nên phải chuyển kỳ được. */
-    previousKey: previousPeriod(period, cutoffDay).key,
-    nextKey: next.from <= today ? next.key : null,
-    total: items.length,
-    counts,
-    items,
-  };
+  return { total: items.length, counts, items };
 }
-
-export type InboxView = Awaited<ReturnType<typeof getInbox>>;
 
 /** 4 thẻ số hôm nay (US23); tính tại chỗ vì đổi theo đồng hồ. */
 export async function getOverview(ctx: AuthContext, pending: number, now: Date = new Date()) {
