@@ -209,3 +209,49 @@ test('Bảng công: Kỳ lệch, Tự chọn và Theo tuần', async ({ browser 
   await expect(admin.getByText('Bắt đầu từ ngày')).toBeVisible();
   await expect(admin.getByRole('link', { name: 'Kỳ này' })).toBeVisible();
 });
+
+test('nhân viên đăng ký ca tuần sau, quản lý nhận, chuông báo kết quả', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+
+  const phone = await staffPage(browser, staff);
+  await phone.goto('/m#/lich');
+  await expect(phone.getByText('Đăng ký ca tuần sau')).toBeVisible();
+  await phone
+    .getByRole('button', { name: new RegExp(`^Ca ${staff.tag}`) })
+    .first()
+    .click();
+  await phone.getByRole('button', { name: /Gửi đăng ký · 1 ca/ }).click();
+  await expect(phone.getByText('Đã gửi đăng ký')).toBeVisible();
+
+  const admin = await adminPage(browser);
+  const monday = new Date(`${today()}T00:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+  await admin.goto(`/app/xep-ca?week=${monday.toISOString().slice(0, 10)}`);
+  await admin.getByRole('button', { name: new RegExp(`^Nhận ${staff.name}`) }).click();
+  await expect(admin.getByText('Đã nhận 1 đăng ký')).toBeVisible();
+
+  await phone.reload();
+  await phone.getByRole('button', { name: /Thông báo, 1 chưa đọc/ }).click();
+  await expect(phone.getByText('Đăng ký ca đã được nhận')).toBeVisible();
+});
+
+test('nhân viên gửi đơn Muộn/sớm, quản lý thấy đúng nội dung trong Hộp việc', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+
+  const phone = await staffPage(browser, staff);
+  await phone.goto('/m');
+  await phone.getByRole('button', { name: 'Tạo đơn' }).click();
+  const sheet = phone.getByRole('dialog');
+  await sheet.getByRole('button', { name: 'Muộn / sớm' }).click();
+  await sheet.getByLabel('Ngày').fill(today());
+  await sheet.getByLabel('Số phút').fill('15');
+  await sheet.getByLabel('Lý do').fill('Xe hỏng giữa đường');
+  await sheet.getByRole('button', { name: 'Gửi đơn' }).click();
+  await expect(phone.getByText('Đã gửi đơn')).toBeVisible();
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app');
+  await expect(admin.getByText('Xin đi trễ 15 phút · Cả ngày').first()).toBeVisible();
+});

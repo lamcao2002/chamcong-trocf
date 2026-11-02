@@ -10,6 +10,7 @@ import { addDays, mondayOf, weekDay } from '@/lib/engine/time';
 import { dayStatusLabel, formatClock, formatDate, formatDayLabel, formatDecimal } from '@/lib/format';
 import type { MyScheduleView, MyTimesheetView } from '@/lib/services/timesheet';
 import { themeCssVars } from '@/lib/theme/tokens';
+import { RegisterCard } from './RegisterCard';
 import styles from './EmployeeScreen.module.css';
 
 const MIN_REASON = 10;
@@ -149,11 +150,6 @@ function WeekList({ week, title }: { week: string; title: string }) {
   );
 }
 
-const REQUEST_LABELS: Record<string, string> = {
-  leave: 'Nghỉ phép',
-  forgot: 'Quên chấm',
-  overtime: 'Làm thêm',
-};
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Chờ duyệt',
   approved: 'Đã duyệt',
@@ -162,7 +158,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 type MyRequest = {
   id: string;
-  type: string;
+  summary: string;
   fromDate: string;
   toDate: string;
   status: string;
@@ -183,10 +179,10 @@ function MyRequests({ reloadKey }: { reloadKey: number }) {
     <div className={`${styles.card} ${styles.followCard}`}>
       <strong>Đơn của tôi</strong>
       <ul className={styles.timeline}>
-        {rows.map(({ id, type, fromDate, toDate, status, rejectNote }) => (
+        {rows.map(({ id, summary, fromDate, toDate, status, rejectNote }) => (
           <li key={id}>
             <span>
-              {REQUEST_LABELS[type]} · {formatDate(fromDate).slice(0, 5)}
+              {summary} · {formatDate(fromDate).slice(0, 5)}
               {toDate === fromDate ? '' : `–${formatDate(toDate).slice(0, 5)}`}
               {rejectNote ? <span className={styles.timelineSub}> · {rejectNote}</span> : null}
             </span>
@@ -200,8 +196,10 @@ function MyRequests({ reloadKey }: { reloadKey: number }) {
   );
 }
 
+type ScheduleTabProps = { requestsKey: number; brandColor: string | null; onChanged: () => void };
+
 /** Màn M3: lịch tuần, lịch tháng có chấm màu, chi tiết ngày, giải trình, đơn của tôi (US32, US33). */
-export function ScheduleTab({ requestsKey, brandColor }: { requestsKey: number; brandColor: string | null }) {
+export function ScheduleTab({ requestsKey, brandColor, onChanged }: ScheduleTabProps) {
   const toast = useToast();
   const [month, setMonth] = useState<string | undefined>();
   const [view, setView] = useState<MyTimesheetView | null>(null);
@@ -279,6 +277,7 @@ export function ScheduleTab({ requestsKey, brandColor }: { requestsKey: number; 
 
       <WeekList week={thisWeek} title="Tuần này" />
       <WeekList week={addDays(thisWeek, 7)} title="Tuần sau" />
+      <RegisterCard reloadKey={requestsKey} onSent={onChanged} />
       <MyRequests reloadKey={requestsKey} />
 
       <Drawer

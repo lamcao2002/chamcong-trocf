@@ -8,6 +8,7 @@ import { ROLE_LABELS, type Role } from '@/lib/auth/roles';
 import type { AppHome } from '@/lib/services/attendance';
 import { buildAntdTheme } from '@/lib/theme/tokens';
 import { EmployeeNav, useHashTab } from './EmployeeNav';
+import { NotificationBell } from './NotificationBell';
 import { PayslipTab } from './PayslipTab';
 import { PunchScreen } from './PunchScreen';
 import { RequestSheet } from './RequestSheet';
@@ -39,7 +40,10 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
               {ROLE_LABELS[role]} · {companyName}
             </p>
           </div>
-          <Button icon={<LogoutOutlined />} aria-label="Đăng xuất" onClick={() => void logout()} />
+          <div className={styles.headerActions}>
+            <NotificationBell brandColor={brandColor} />
+            <Button icon={<LogoutOutlined />} aria-label="Đăng xuất" onClick={() => void logout()} />
+          </div>
         </div>
       </header>
       {/* Chip ca và nút theo màu công ty, thay vì màu mặc định của Providers */}
@@ -48,7 +52,13 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
         <div hidden={tab !== 'cham'}>
           <PunchScreen home={home} />
         </div>
-        {tab === 'lich' ? <ScheduleTab requestsKey={requestsKey} brandColor={brandColor} /> : null}
+        {tab === 'lich' ? (
+          <ScheduleTab
+            requestsKey={requestsKey}
+            brandColor={brandColor}
+            onChanged={() => setRequestsKey((key) => key + 1)}
+          />
+        ) : null}
         {tab === 'luong' ? <PayslipTab brandColor={brandColor} /> : null}
         <EmployeeNav tab={tab} onCreate={() => setSheetOpen(true)} />
         <RequestSheet

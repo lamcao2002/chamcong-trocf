@@ -20,7 +20,7 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 | `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, 18 ca P01–P18, kế hoạch production |
 | `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
-| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **59 ca kiểm thử T01–T59**, ký hiệu ô Bảng công, quyết định đã chốt |
+| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **66 ca kiểm thử T01–T66**, ký hiệu ô Bảng công, quyết định đã chốt |
 | `docs/product/01-ke-hoach-mvp.md` | Kế hoạch 5 bước, 4 quyết định đã chốt |
 | `docs/website-analysis/` | Phân tích sản phẩm gốc: UI tokens (05), data model (07), flows (06) |
 | `docs/setup-supabase.md` | Hạ tầng dev/staging |
@@ -120,6 +120,10 @@ Cập nhật bảng này khi xong một việc.
 | SH-12 Duyệt loạt Bảng công | Code xong chế độ chọn ô, dùng chung API với Hộp việc |
 | SH-13 Kỳ lệch, Tự chọn | Code xong `lib/domain/timesheet-view.ts`: chỉ đổi khoảng xem, tối đa 62 ngày; Excel, drawer một người và duyệt loạt đi theo khoảng đó |
 | SH-14 Theo tuần | Code xong `?view=week`, `TimesheetWeek.tsx`; chưa thử điện thoại thật |
+| SH-16 Thông báo | Code xong bảng `notifications`, `lib/services/notifications.ts`, chuông ở app nhân viên; chưa có web push |
+| SH-17, SH-18 Đăng ký ca | Code xong: mỗi ô một đơn `shift_register`, lưới ở tab Lịch, nhận ở Xếp ca và Hộp việc; **chưa thử điện thoại thật** |
+| SH-19 Đơn Muộn/sớm | Code xong, engine thêm T60–T66; miễn tính muộn, không đổi công |
+| SH-20 Đơn Đổi ca | Code xong: duyệt thì sửa lịch hai ngày; đã có lần chấm thì chặn |
 
 ## Lệnh
 
@@ -153,9 +157,10 @@ npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn V�
 - Excel và phiếu in lấy số qua `getPayrollDocument`; modal hiện PIN phải `destroyOnHidden`, nếu không PIN nằm lại trong DOM
 - Duyệt hàng loạt không nhận quyết định từ client: chỉ nhận khoá việc và nhãn đã thấy, đề xuất lấy lại qua `getInbox`
 - Kỳ lệch và Tự chọn chỉ là khoảng xem của Bảng công; Lương, Hộp việc và phiếu luôn theo `companies.cutoff_day`
+- Thông báo ghi bằng `notify` trong cùng transaction với việc gây ra nó; đổi ô lịch đi qua `writeCells`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
-- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T59
+- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T66
 - Văn bản giao diện tiếng Việt; số `1.234.567đ`, ngày `dd/mm/yyyy`

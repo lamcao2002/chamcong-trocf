@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeDay } from './compute-day';
 import type { DayInput, DayRecord, EngineApproval, EnginePunch, EngineShift } from './types';
 
-/** Bộ ca kiểm thử T01–T59 của docs/product/02-dac-ta-engine-ngay-cong.md; mỗi dòng một test. */
+/** Bộ ca kiểm thử T01–T66 của docs/product/02-dac-ta-engine-ngay-cong.md; mỗi dòng một test. */
 
 const DATE = '2026-10-07'; // Thứ Tư
 const NEXT_DATE = '2026-10-08';
@@ -149,7 +149,11 @@ const T10 = onShift(CA2, pair('13:59', '23:38'));
 const T17 = onShift(SANG, [punch('in', '06:59')]);
 const T19 = onShift(CA1, []);
 const T03 = onShift(CA1, pair('06:14', '14:00'));
+const T05 = onShift(CA1, pair('06:00', '13:50'));
 const annualLeave = { type: 'leave', leaveType: 'annual' } as const;
+
+const lateRequest = (minutes: number, shiftId: string | null = null) =>
+  ({ type: 'late_early', kind: 'late', minutes, shiftId }) as const;
 
 const CASES: Case[] = [
   {
@@ -179,7 +183,7 @@ const CASES: Case[] = [
   {
     id: 'T05',
     title: 'về sớm',
-    input: onShift(CA1, pair('06:00', '13:50')),
+    input: T05,
     check: expectOne({ earlyMin: 10, workedMin: 440, cong: 1 }),
   },
   {
@@ -594,11 +598,66 @@ const CASES: Case[] = [
     input: { ...T17, approvals: [approval({ shiftId: SANG.id, congOverride: 0.5 })] },
     check: expectOne({ status: 'nua_cong', cong: 0.5, needsReview: false }),
   },
+  {
+    id: 'T60',
+    title: 'đơn đi trễ phủ hết số phút muộn',
+    input: { ...T03, penaltyPerMin: 1000, requests: [lateRequest(15)] },
+    check: expectOne({ status: 'du', lateMin: 14, waivedLate: true, penalty: 0 }),
+  },
+  {
+    id: 'T61',
+    title: 'đơn đi trễ ít hơn số phút muộn: phần vượt vẫn tính',
+    input: { ...T03, penaltyPerMin: 1000, requests: [lateRequest(10)] },
+    check: expectOne({ status: 'muon', lateMin: 4, waivedLate: false, penalty: 4000 }),
+  },
+  {
+    id: 'T62',
+    title: 'đơn về sớm phủ hết',
+    input: { ...T05, requests: [{ type: 'late_early', kind: 'early', minutes: 10, shiftId: null }] },
+    check: expectOne({ status: 'du', earlyMin: 10, waivedEarly: true }),
+  },
+  {
+    id: 'T63',
+    title: 'đơn ghi ca khác không áp cho ca này',
+    input: { ...T03, requests: [lateRequest(15, CA2.id)] },
+    check: expectOne({ status: 'muon', lateMin: 14, waivedLate: false }),
+  },
+  {
+    id: 'T64',
+    title: 'đơn cả ngày áp cho mọi ca trong ngày',
+    input: onShift([SANG, CHIEU], [...pair('07:20', '12:00'), ...pair('12:20', '17:00')], {
+      requests: [lateRequest(30)],
+    }),
+    check: (records) => {
+      expect(records).toHaveLength(2);
+      expect(records.every(({ waivedLate }) => waivedLate)).toBe(true);
+    },
+  },
+  {
+    id: 'T65',
+    title: 'đơn đi trễ không đổi số công',
+    input: onShift(CA1, pair('08:30', '14:00'), { requests: [lateRequest(150)] }),
+    check: (records) => {
+      const plain = computeDay(onShift(CA1, pair('08:30', '14:00')), AFTER_WINDOW);
+      expect(records[0]).toMatchObject({ cong: plain[0]!.cong, waivedLate: true });
+    },
+  },
+  {
+    id: 'T66',
+    title: 'bản ghi duyệt việc khác không xoá hiệu lực của đơn',
+    input: {
+      ...T03,
+      penaltyPerMin: 1000,
+      requests: [lateRequest(15)],
+      approvals: [approval({ approveGps: true })],
+    },
+    check: expectOne({ status: 'du', waivedLate: true, penalty: 0 }),
+  },
 ];
 
 describe('bộ ca kiểm thử của đặc tả', () => {
-  it('có đủ T01–T59', () => {
-    const expected = Array.from({ length: 59 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`);
+  it('có đủ T01–T66', () => {
+    const expected = Array.from({ length: 66 }, (_, index) => `T${String(index + 1).padStart(2, '0')}`);
     expect(CASES.map(({ id }) => id)).toEqual(expected);
   });
 

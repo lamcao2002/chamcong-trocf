@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
 import { ApiError, notFound } from '@/lib/api/errors';
 import { writeAudit } from '@/lib/audit';
 import { scopeToCompany, type AuthContext } from '@/lib/auth/policy';
@@ -16,6 +16,7 @@ import {
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import { periodByKey } from '@/lib/domain/period';
+import { formatDate } from '@/lib/format';
 import {
   computePay,
   type PayDay,
@@ -26,6 +27,7 @@ import {
 import type { AdjustmentInput } from '@/lib/validation/payroll';
 import { actorOf } from './actor';
 import { assertCanDecide } from './approvals';
+import { notify } from './notifications';
 import { readDayRecords, staffInScope } from './day';
 import { firstLiveDay, loadEmployeeRules, recomputeDays } from './recompute';
 import { periodFor } from './timesheet';
@@ -98,6 +100,8 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
         and(
           scopeToCompany(ctx, requests.companyId),
           eq(requests.status, 'pending'),
+          // Đăng ký ca chưa nhận không đổi công của ai, không được giữ người đó ở "chưa sẵn sàng"
+          ne(requests.type, 'shift_register'),
           lte(requests.fromDate, to),
           gte(requests.toDate, from),
         ),
@@ -369,9 +373,22 @@ export async function publishPayroll(ctx: AuthContext, periodKey?: string) {
       );
     }
 
+    const republished = before.length > 0;
+    await notify(
+      tx,
+      rows.map(({ id }) => ({
+        companyId,
+        employeeId: id,
+        kind: 'payslip' as const,
+        title: republished ? 'Phiếu lương đã cập nhật' : 'Có phiếu lương mới',
+        body: `Kỳ ${formatDate(period.from).slice(0, 5)} – ${formatDate(period.to)}`,
+        href: '#/luong',
+      })),
+    );
+
     const totalNet = total(rows, ({ pay }) => pay.net);
     await writeAudit(tx, actorOf(ctx), {
-      action: before.length > 0 ? 'payroll.republish' : 'payroll.publish',
+      action: republished ? 'payroll.republish' : 'payroll.publish',
       entity: 'payroll_period',
       entityId: periodId,
       before: before.length > 0 ? { payslips: before } : null,

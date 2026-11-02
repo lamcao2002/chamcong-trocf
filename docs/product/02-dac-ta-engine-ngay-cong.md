@@ -183,7 +183,7 @@ Mười bốn trạng thái ngày công hiện bằng 12 ký hiệu của bản 
 
 ## Bộ ca kiểm thử
 
-T01–T50 và các ca bổ sung T51–T59 là đặc tả chạy được: mỗi dòng thành một unit test, và engine chỉ được coi là xong khi tất cả đều đúng. Trừ khi ghi `now`, các ca chạy với `now` sau cửa sổ 6 giờ của ca cuối.
+T01–T50 và các ca bổ sung T51–T66 là đặc tả chạy được: mỗi dòng thành một unit test, và engine chỉ được coi là xong khi tất cả đều đúng. Trừ khi ghi `now`, các ca chạy với `now` sau cửa sổ 6 giờ của ca cuối.
 
 **Cấu hình ca dùng trong test** (cho phép muộn 5', OT tối thiểu 30', chế độ muộn "Tính cả số phút" trừ khi ghi khác):
 
@@ -254,6 +254,13 @@ T01–T50 và các ca bổ sung T51–T59 là đặc tả chạy được: mỗi
 | T57 | Tha về sớm | CA1, phạt 1.000đ/phút bật | T05 + quản lý tha sớm | Về sớm 10 hiển thị, `waived`, phạt 0, `du` | Đề xuất |
 | T58 | Tha muộn, chưa tha sớm | CA1, phạt 1.000đ/phút bật | Vào 06:14, ra 13:50; tha muộn | Phạt 10.000đ, vẫn `muon` | Đề xuất |
 | T59 | Điều chỉnh nửa công | SANG | T17 + quản lý chọn 0,5 công | 0,5 công, `nua_cong`, hết cần duyệt | Gốc ý, Đề xuất trạng thái |
+| T60 | Đơn đi trễ phủ hết | CA1, phạt 1.000đ/phút bật | T03 + đơn đi trễ 15 phút đã duyệt | Muộn 14 hiển thị, `waived`, phạt 0, `du` | Đề xuất |
+| T61 | Đơn đi trễ ít hơn số phút muộn | CA1, phạt 1.000đ/phút bật | T03 + đơn đi trễ 10 phút đã duyệt | Muộn 4, phạt 4.000đ, `muon` | Đề xuất |
+| T62 | Đơn về sớm phủ hết | CA1 | T05 + đơn về sớm 10 phút đã duyệt | Về sớm 10 hiển thị, `waived`, `du` | Đề xuất |
+| T63 | Đơn ghi ca khác | CA1 | T03 + đơn đi trễ 15 phút của CA2 | Không đổi: muộn 14, `muon` | Đề xuất |
+| T64 | Đơn cả ngày, ca ghép | SANG + CHIEU | Muộn cả hai ca, đơn cả ngày 30 phút | Cả hai ca `waived`, số phút áp riêng từng ca | Đề xuất |
+| T65 | Đơn không đổi công | CA1 | Vào 08:30, ra 14:00; đơn đi trễ 150 phút | Số công như khi không có đơn, `waived` | Đề xuất |
+| T66 | Bản ghi duyệt việc khác | CA1, phạt 1.000đ/phút bật | T03 + đơn 15 phút + bản ghi duyệt vị trí | Đơn vẫn có hiệu lực: `waived`, phạt 0 | Đề xuất |
 
 ## Quyết định đã chốt
 

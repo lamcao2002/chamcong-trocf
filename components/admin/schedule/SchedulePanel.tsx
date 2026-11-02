@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Empty } from 'antd';
-import { UndoOutlined } from '@ant-design/icons';
+import { Button, Empty } from 'antd';
+import { CheckOutlined, CloseOutlined, UndoOutlined } from '@ant-design/icons';
+import Link from 'next/link';
 import { UnsavedBar } from '@/components/common/UnsavedBar';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
-import { formatDayLabel } from '@/lib/format';
+import { addDays } from '@/lib/engine/time';
+import { formatDate, formatDayLabel } from '@/lib/format';
 import type { ScheduleView } from '@/lib/services/schedule';
 import { ScheduleDrawer, type CellDraft } from './ScheduleDrawer';
 import styles from './schedule.module.css';
@@ -66,6 +68,26 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
     startRefresh(() => router.refresh());
   };
 
+  const decide = async (ids: string[], decision: 'approve' | 'reject') => {
+    setPosting(true);
+    const result = await apiRequest<{ result: { decided: number; skipped: number } }>(
+      '/api/v1/schedule/registrations',
+      'POST',
+      { ids, decision },
+    );
+    setPosting(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    const verb = decision === 'approve' ? 'Đã nhận' : 'Đã từ chối';
+    toast.success(`${verb} ${result.result.decided} đăng ký`);
+    startRefresh(() => router.refresh());
+  };
+
+  const registrations = schedule.registrations;
+  const hasDraft = Object.keys(draft).length > 0;
+  const nextWeek = addDays(schedule.week, 7);
   const editing = schedule.employees.find(({ id }) => id === editingId) ?? null;
 
   if (schedule.employees.length === 0) {
@@ -78,6 +100,62 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
 
   return (
     <>
+      {schedule.nextWeekRegistrations > 0 ? (
+        <p className={styles.notice} role="status">
+          Tuần sau ({formatDate(nextWeek).slice(0, 5)} – {formatDate(addDays(nextWeek, 6))}) có{' '}
+          <strong>{schedule.nextWeekRegistrations} đăng ký ca</strong> từ app đang chờ nhận.{' '}
+          <Link href={`/app/xep-ca?week=${nextWeek}`}>Xem tuần sau</Link>
+        </p>
+      ) : null}
+
+      {registrations.length > 0 ? (
+        <section className={styles.registrations} aria-label="Đăng ký ca chờ nhận">
+          <div className={styles.registrationsHead}>
+            <strong>{registrations.length} đăng ký ca chờ nhận trong tuần này</strong>
+            <Button
+              size="small"
+              type="primary"
+              disabled={posting || hasDraft}
+              onClick={() =>
+                void decide(
+                  registrations.map(({ id }) => id),
+                  'approve',
+                )
+              }
+            >
+              Nhận tất cả {registrations.length}
+            </Button>
+          </div>
+          {hasDraft ? <p className={styles.personSub}>Lưu hoặc bỏ các ô đang sửa trước khi nhận.</p> : null}
+          <ul className={styles.registrationList}>
+            {registrations.map(({ id, employeeName, date, shiftId }) => (
+              <li key={id}>
+                <span>
+                  <strong>{employeeName}</strong> · {formatDayLabel(date)} · {shiftCode(shiftId)}
+                </span>
+                <span className={styles.registrationActions}>
+                  <Button
+                    size="small"
+                    icon={<CheckOutlined />}
+                    aria-label={`Nhận ${employeeName}, ${formatDayLabel(date)}, ${shiftCode(shiftId)}`}
+                    disabled={posting || hasDraft}
+                    onClick={() => void decide([id], 'approve')}
+                  />
+                  <Button
+                    size="small"
+                    danger
+                    icon={<CloseOutlined />}
+                    aria-label={`Từ chối ${employeeName}, ${formatDayLabel(date)}, ${shiftCode(shiftId)}`}
+                    disabled={posting}
+                    onClick={() => void decide([id], 'reject')}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <div className={styles.card}>
         <div className={styles.headRow}>
           <span className={styles.nameHead}>Nhân viên</span>
@@ -133,6 +211,13 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
                         </span>
                       ))}
                   {!cell.isOff && shown.length === 0 && editable ? <span aria-hidden>+</span> : null}
+                  {registrations
+                    .filter((row) => row.employeeId === employee.id && row.date === date)
+                    .map(({ id, shiftId }) => (
+                      <span key={id} className={styles.chipPending}>
+                        {shiftCode(shiftId)}
+                      </span>
+                    ))}
                 </button>
               );
             })}

@@ -17,7 +17,16 @@ import { InboxDetail } from './InboxDetail';
 import { useBulkApprove } from './useBulkApprove';
 import styles from './inbox.module.css';
 
-const KIND_ORDER: InboxKind[] = ['vang', 'thieu_gio', 'sai_ca', 'ngoai_vung', 'ngoai_lich', 'ot_cho', 'don'];
+const KIND_ORDER: InboxKind[] = [
+  'vang',
+  'thieu_gio',
+  'sai_ca',
+  'ngoai_vung',
+  'ngoai_lich',
+  'ot_cho',
+  'don',
+  'dang_ky',
+];
 
 type Filter = InboxKind | 'all';
 

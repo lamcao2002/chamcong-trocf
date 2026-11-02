@@ -232,9 +232,40 @@ function pickStatus(record: DayRecord, open: boolean): DayStatus {
   return cong > 0 || inAt || outAt ? 'nua_cong' : 'vang';
 }
 
+/**
+ * Đơn Muộn/sớm đã duyệt: phủ hết số phút thì như được tha, phần vượt đơn vẫn tính. Chỉ đổi cách tính
+ * muộn, không đổi công. Chạy sau bước duyệt vì bản ghi duyệt đặt lại cờ tha theo quyết định của nó.
+ */
+function excuseByRequest(record: DayRecord, requests: DayInput['requests']): DayRecord {
+  let excused = record;
+  for (const request of requests) {
+    if (request.type !== 'late_early') continue;
+    if (request.shiftId !== null && request.shiftId !== record.shiftId) continue;
+    const late = request.kind === 'late';
+    const minutes = late ? excused.lateMin : excused.earlyMin;
+    if (minutes === 0) continue;
+    const covered = minutes <= request.minutes;
+    const note = `Đơn xin ${late ? 'đi trễ' : 'về sớm'} ${request.minutes} phút đã duyệt`;
+    excused = {
+      ...excused,
+      ...(late
+        ? {
+            lateMin: covered ? minutes : minutes - request.minutes,
+            waivedLate: excused.waivedLate || covered,
+          }
+        : {
+            earlyMin: covered ? minutes : minutes - request.minutes,
+            waivedEarly: excused.waivedEarly || covered,
+          }),
+      notes: [...excused.notes, note],
+    };
+  }
+  return excused;
+}
+
 /** Áp duyệt rồi mới chốt phạt và trạng thái, để ngày đã duyệt không còn hiện là cần xử lý. */
 function settle(record: DayRecord, input: DayInput, open = false): DayRecord {
-  const applied = applyApproval(record, input.approvals);
+  const applied = excuseByRequest(applyApproval(record, input.approvals), input.requests);
   const lateMin = applied.waivedLate ? 0 : applied.lateMin;
   const earlyMin = applied.waivedEarly ? 0 : applied.earlyMin;
   return finish({

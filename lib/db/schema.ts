@@ -46,7 +46,14 @@ export const contractTypeEnum = pgEnum('contract_type', ['full_time', 'part_time
 export const roleEnum = pgEnum('role', ['app', 'manager', 'hr', 'admin']);
 export const sessionKindEnum = pgEnum('session_kind', ['admin', 'app']);
 export const punchTypeEnum = pgEnum('punch_type', ['in', 'out']);
-export const requestTypeEnum = pgEnum('request_type', ['leave', 'forgot', 'overtime']);
+export const requestTypeEnum = pgEnum('request_type', [
+  'leave',
+  'forgot',
+  'overtime',
+  'late_early',
+  'shift_swap',
+  'shift_register',
+]);
 export const requestStatusEnum = pgEnum('request_status', ['pending', 'approved', 'rejected']);
 export const dayStatusEnum = pgEnum('day_status', [
   'chua_toi',
@@ -507,6 +514,23 @@ export const payslips = pgTable(
     publishedAt: timestamptz('published_at').notNull(),
   },
   (t) => [unique('payslips_period_employee_unique').on(t.periodId, t.employeeId)],
+).enableRLS();
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: id(),
+    companyId: companyId(),
+    employeeId: employeeId(),
+    kind: text('kind').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** Tab cần mở trong app nhân viên. */
+    href: text('href').notNull(),
+    readAt: timestamptz('read_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('notifications_employee_created_idx').on(t.employeeId, t.createdAt)],
 ).enableRLS();
 
 export const auditLogs = pgTable(

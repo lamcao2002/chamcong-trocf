@@ -45,8 +45,13 @@ type EmployeeRules = EngineEmployee & { otRates: OtRates };
 
 const leavePayload = z.object({ leaveType: z.enum(['annual', 'sick', 'unpaid']) });
 const overtimePayload = z.object({ from: z.string(), to: z.string() });
+const lateEarlyPayload = z.object({
+  kind: z.enum(['late', 'early']),
+  minutes: z.number(),
+  shiftId: z.string().nullable(),
+});
 
-/** Đơn đã duyệt theo góc nhìn của engine; `forgot` đã thành lần chấm tổng hợp nên bỏ qua. */
+/** Đơn đã duyệt theo góc nhìn của engine; `forgot` thành lần chấm, đổi ca và đăng ký thành ô lịch. */
 function engineRequest(type: string, payload: unknown): EngineRequest | null {
   if (type === 'leave') {
     const parsed = leavePayload.safeParse(payload);
@@ -54,6 +59,10 @@ function engineRequest(type: string, payload: unknown): EngineRequest | null {
   }
   if (type === 'overtime') {
     const parsed = overtimePayload.safeParse(payload);
+    return parsed.success ? { type, ...parsed.data } : null;
+  }
+  if (type === 'late_early') {
+    const parsed = lateEarlyPayload.safeParse(payload);
     return parsed.success ? { type, ...parsed.data } : null;
   }
   return null;

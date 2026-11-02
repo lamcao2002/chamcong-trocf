@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, between, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, between, desc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
 import { z } from 'zod';
 import { ApiError, notFound } from '@/lib/api/errors';
 import { writeAudit, type Tx } from '@/lib/audit';
@@ -15,17 +15,19 @@ import {
   shifts,
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
+import { requestSummary } from '@/lib/domain/request-text';
 import { toMinutes } from '@/lib/domain/shift';
 import { expectedShifts } from '@/lib/engine/expected-shifts';
 import { addDays, atMinute } from '@/lib/engine/time';
 import type { EngineShift } from '@/lib/engine/types';
-import { formatDecimal } from '@/lib/format';
+import { formatDate, formatDecimal } from '@/lib/format';
 import type { DecisionInput, ExplanationInput, RequestInput } from '@/lib/validation/request';
 import { actorOf } from './actor';
 import { assertCanDecide } from './approvals';
+import { notify } from './notifications';
 import { loadEmployeeRules, recomputeDays } from './recompute';
 import { assertOwned } from './references';
-import { allowedShiftIds } from './schedule';
+import { allowedShiftIds, expectedShiftIds, writeCells } from './schedule';
 
 type Reader = Pick<Tx, 'select'>;
 
@@ -36,6 +38,14 @@ const forgotPayload = z.object({
   inTime: z.string().nullable(),
   outTime: z.string().nullable(),
 });
+const swapPayload = z.object({
+  offDate: z.string(),
+  offShiftId: z.string(),
+  workDate: z.string(),
+  workShiftId: z.string(),
+});
+const registerPayload = z.object({ shiftId: z.string() });
+const STATUS_TEXT = { approve: 'đã được duyệt', reject: 'bị từ chối' };
 
 /** Phép năm còn lại: đơn đang chờ cũng giữ chỗ, để không gửi được hai đơn vượt phép cùng lúc. */
 export async function leaveBalance(db: Reader, employeeId: string, year: string) {
@@ -122,12 +132,74 @@ async function leavePayload(tx: Tx, ctx: AuthContext, input: Extract<RequestInpu
   return { leaveType, days };
 }
 
+async function allowedFor(tx: Tx, employeeId: string) {
+  const [employee] = await tx
+    .select({ positionId: employees.positionId })
+    .from(employees)
+    .where(eq(employees.id, employeeId));
+  const allowed = await allowedShiftIds(tx, [{ id: employeeId, positionId: employee?.positionId ?? null }]);
+  return allowed.get(employeeId) ?? [];
+}
+
+async function assertAllowedShift(tx: Tx, ctx: AuthContext, shiftId: string, field: string) {
+  await assertOwned(tx, ctx, shifts, [shiftId], field);
+  if (!(await allowedFor(tx, ctx.employee.id)).includes(shiftId)) {
+    throw new ApiError(400, 'Ca này không nằm trong ca bạn được làm', { [field]: 'Ca không hợp lệ' });
+  }
+}
+
+/** Mỗi ngày chỉ một đơn đi trễ và một đơn về sớm: hai đơn cộng dồn sẽ khó hiểu lúc đối chiếu. */
+async function lateEarlyPayload(
+  tx: Tx,
+  ctx: AuthContext,
+  input: Extract<RequestInput, { type: 'late_early' }>,
+) {
+  if (input.shiftId) await assertAllowedShift(tx, ctx, input.shiftId, 'shiftId');
+  const sameDay = await tx
+    .select({ payload: requests.payload })
+    .from(requests)
+    .where(
+      and(
+        eq(requests.employeeId, ctx.employee.id),
+        eq(requests.type, 'late_early'),
+        eq(requests.fromDate, input.date),
+        inArray(requests.status, ['pending', 'approved']),
+      ),
+    );
+  if (sameDay.some(({ payload }) => (payload as { kind?: string }).kind === input.kind)) {
+    throw new ApiError(409, 'Ngày này đã có đơn cùng loại');
+  }
+  return { kind: input.kind, minutes: input.minutes, shiftId: input.shiftId };
+}
+
+async function swapPayloadOf(tx: Tx, ctx: AuthContext, input: Extract<RequestInput, { type: 'shift_swap' }>) {
+  const { offDate, offShiftId, workDate, workShiftId } = input;
+  const today = vietnamToday();
+  if (offDate < today || workDate < today) {
+    const message = 'Chỉ đổi được ca từ hôm nay trở đi';
+    throw new ApiError(400, message, { offDate: message });
+  }
+  await assertAllowedShift(tx, ctx, workShiftId, 'workShiftId');
+
+  const employeeId = ctx.employee.id;
+  const offShifts = await expectedShiftIds(tx, ctx, employeeId, offDate);
+  if (!offShifts.includes(offShiftId)) {
+    const message = 'Ngày này bạn không có ca đó';
+    throw new ApiError(400, message, { offShiftId: message });
+  }
+  const workShifts = await expectedShiftIds(tx, ctx, employeeId, workDate);
+  if (workShifts.includes(workShiftId)) {
+    const message = 'Ngày làm bù đã có ca này';
+    throw new ApiError(400, message, { workShiftId: message });
+  }
+  return { offDate, offShiftId, workDate, workShiftId };
+}
+
 /** Nhân viên gửi đơn (US29–US31); khoảng ngày lưu ở cột, chi tiết từng loại lưu trong `payload`. */
 export async function createRequest(ctx: AuthContext, input: RequestInput) {
   const companyId = ctx.company.id;
   const employeeId = ctx.employee.id;
-  const fromDate = input.type === 'leave' ? input.fromDate : input.date;
-  const toDate = input.type === 'leave' ? input.toDate : input.date;
+  const [fromDate, toDate] = dateRangeOf(input);
 
   return getDb().transaction(async (tx) => {
     let payload: object;
@@ -137,18 +209,12 @@ export async function createRequest(ctx: AuthContext, input: RequestInput) {
       if (input.date > vietnamToday()) {
         throw new ApiError(400, 'Chưa tới ngày này', { date: 'Chưa tới ngày này' });
       }
-      await assertOwned(tx, ctx, shifts, [input.shiftId], 'shiftId');
-      const [employee] = await tx
-        .select({ positionId: employees.positionId })
-        .from(employees)
-        .where(eq(employees.id, employeeId));
-      const allowed = await allowedShiftIds(tx, [
-        { id: employeeId, positionId: employee?.positionId ?? null },
-      ]);
-      if (!allowed.get(employeeId)?.includes(input.shiftId)) {
-        throw new ApiError(400, 'Ca này không nằm trong ca bạn được làm', { shiftId: 'Ca không hợp lệ' });
-      }
+      await assertAllowedShift(tx, ctx, input.shiftId, 'shiftId');
       payload = { shiftId: input.shiftId, inTime: input.inTime, outTime: input.outTime };
+    } else if (input.type === 'late_early') {
+      payload = await lateEarlyPayload(tx, ctx, input);
+    } else if (input.type === 'shift_swap') {
+      payload = await swapPayloadOf(tx, ctx, input);
     } else {
       payload = { when: input.when, from: input.from, to: input.to };
     }
@@ -167,11 +233,20 @@ export async function createRequest(ctx: AuthContext, input: RequestInput) {
   });
 }
 
+function dateRangeOf(input: RequestInput): [string, string] {
+  if (input.type === 'leave') return [input.fromDate, input.toDate];
+  if (input.type === 'shift_swap') {
+    return [input.offDate, input.workDate].sort() as [string, string];
+  }
+  return [input.date, input.date];
+}
+
 /** Đơn của tôi và phép còn lại năm nay (US29, US33). */
 export async function listMyRequests(ctx: AuthContext) {
   const db = getDb();
-  const [balance, rows] = await Promise.all([
+  const [balance, library, rows] = await Promise.all([
     leaveBalance(db, ctx.employee.id, vietnamToday().slice(0, 4)),
+    db.select({ id: shifts.id, name: shifts.name }).from(shifts).where(eq(shifts.companyId, ctx.company.id)),
     db
       .select({
         id: requests.id,
@@ -188,7 +263,14 @@ export async function listMyRequests(ctx: AuthContext) {
       .where(eq(requests.employeeId, ctx.employee.id))
       .orderBy(desc(requests.createdAt)),
   ]);
-  return { balance, requests: rows };
+  const shiftName = (id: unknown) => library.find((shift) => shift.id === id)?.name ?? null;
+  return {
+    balance,
+    requests: rows.map(({ payload, ...row }) => ({
+      ...row,
+      summary: requestSummary(row.type, payload as Record<string, unknown>, shiftName),
+    })),
+  };
 }
 
 /** Đơn quên chấm thành lần chấm tổng hợp; giờ ra nhỏ hơn giờ vào là qua đêm. */
@@ -214,6 +296,108 @@ async function addSyntheticPunches(tx: Tx, request: typeof requests.$inferSelect
     ]);
 }
 
+/** Đã chấm công thì giờ làm thật đã gắn với ca cũ: đổi lịch lúc này làm sai ngày công, để quản lý sửa tay. */
+async function assertNoPunches(tx: Tx, employeeId: string, dates: readonly string[]) {
+  for (const date of dates) {
+    const [punch] = await tx
+      .select({ id: attendanceLogs.id })
+      .from(attendanceLogs)
+      .where(
+        and(
+          eq(attendanceLogs.employeeId, employeeId),
+          gte(attendanceLogs.at, atMinute(date, 0)),
+          lt(attendanceLogs.at, atMinute(date, DAY_MINUTES)),
+        ),
+      )
+      .limit(1);
+    if (punch) {
+      throw new ApiError(
+        409,
+        `Ngày ${formatDate(date)} đã có lần chấm, không đổi ca được. Hãy sửa lịch tay.`,
+      );
+    }
+  }
+}
+
+async function assertStillAllowed(tx: Tx, employeeId: string, shiftId: string) {
+  if (!(await allowedFor(tx, employeeId)).includes(shiftId)) {
+    throw new ApiError(409, 'Ca này không còn trong ca được làm của nhân viên');
+  }
+}
+
+/** Đổi ca: bỏ ca nghỉ, thêm ca bù. Ngày hết ca thành Cho nghỉ, vì ô trống sẽ quay lại ca cố định. */
+async function applySwap(tx: Tx, ctx: AuthContext, request: typeof requests.$inferSelect) {
+  const { employeeId } = request;
+  const { offDate, offShiftId, workDate, workShiftId } = swapPayload.parse(request.payload);
+  await assertNoPunches(tx, employeeId, [...new Set([offDate, workDate])]);
+  await assertStillAllowed(tx, employeeId, workShiftId);
+
+  const offShifts = await expectedShiftIds(tx, ctx, employeeId, offDate);
+  if (!offShifts.includes(offShiftId)) throw new ApiError(409, 'Lịch ngày nghỉ đã đổi, đơn không còn đúng');
+  const kept = offShifts.filter((id) => id !== offShiftId);
+
+  const silent = { silent: true };
+  if (offDate === workDate) {
+    const shiftIds = [...kept, workShiftId];
+    await writeCells(tx, ctx, [{ employeeId, date: offDate, shiftIds, isOff: false }], silent);
+    return;
+  }
+  const workShifts = await expectedShiftIds(tx, ctx, employeeId, workDate);
+  if (workShifts.includes(workShiftId)) throw new ApiError(409, 'Ngày làm bù đã có ca này');
+  await writeCells(
+    tx,
+    ctx,
+    [
+      { employeeId, date: offDate, shiftIds: kept, isOff: kept.length === 0 },
+      { employeeId, date: workDate, shiftIds: [...workShifts, workShiftId], isOff: false },
+    ],
+    silent,
+  );
+}
+
+/** Nhận đăng ký: thêm ca vào lịch, đã có sẵn thì thôi. */
+async function applyRegistration(tx: Tx, ctx: AuthContext, request: typeof requests.$inferSelect) {
+  const { employeeId, fromDate: date } = request;
+  const { shiftId } = registerPayload.parse(request.payload);
+  await assertStillAllowed(tx, employeeId, shiftId);
+  const current = await expectedShiftIds(tx, ctx, employeeId, date);
+  if (current.includes(shiftId)) return;
+  const shiftIds = [...current, shiftId];
+  await writeCells(tx, ctx, [{ employeeId, date, shiftIds, isOff: false }], { silent: true });
+}
+
+/** Đổi trạng thái đơn và áp hiệu lực của nó; người gọi đã khoá đơn và kiểm tra quyền. */
+export async function applyDecision(
+  tx: Tx,
+  ctx: AuthContext,
+  request: typeof requests.$inferSelect,
+  decision: DecisionInput['decision'],
+  note: string | null,
+) {
+  const approve = decision === 'approve';
+  const [after] = await tx
+    .update(requests)
+    .set({
+      status: approve ? 'approved' : 'rejected',
+      decidedBy: ctx.employee.id,
+      decidedAt: new Date(),
+      rejectNote: approve ? null : note,
+    })
+    .where(eq(requests.id, request.id))
+    .returning();
+  if (approve && request.type === 'forgot') await addSyntheticPunches(tx, request);
+  if (approve && request.type === 'shift_swap') await applySwap(tx, ctx, request);
+  if (approve && request.type === 'shift_register') await applyRegistration(tx, ctx, request);
+
+  await writeAudit(tx, actorOf(ctx), {
+    action: 'request.decide',
+    entity: 'request',
+    entityId: request.id,
+    before: request,
+    after,
+  });
+}
+
 /** Duyệt hoặc từ chối đơn đang chờ (US33); đơn đã quyết định không đổi được nữa (C10). */
 export async function decideRequest(ctx: AuthContext, id: string, { decision, note }: DecisionInput) {
   const companyId = ctx.company.id;
@@ -233,29 +417,31 @@ export async function decideRequest(ctx: AuthContext, id: string, { decision, no
 
     const { employeeId, fromDate, toDate } = request;
     await assertCanDecide(tx, ctx, employeeId);
+    await applyDecision(tx, ctx, request, decision, note ?? null);
 
-    const approve = decision === 'approve';
-    const [after] = await tx
-      .update(requests)
-      .set({
-        status: approve ? 'approved' : 'rejected',
-        decidedBy: ctx.employee.id,
-        decidedAt: new Date(),
-        rejectNote: approve ? null : (note ?? null),
-      })
-      .where(eq(requests.id, id))
-      .returning();
-    if (approve && request.type === 'forgot') await addSyntheticPunches(tx, request);
+    const library = await tx
+      .select({ id: shifts.id, name: shifts.name })
+      .from(shifts)
+      .where(eq(shifts.companyId, companyId));
+    const summary = requestSummary(
+      request.type,
+      request.payload as Record<string, unknown>,
+      (shiftId) => library.find((shift) => shift.id === shiftId)?.name ?? null,
+    );
+    const rejectNote = decision === 'reject' && note ? [note] : [];
+    await notify(tx, [
+      {
+        companyId,
+        employeeId,
+        kind: 'request',
+        title: `Đơn ${STATUS_TEXT[decision]}`,
+        body: [summary, formatDate(fromDate).slice(0, 5), ...rejectNote].join(' · '),
+        href: '#/lich',
+      },
+    ]);
 
-    await writeAudit(tx, actorOf(ctx), {
-      action: 'request.decide',
-      entity: 'request',
-      entityId: id,
-      before: request,
-      after,
-    });
     // Tính cả ngày kế: đơn của ca đêm có giờ thuộc sáng hôm sau
-    if (approve) {
+    if (decision === 'approve') {
       await recomputeDays(tx, {
         companyId,
         employeeIds: [employeeId],

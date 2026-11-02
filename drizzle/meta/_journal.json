@@ -15,6 +15,13 @@
       "when": 1793536964660,
       "tag": "0001_employees_left_date",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793588198418,
+      "tag": "0002_requests_notifications",
+      "breakpoints": true
     }
   ]
 }

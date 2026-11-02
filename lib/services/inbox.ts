@@ -5,17 +5,18 @@ import { getDb } from '@/lib/db/client';
 import { companies, requests, shifts } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import { nextPeriod, periodByKey, periodOf, previousPeriod } from '@/lib/domain/period';
+import { requestSummary } from '@/lib/domain/request-text';
 import { shiftSpanMinutes, toMinutes } from '@/lib/domain/shift';
 import { addDays, atMinute, minuteOfDay } from '@/lib/engine/time';
 import type { Suggestion } from '@/lib/engine/types';
-import { formatDecimal } from '@/lib/format';
 import { canDecideOwn } from './approvals';
 import { readDayRecords, staffInScope, type DayView } from './day';
 
 /** Quá mốc này sau giờ vào ca mà chưa chấm thì tính là Chưa chấm công (US23). */
 const MISSING_AFTER_MINUTES = 15;
 
-export type InboxKind = 'vang' | 'thieu_gio' | 'sai_ca' | 'ngoai_vung' | 'ngoai_lich' | 'ot_cho' | 'don';
+export type InboxKind =
+  'vang' | 'thieu_gio' | 'sai_ca' | 'ngoai_vung' | 'ngoai_lich' | 'ot_cho' | 'don' | 'dang_ky';
 
 const KIND_LABELS: Record<InboxKind, string> = {
   vang: 'Vắng',
@@ -25,6 +26,7 @@ const KIND_LABELS: Record<InboxKind, string> = {
   ngoai_lich: 'Ngoài lịch',
   ot_cho: 'OT chờ duyệt',
   don: 'Đơn',
+  dang_ky: 'Đăng ký ca',
 };
 
 type FlagKind = { flag: string; kind: InboxKind; suggestion?: Suggestion['kind']; text: string };
@@ -39,20 +41,6 @@ const FLAG_KINDS: FlagKind[] = [
   { flag: 'ngoai_lich', kind: 'ngoai_lich', suggestion: 'approve_shift', text: 'Chấm khi không có ca' },
   { flag: 'ot_cho', kind: 'ot_cho', suggestion: 'approve_ot', text: 'Có OT đề xuất chưa duyệt' },
 ];
-
-const LEAVE_LABELS: Record<string, string> = {
-  annual: 'Phép năm',
-  sick: 'Nghỉ ốm',
-  unpaid: 'Không lương',
-};
-
-function requestSummary(type: string, payload: Record<string, unknown>): string {
-  if (type === 'leave')
-    return `Nghỉ phép · ${LEAVE_LABELS[String(payload.leaveType)] ?? ''} · ${formatDecimal(Number(payload.days))} ngày`;
-  if (type === 'forgot')
-    return `Quên chấm · vào ${String(payload.inTime ?? '—')}, ra ${String(payload.outTime ?? '—')}`;
-  return `Làm thêm ${String(payload.from)}–${String(payload.to)}`;
-}
 
 export type ApprovableItem = { key: string; label: string; otMinutes: number };
 
@@ -175,14 +163,16 @@ export async function inboxBetween(ctx: AuthContext, from: string, to: string, n
     const employee = staff.find(({ id }) => id === record.employeeId);
     return employee ? recordItems(record, employee, library) : [];
   });
+  const shiftName = (id: unknown) => library.find((shift) => shift.id === id)?.name ?? null;
   const requestItems = pending.flatMap((request): InboxItem[] => {
     const employee = staff.find(({ id }) => id === request.employeeId);
     if (!employee) return [];
+    const kind: InboxKind = request.type === 'shift_register' ? 'dang_ky' : 'don';
     return [
       {
         key: `request|${request.id}`,
-        kind: 'don',
-        kindLabel: KIND_LABELS.don,
+        kind,
+        kindLabel: KIND_LABELS[kind],
         employeeId: request.employeeId,
         employeeName: employee.name,
         positionName: employee.positionName,
@@ -190,7 +180,7 @@ export async function inboxBetween(ctx: AuthContext, from: string, to: string, n
         toDate: request.toDate,
         shiftId: null,
         shiftName: null,
-        description: requestSummary(request.type, request.payload as Record<string, unknown>),
+        description: requestSummary(request.type, request.payload as Record<string, unknown>, shiftName),
         suggestion: null,
         evidence: request.reason ? [`Lý do: ${request.reason}`] : [],
         inAt: null,
