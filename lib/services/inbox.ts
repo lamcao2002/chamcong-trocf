@@ -54,6 +54,30 @@ function requestSummary(type: string, payload: Record<string, unknown>): string 
   return `Làm thêm ${String(payload.from)}–${String(payload.to)}`;
 }
 
+export type ApprovableItem = { key: string; label: string; otMinutes: number };
+
+/** Việc của một dòng ngày công duyệt được theo đề xuất; Bảng công chọn ô bằng đúng các khoá này. */
+export function approvableItems(
+  record: Pick<DayView, 'employeeId' | 'date' | 'shiftId' | 'flags' | 'suggestions'>,
+): ApprovableItem[] {
+  return FLAG_KINDS.filter(({ flag }) => record.flags.includes(flag)).flatMap(({ flag, suggestion }) => {
+    const proposal = record.suggestions.find((row) => row.kind === suggestion);
+    if (!proposal) return [];
+    return [
+      {
+        key: itemKey(record, flag),
+        label: proposal.label,
+        otMinutes: proposal.otMinutes ?? 0,
+      },
+    ];
+  });
+}
+
+const itemKey = (
+  { employeeId, date, shiftId }: Pick<DayView, 'employeeId' | 'date' | 'shiftId'>,
+  flag: string,
+) => `${employeeId}|${date}|${shiftId ?? ''}|${flag}`;
+
 type ShiftClock = { id: string; name: string; startTime: string; endTime: string };
 
 /** Việc từ một dòng ngày công; khoá không dùng `day_records.id` vì id đổi sau mỗi lần tính lại. */
@@ -68,7 +92,7 @@ function recordItems(
     ({ flag, kind, suggestion, text }) => {
       const proposal = record.suggestions.find((row) => row.kind === suggestion) ?? null;
       return {
-        key: `${record.employeeId}|${record.date}|${record.shiftId ?? ''}|${flag}`,
+        key: itemKey(record, flag),
         kind,
         kindLabel: KIND_LABELS[kind],
         employeeId: record.employeeId,

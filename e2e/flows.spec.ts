@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Browser } from '@playwright/test';
 import { adminApi, adminPage, newStaff, scheduleToday, staffPage, today } from './helpers';
 
 test('quản lý xếp ca, nhân viên chấm công, Bảng công có ngày công', async ({ browser }) => {
@@ -142,4 +142,49 @@ test('thêm hàng loạt: dán danh sách, xem trước, nhân viên đăng nh�
     data: { companyCode: 'PHONHO', email: good, pin },
   });
   expect(login.status()).toBe(200);
+});
+
+/** Nhân viên chấm ngoài vùng hôm nay: một việc có đề xuất Duyệt vị trí. */
+async function outOfZone(api: Awaited<ReturnType<typeof adminApi>>, browser: Browser) {
+  const staff = await newStaff(api);
+  await scheduleToday(api, staff);
+  const phone = await staffPage(browser, staff);
+  const punched = await phone.context().request.post('/api/v1/app/punch', {
+    data: { type: 'in', lat: 21.1, lng: 105.9, accuracy: 10, chosenShiftId: staff.shiftId },
+  });
+  expect(punched.status()).toBe(201);
+  return staff;
+}
+
+test('Hộp việc: tích nhiều việc rồi duyệt theo đề xuất', async ({ browser }) => {
+  const api = await adminApi();
+  const first = await outOfZone(api, browser);
+  const second = await outOfZone(api, browser);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app');
+  await admin.getByRole('checkbox', { name: new RegExp(`Chọn ${first.name}`) }).check();
+  await admin.getByRole('checkbox', { name: new RegExp(`Chọn ${second.name}`) }).check();
+  await admin.getByRole('button', { name: 'Duyệt theo đề xuất · 2' }).click();
+  await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt', exact: true }).click();
+
+  await expect(admin.getByText('Đã duyệt 2 việc')).toBeVisible();
+  await expect(admin.getByRole('button', { name: new RegExp(first.name) })).toHaveCount(0);
+  await expect(admin.getByRole('button', { name: new RegExp(second.name) })).toHaveCount(0);
+});
+
+test('Bảng công: chọn ô cần duyệt rồi Duyệt loạt', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await outOfZone(api, browser);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/bang-cong');
+  await admin.getByLabel('Tìm tên').fill(staff.name);
+  await admin.getByRole('button', { name: 'Duyệt loạt' }).click();
+  await admin.getByRole('button', { name: 'Chọn mọi ô cần duyệt' }).click();
+  await admin.getByRole('button', { name: /Duyệt 1$/ }).click();
+  await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt', exact: true }).click();
+
+  await expect(admin.getByText('Đã duyệt 1 việc')).toBeVisible();
+  await expect(admin.getByRole('button', { name: 'Duyệt loạt' })).toBeDisabled();
 });

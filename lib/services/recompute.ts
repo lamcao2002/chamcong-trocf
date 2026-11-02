@@ -357,6 +357,15 @@ function toRow(companyId: string, employeeId: string, record: DayRecord, compute
  * ngay (US22). Xoá rồi ghi chứ không upsert: dòng của ca vừa gỡ khỏi lịch phải biến mất. Ngày tương
  * lai bị bỏ qua, chưa có gì để tính. Trả về số dòng đã ghi.
  */
+/** Khoá này tự mở khi transaction kết thúc nên chạy được qua Transaction pooler của Supabase. */
+export async function lockEmployees(tx: Tx, employeeIds: readonly string[]) {
+  // Sắp xếp ID để hai giao dịch cùng khoá nhiều người không chờ nhau vòng tròn
+  const ids = [...new Set(employeeIds)].sort();
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(id, 0)) from unnest(${sql.param(ids)}::text[]) as id`,
+  );
+}
+
 export async function recomputeDays(
   tx: Tx,
   {
@@ -371,11 +380,7 @@ export async function recomputeDays(
   const ids = [...new Set(employeeIds)].sort();
   if (ids.length === 0 || from > lastDay) return 0;
 
-  // Sắp xếp ID để hai giao dịch cùng khoá nhiều người không chờ nhau vòng tròn. Khoá này tự mở khi
-  // transaction kết thúc nên chạy được qua Transaction pooler của Supabase
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(id, 0)) from unnest(${sql.param(ids)}::text[]) as id`,
-  );
+  await lockEmployees(tx, ids);
 
   const loaded = await loadInputs(tx, companyId, ids, from, lastDay);
   const rows: ReturnType<typeof toRow>[] = [];

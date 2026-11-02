@@ -2,23 +2,7 @@
 
 import { useState } from 'react';
 import { Button, Flex, Input, Modal } from 'antd';
-import type { Suggestion } from '@/lib/engine/types';
 import type { InboxItem } from '@/lib/services/inbox';
-
-/** Đề xuất của engine thành trường trong bản ghi duyệt; OT gửi con số tổng của ngày. */
-export function decisionOf(suggestion: Suggestion, otProposed: number): object {
-  switch (suggestion.kind) {
-    case 'approve_ot':
-      return { otMinutes: otProposed };
-    case 'approve_gps':
-      return { approveGps: true };
-    case 'approve_cong':
-      return { approveMissing: true };
-    case 'confirm_shift':
-    case 'approve_shift':
-      return { confirmShiftId: suggestion.shiftId };
-  }
-}
 
 type InboxActionsProps = {
   item: InboxItem;

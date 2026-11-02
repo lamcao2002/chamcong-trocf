@@ -116,6 +116,8 @@ Cập nhật bảng này khi xong một việc.
 | SH-02 Gửi link cài app, QR | Code xong; tin nhắn chỉ kèm PIN ngay sau khi tạo hoặc đặt lại PIN; **chưa quét QR bằng điện thoại thật** |
 | SH-03, SH-04 Xuất Excel | Code xong `/timesheet/export`, `/payroll/export`; kỳ đã công bố lấy bản chụp |
 | SH-05 In phiếu | Code xong trang `/app/in-phieu`, in một người hoặc cả kỳ, mỗi người một tờ; **chưa in ra giấy thật** |
+| SH-09, SH-10 Duyệt hàng loạt | Code xong `POST /approvals/bulk` (`lib/services/bulk-approval.ts`), chọn nhiều ở Hộp việc; đề xuất lấy lại từ server, số đổi thì bỏ qua và báo lại |
+| SH-12 Duyệt loạt Bảng công | Code xong chế độ chọn ô, dùng chung API với Hộp việc |
 
 ## Lệnh
 
@@ -147,6 +149,7 @@ npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn V�
 - Mọi màn đọc ngày công đi qua `readDayRecords` (`lib/services/day.ts`), không đọc thẳng `day_records`; việc trong Hộp việc định danh bằng nhân viên × ngày × ca × cờ, không dùng `day_records.id`
 - Tiền chỉ tính trong `lib/payroll/compute-pay.ts`; phiếu đã công bố đọc từ bản chụp `payslips`, không tính lại
 - Excel và phiếu in lấy số qua `getPayrollDocument`; modal hiện PIN phải `destroyOnHidden`, nếu không PIN nằm lại trong DOM
+- Duyệt hàng loạt không nhận quyết định từ client: chỉ nhận khoá việc và nhãn đã thấy, đề xuất lấy lại qua `getInbox`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)

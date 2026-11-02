@@ -14,7 +14,7 @@ import { assertOwned } from './references';
 
 type Reader = Pick<Tx, 'select'>;
 
-const ALREADY_DECIDED = 'Việc này vừa được xử lý, hãy làm mới danh sách';
+export const ALREADY_DECIDED = 'Việc này vừa được xử lý, hãy làm mới danh sách';
 
 /** Tự duyệt chỉ được khi công ty có đúng một Quản trị viên, không còn ai khác để duyệt (C6). */
 export async function canDecideOwn(db: Reader, ctx: AuthContext): Promise<boolean> {
@@ -69,52 +69,69 @@ async function setExplanationStatus(
     );
 }
 
+type ApprovalTarget = Pick<ApprovalInput, 'employeeId' | 'date' | 'shiftId'>;
+type ApprovalDecision = Omit<ApprovalInput, keyof ApprovalTarget>;
+
 /** Mỗi nhân viên × ngày × ca có một bản ghi hiệu lực: quyết định sau gộp vào bản ghi đang có (C1). */
+export async function writeApproval(
+  tx: Tx,
+  ctx: AuthContext,
+  { employeeId, date, shiftId }: ApprovalTarget,
+  decision: ApprovalDecision,
+) {
+  await assertOwned(tx, ctx, shifts, [shiftId, decision.confirmShiftId], 'shiftId');
+
+  const [before] = await tx
+    .select()
+    .from(approvals)
+    .where(
+      and(
+        eq(approvals.employeeId, employeeId),
+        eq(approvals.date, date),
+        sameShift(shiftId),
+        isNull(approvals.revokedAt),
+      ),
+    )
+    .for('update');
+
+  const by = { by: ctx.employee.id, at: new Date() };
+  const [approval] = before
+    ? await tx
+        .update(approvals)
+        .set({ ...decision, ...by })
+        .where(eq(approvals.id, before.id))
+        .returning()
+    : await tx
+        .insert(approvals)
+        .values({ companyId: ctx.company.id, employeeId, date, shiftId, ...decision, ...by })
+        .returning();
+
+  await setExplanationStatus(tx, { employeeId, date, shiftId }, 'approved');
+  await writeAudit(tx, actorOf(ctx), {
+    action: before ? 'approval.update' : 'approval.create',
+    entity: 'approval',
+    entityId: approval!.id,
+    before,
+    after: approval,
+  });
+  return approval!;
+}
+
 export async function saveApproval(ctx: AuthContext, input: ApprovalInput) {
   const { employeeId, date, shiftId, ...decision } = input;
-  const companyId = ctx.company.id;
   if (date > vietnamToday()) throw new ApiError(400, 'Chưa tới ngày này', { date: 'Chưa tới ngày này' });
 
   try {
     return await getDb().transaction(async (tx) => {
       await assertCanDecide(tx, ctx, employeeId);
-      await assertOwned(tx, ctx, shifts, [shiftId, decision.confirmShiftId], 'shiftId');
-
-      const [before] = await tx
-        .select()
-        .from(approvals)
-        .where(
-          and(
-            eq(approvals.employeeId, employeeId),
-            eq(approvals.date, date),
-            sameShift(shiftId),
-            isNull(approvals.revokedAt),
-          ),
-        )
-        .for('update');
-
-      const by = { by: ctx.employee.id, at: new Date() };
-      const [approval] = before
-        ? await tx
-            .update(approvals)
-            .set({ ...decision, ...by })
-            .where(eq(approvals.id, before.id))
-            .returning()
-        : await tx
-            .insert(approvals)
-            .values({ companyId, employeeId, date, shiftId, ...decision, ...by })
-            .returning();
-
-      await setExplanationStatus(tx, { employeeId, date, shiftId }, 'approved');
-      await writeAudit(tx, actorOf(ctx), {
-        action: before ? 'approval.update' : 'approval.create',
-        entity: 'approval',
-        entityId: approval!.id,
-        before,
-        after: approval,
+      const approval = await writeApproval(tx, ctx, { employeeId, date, shiftId }, decision);
+      await recomputeDays(tx, {
+        companyId: ctx.company.id,
+        employeeIds: [employeeId],
+        from: date,
+        to: date,
       });
-      await recomputeDays(tx, { companyId, employeeIds: [employeeId], from: date, to: date });
-      return approval!;
+      return approval;
     });
   } catch (error) {
     // Hai người cùng duyệt lần đầu: index chỉ cho một bản ghi hiệu lực

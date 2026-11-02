@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Input, Select } from 'antd';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { Button, Input, Select } from 'antd';
+import { CheckOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { useBulkApprove } from '@/components/admin/inbox/useBulkApprove';
 import { ExportButton } from '@/components/common/ExportButton';
 import { SYMBOL_LEGEND } from '@/lib/domain/symbols';
 import { formatDate, formatDayLabel, formatDecimal } from '@/lib/format';
@@ -34,6 +35,27 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
       name.toLowerCase().includes(term) && (position === null || positionName === position),
   );
   const refresh = () => startRefresh(() => router.refresh());
+  const [picking, setPicking] = useState(false);
+  const [pickedCells, setPickedCells] = useState<readonly string[]>([]);
+  const stopPicking = () => {
+    setPicking(false);
+    setPickedCells([]);
+  };
+  const bulk = useBulkApprove(timesheet.period.key, () => {
+    stopPicking();
+    refresh();
+  });
+
+  const cellId = (employeeId: string, date: string) => `${employeeId}|${date}`;
+  // Tính trên các dòng đang hiện: ô bị bộ lọc ẩn không được duyệt ngầm
+  const selectable = rows.flatMap(({ id, cells }) =>
+    cells
+      .filter(({ approvable }) => approvable.length > 0)
+      .map((cell) => ({ id: cellId(id, cell.date), cell })),
+  );
+  const chosen = selectable.filter(({ id }) => pickedCells.includes(id));
+  const toggleCell = (id: string) =>
+    setPickedCells((ids) => (ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]));
   const scroller = useRef<HTMLDivElement>(null);
 
   // Màn hẹp mở ở ngày gần nhất có dữ liệu, không phải đầu kỳ còn trống
@@ -84,6 +106,14 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
           onChange={(value) => setPosition(value ?? null)}
         />
         <ExportButton url={`/api/v1/timesheet/export?period=${timesheet.period.key}`} />
+        <Button
+          type={picking ? 'primary' : 'default'}
+          aria-pressed={picking}
+          disabled={!picking && selectable.length === 0}
+          onClick={() => (picking ? stopPicking() : setPicking(true))}
+        >
+          {picking ? 'Đang chọn ô' : 'Duyệt loạt'}
+        </Button>
       </div>
 
       <div ref={scroller} className={styles.scroll}>
@@ -140,14 +170,24 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
                 {timesheet.dates.map((date) => {
                   const cell = employee.cells.find((row) => row.date === date);
                   if (!cell) return <td key={date} className={styles.empty} />;
+                  const id = cellId(employee.id, date);
+                  const canPick = picking && cell.approvable.length > 0;
+                  const isPicked = canPick && pickedCells.includes(id);
+                  const pickClass = canPick ? (isPicked ? styles.picked : styles.pickable) : '';
                   return (
                     <td key={date} className={styles.day}>
                       <button
                         type="button"
-                        className={cellClass(cell.symbol)}
+                        className={`${cellClass(cell.symbol)} ${pickClass}`}
                         title={cell.title}
                         aria-label={`${employee.name}, ${formatDate(date)}: ${cell.title}`}
-                        onClick={() => setDayTarget({ employeeId: employee.id, name: employee.name, date })}
+                        aria-pressed={picking ? isPicked : undefined}
+                        disabled={picking && !canPick}
+                        onClick={() =>
+                          picking
+                            ? toggleCell(id)
+                            : setDayTarget({ employeeId: employee.id, name: employee.name, date })
+                        }
                       >
                         {cell.label}
                         {cell.shiftCount > 1 ? <span className={styles.badge}>{cell.shiftCount}</span> : null}
@@ -167,6 +207,31 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
           </tbody>
         </table>
       </div>
+
+      {picking ? (
+        <div className={styles.bulkBar} role="status">
+          <span>
+            {chosen.length > 0
+              ? `Đã chọn ${chosen.length} ô, duyệt theo đề xuất của hệ thống`
+              : 'Bấm vào các ô viền đứt để chọn'}
+          </span>
+          <span className={styles.bulkActions}>
+            <Button size="small" onClick={() => setPickedCells(selectable.map(({ id }) => id))}>
+              Chọn mọi ô cần duyệt
+            </Button>
+            <Button
+              size="small"
+              type="primary"
+              icon={<CheckOutlined />}
+              disabled={chosen.length === 0}
+              loading={bulk.busy}
+              onClick={() => bulk.confirm(chosen.flatMap(({ cell }) => cell.approvable))}
+            >
+              Duyệt {chosen.length}
+            </Button>
+          </span>
+        </div>
+      ) : null}
 
       <ul className={styles.legend}>
         {SYMBOL_LEGEND.map(({ key, label, title }) => (

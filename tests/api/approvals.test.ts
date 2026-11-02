@@ -326,3 +326,99 @@ describe('GET /overview/today (US23)', () => {
     expect(after.missing).toBeLessThanOrEqual(before.missing);
   });
 });
+
+describe('duyệt hàng loạt theo đề xuất (INB-08, TS-08)', () => {
+  const period = () => yesterday.slice(0, 7);
+  const asBulk = (items: any[]) =>
+    items.map(({ key, suggestion }) => ({ key, label: suggestion?.label ?? 'x' }));
+  const bulk = (items: object[], cookie = admin) =>
+    api('POST', '/approvals/bulk', { cookie, body: { period: period(), items } });
+  const activeApprovals = (employeeId: string) =>
+    sql`select * from approvals where employee_id = ${employeeId} and revoked_at is null`;
+
+  it('hai việc cùng ca gộp một bản ghi, nhiều người trong một lần, Hộp việc hết việc', async () => {
+    const first = await dayWithTwoIssues();
+    const second = await dayWithTwoIssues();
+    const items = [...(await inboxItems(first)), ...(await inboxItems(second))];
+    expect(items.length).toBeGreaterThanOrEqual(4);
+    const before = await auditCount('approval.create');
+
+    const result = await bulk(asBulk(items));
+    expect(result.status).toBe(201);
+    expect(result.body.result).toEqual({ approved: items.length, skipped: 0 });
+
+    expect(await inboxItems(first)).toHaveLength(0);
+    expect(await inboxItems(second)).toHaveLength(0);
+    expect(await activeApprovals(first)).toHaveLength(1);
+    expect(await auditCount('approval.create')).toBe(before + 2);
+    expect((await record(first)).needs_review).toBe(false);
+  });
+
+  it('số liệu đổi sau khi xem thì bỏ qua và báo lại, không duyệt số chưa ai thấy', async () => {
+    const id = await dayWithTwoIssues();
+    const items = await inboxItems(id);
+    const ot = items.find((item: any) => item.kind === 'ot_cho');
+    const result = await bulk([{ key: ot.key, label: 'Duyệt 1 phút' }]);
+    expect(result.body.result).toEqual({ approved: 0, skipped: 1 });
+    expect(await activeApprovals(id)).toHaveLength(0);
+    expect(await inboxItems(id)).toHaveLength(items.length);
+  });
+
+  it('khoá lạ, việc không có đề xuất và đơn đều bị bỏ qua, phần còn lại vẫn duyệt', async () => {
+    const id = await dayWithTwoIssues();
+    const absent = await newEmployee();
+    await schedule(absent, yesterday, [shifts.TOI.id]);
+    const [vang] = await inboxItems(absent);
+    expect(vang.suggestion).toBeNull();
+
+    const [good] = await inboxItems(id);
+    const result = await bulk([
+      ...asBulk([good]),
+      { key: vang.key, label: 'Duyệt' },
+      { key: 'request|khong-co', label: 'Duyệt' },
+    ]);
+    expect(result.body.result).toEqual({ approved: 1, skipped: 2 });
+    expect(await activeApprovals(absent)).toHaveLength(0);
+  });
+
+  it('Quản lý nhóm không duyệt được người ngoài nhóm, kể cả tự gõ khoá', async () => {
+    const id = await dayWithTwoIssues();
+    const items = await inboxItems(id);
+    const result = await bulk(asBulk(items), manager);
+    expect(result.body.result).toEqual({ approved: 0, skipped: items.length });
+    expect(await activeApprovals(id)).toHaveLength(0);
+  });
+
+  it('hai người bấm cùng lúc vẫn chỉ có một bản ghi hiệu lực', async () => {
+    const id = await dayWithTwoIssues();
+    const items = asBulk(await inboxItems(id));
+    const results = await Promise.all([bulk(items), bulk(items, hr)]);
+    expect(results.every(({ status }) => status < 500)).toBe(true);
+    expect(await activeApprovals(id)).toHaveLength(1);
+  });
+
+  it('Bảng công chọn ô bằng đúng khoá của Hộp việc, ô đã duyệt không còn chọn được', async () => {
+    const id = await dayWithTwoIssues();
+    const read = async () => {
+      const { timesheet } = (await api('GET', `/timesheet?period=${period()}`, { cookie: admin })).body;
+      return timesheet.employees
+        .find((row: any) => row.id === id)
+        .cells.find((c: any) => c.date === yesterday);
+    };
+    const cell = await read();
+    const expected = (await inboxItems(id)).map(({ key }: any) => key).sort();
+    expect(cell.approvable.map(({ key }: any) => key).sort()).toEqual(expected);
+
+    await bulk(cell.approvable);
+    expect((await read()).approvable).toEqual([]);
+  });
+
+  it('danh sách rỗng hoặc kỳ sai → 400', async () => {
+    expect((await bulk([])).status).toBe(400);
+    const wrong = await api('POST', '/approvals/bulk', {
+      cookie: admin,
+      body: { period: 'abc', items: [{ key: 'a', label: 'b' }] },
+    });
+    expect(wrong.status).toBe(400);
+  });
+});

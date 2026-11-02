@@ -10,7 +10,9 @@ import { daySymbol } from '@/lib/domain/symbols';
 import { expectedShifts } from '@/lib/engine/expected-shifts';
 import { addDays } from '@/lib/engine/time';
 import type { EngineShift } from '@/lib/engine/types';
+import { canDecideOwn } from './approvals';
 import { readDayRecords, staffInScope, type DayView } from './day';
+import { approvableItems } from './inbox';
 import { loadEmployeeRules } from './recompute';
 
 const WEEK_DAYS = 7;
@@ -69,7 +71,7 @@ export async function getTimesheet(ctx: AuthContext, periodKey?: string, now: Da
   const db = getDb();
   const today = vietnamToday(now);
   const { period, previousKey, nextKey } = await periodFor(ctx, periodKey, today);
-  const staff = await staffInScope(ctx, period.from);
+  const [staff, ownAllowed] = await Promise.all([staffInScope(ctx, period.from), canDecideOwn(db, ctx)]);
   const lastDay = period.to < today ? period.to : today;
   const records = await readDayRecords(
     db,
@@ -102,7 +104,10 @@ export async function getTimesheet(ctx: AuthContext, periodKey?: string, now: Da
         positionName,
         cells: [...days].map(([date, rows]) => {
           const { key, label, title } = daySymbol(rows);
-          return { date, symbol: key, label, title, shiftCount: rows.length };
+          // Cùng luật với Hộp việc: không tự duyệt việc của mình, trừ khi là Quản trị viên duy nhất
+          const canApprove = id !== ctx.employee.id || ownAllowed;
+          const approvable = canApprove ? rows.flatMap(approvableItems) : [];
+          return { date, symbol: key, label, title, shiftCount: rows.length, approvable };
         }),
         totals: totalsOf(own),
       };

@@ -267,3 +267,44 @@
     font-size: 11px;
   }
 }
+
+.pickable {
+  border: 1px dashed var(--text);
+}
+
+.picked {
+  border: 2px solid var(--text);
+}
+
+.cell:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* Thanh dưới điện thoại che đáy màn hình, nên nổi phía trên nó */
+.bulkBar {
+  position: sticky;
+  z-index: 3;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-card);
+  background: var(--text);
+  color: var(--surface);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 991px) {
+  .bulkBar {
+    bottom: calc(var(--bottom-nav-h) + 12px);
+  }
+}
