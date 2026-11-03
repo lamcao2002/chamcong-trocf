@@ -124,6 +124,7 @@ Cập nhật bảng này khi xong một việc.
 | SH-17, SH-18 Đăng ký ca | Code xong: mỗi ô một đơn `shift_register`, lưới ở tab Lịch, nhận ở Xếp ca và Hộp việc; **chưa thử điện thoại thật** |
 | SH-19 Đơn Muộn/sớm | Code xong, engine thêm T60–T66; miễn tính muộn, không đổi công |
 | SH-20 Đơn Đổi ca | Code xong: duyệt thì sửa lịch hai ngày; đã có lần chấm thì chặn |
+| SH-27, SH-28 Gắn thiết bị | Code xong `lib/services/device.ts`, mặc định tắt; gắn ở lần chấm đầu, chỉ chặn ở bước chấm; **chưa thử iPhone/Android thật, không bật cho quán trước khi thử** |
 
 ## Lệnh
 
@@ -158,6 +159,7 @@ npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn V�
 - Duyệt hàng loạt không nhận quyết định từ client: chỉ nhận khoá việc và nhãn đã thấy, đề xuất lấy lại qua `getInbox`
 - Kỳ lệch và Tự chọn chỉ là khoảng xem của Bảng công; Lương, Hộp việc và phiếu luôn theo `companies.cutoff_day`
 - Thông báo ghi bằng `notify` trong cùng transaction với việc gây ra nó; đổi ô lịch đi qua `writeCells`
+- Gắn thiết bị dùng cookie httpOnly `cc_device`, không dùng localStorage, không xoá khi đăng xuất; `device_hash` không bao giờ ra API hay `audit_logs`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)

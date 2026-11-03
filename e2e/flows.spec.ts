@@ -255,3 +255,42 @@ test('nhân viên gửi đơn Muộn/sớm, quản lý thấy đúng nội dung 
   await admin.goto('/app');
   await expect(admin.getByText('Xin đi trễ 15 phút · Cả ngày').first()).toBeVisible();
 });
+
+test('gắn thiết bị: máy khác bị chặn, Nhân sự mở khoá thì máy mới chấm được', async ({ browser }) => {
+  const api = await adminApi();
+  await api.patch('/api/v1/company', { data: { deviceBinding: true } });
+  try {
+    const staff = await newStaff(api);
+    await scheduleToday(api, staff);
+    const data = { lat: 21.02452, lng: 105.85308, accuracy: 10, chosenShiftId: staff.shiftId };
+
+    const first = await staffPage(browser, staff);
+    expect(
+      (await first.context().request.post('/api/v1/app/punch', { data: { ...data, type: 'in' } })).status(),
+    ).toBe(201);
+
+    const second = await staffPage(browser, staff);
+    await second.goto('/m');
+    const blocked = await second
+      .context()
+      .request.post('/api/v1/app/punch', { data: { ...data, type: 'out' } });
+    expect(blocked.status()).toBe(403);
+
+    const admin = await adminPage(browser);
+    await admin.goto('/app/nhan-su');
+    await admin.getByRole('button', { name: new RegExp(staff.name) }).click();
+    await admin.getByRole('button', { name: 'Mở khoá máy' }).click();
+    await admin.locator('.ant-modal-confirm').getByRole('button', { name: 'Mở khoá máy' }).click();
+    await expect(admin.getByText('Đã mở khoá máy')).toBeVisible();
+
+    const login = await second.context().request.post('/api/v1/auth/app/login', {
+      data: { companyCode: 'PHONHO', email: staff.email, pin: staff.pin },
+    });
+    expect(login.status()).toBe(200);
+    expect(
+      (await second.context().request.post('/api/v1/app/punch', { data: { ...data, type: 'out' } })).status(),
+    ).toBe(201);
+  } finally {
+    await api.patch('/api/v1/company', { data: { deviceBinding: false } });
+  }
+});

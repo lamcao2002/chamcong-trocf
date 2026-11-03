@@ -36,6 +36,7 @@ const PUBLIC_COLUMNS = {
   name: employees.name,
   status: employees.status,
   leftDate: employees.leftDate,
+  deviceBoundAt: employees.deviceBoundAt,
   contract: employees.contract,
   onboardDate: employees.onboardDate,
   role: employees.role,
@@ -265,10 +266,12 @@ export async function updateEmployee(
       // Giữ ngày cũ khi PATCH lặp lại `left`, để công đến ngày nghỉ thật không bị đổi
       const statusChanged = fields.status !== undefined && fields.status !== before.status;
       const leftDate = statusChanged ? { leftDate: fields.status === 'left' ? vietnamToday() : null } : {};
+      // Người nghỉ trả lại máy: giữ mã thì người sau dùng lại điện thoại đó sẽ bị chặn oan
+      const device = fields.status === 'left' ? { deviceHash: null, deviceBoundAt: null } : {};
       if (Object.keys(fields).length > 0) {
         await tx
           .update(employees)
-          .set({ ...fields, ...leftDate })
+          .set({ ...fields, ...leftDate, ...device })
           .where(findEmployee(ctx, id));
       }
       await replaceOverrides(tx, id, { shiftIds, locationIds });

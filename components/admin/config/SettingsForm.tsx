@@ -24,6 +24,7 @@ const FIELDS = [
   'otMin',
   'otFromRequest',
   'cutoffDay',
+  'deviceBinding',
 ] as const satisfies readonly (keyof CompanyInput)[];
 
 function pickValues(company: CompanyView): CompanyInput {
@@ -180,6 +181,17 @@ export function SettingsForm({ company }: { company: CompanyView }) {
             </Form.Item>
           </Col>
         </Row>
+      </Card>
+
+      <Card title="Chống chấm hộ" style={{ boxShadow: tokens.shadowCard }}>
+        <Form.Item
+          label="Gắn thiết bị"
+          name="deviceBinding"
+          valuePropName="checked"
+          extra="Mỗi tài khoản chỉ chấm công được trên điện thoại đã chấm lần đầu. Đổi máy thì Nhân sự bấm Mở khoá máy trong hồ sơ. Nên thử trên iPhone và Android của quán trước khi bật."
+        >
+          <Switch />
+        </Form.Item>
       </Card>
 
       <UnsavedBar

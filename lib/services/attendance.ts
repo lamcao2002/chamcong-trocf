@@ -22,6 +22,7 @@ import { addDays, atMinute } from '@/lib/engine/time';
 import type { EngineShift } from '@/lib/engine/types';
 import type { PunchInput } from '@/lib/validation/attendance';
 import { actorOf } from './actor';
+import { bindDevice, type DeviceCheck } from './device';
 import { loadEmployeeRules, recomputeDays } from './recompute';
 import { allowedShiftIds } from './schedule';
 
@@ -135,13 +136,19 @@ export async function getAppHome(ctx: AuthContext, now: Date = new Date()) {
 export type AppHome = Awaited<ReturnType<typeof getAppHome>>;
 
 /** Chấm vào/ra: giờ và trong/ngoài vùng đều tính ở server (US18, US19), tính lại trong cùng giao dịch. */
-export async function punch(ctx: AuthContext, input: PunchInput, now: Date = new Date()) {
+export async function punch(
+  ctx: AuthContext,
+  input: PunchInput,
+  device: DeviceCheck | null = null,
+  now: Date = new Date(),
+) {
   const employeeId = ctx.employee.id;
   const companyId = ctx.company.id;
   const chosenShiftId = input.chosenShiftId ?? null;
   const date = vietnamToday(now);
 
   return getDb().transaction(async (tx) => {
+    if (device?.bind) await bindDevice(tx, ctx, device.token);
     const [employee] = await tx
       .select({ positionId: employees.positionId })
       .from(employees)

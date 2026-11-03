@@ -8,14 +8,16 @@ export function useConfirmDiscard() {
   const { modal } = App.useApp();
 
   return useCallback(
-    (options?: { count?: number; title?: string; okText?: string }) =>
+    (options?: { count?: number; title?: string; content?: string; okText?: string }) =>
       new Promise<boolean>((resolve) => {
-        const { count, title, okText } = options ?? {};
+        const { count, title, content, okText } = options ?? {};
         modal.confirm({
           title: title ?? (count ? `Bỏ ${count} thay đổi chưa lưu?` : 'Bỏ thay đổi chưa lưu?'),
-          content: title
-            ? 'Thao tác này không hoàn tác được.'
-            : 'Những gì bạn vừa sửa sẽ mất và không khôi phục được.',
+          content:
+            content ??
+            (title
+              ? 'Thao tác này không hoàn tác được.'
+              : 'Những gì bạn vừa sửa sẽ mất và không khôi phục được.'),
           okText: okText ?? 'Bỏ thay đổi',
           okButtonProps: { danger: true },
           cancelText: 'Giữ lại',

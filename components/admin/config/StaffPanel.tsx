@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Alert,
   Button,
@@ -21,6 +22,7 @@ import {
 } from 'antd';
 import {
   KeyOutlined,
+  MobileOutlined,
   PlusOutlined,
   QrcodeOutlined,
   RightOutlined,
@@ -101,12 +103,14 @@ export function StaffPanel({
   viewer,
   companyCode,
 }: StaffPanelProps) {
+  const router = useRouter();
   const toast = useToast();
   const confirmDiscard = useConfirmDiscard();
   const [status, setStatus] = useState<'active' | 'left' | 'all'>('active');
   const [positionFilter, setPositionFilter] = useState<string>();
   const [pinNotice, setPinNotice] = useState<{ name: string; email: string; pin: string }>();
   const [resetting, setResetting] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
 
@@ -214,6 +218,27 @@ export function StaffPanel({
     setPinNotice({ name: editing.name, email: editing.email, pin: result.pin });
   };
 
+  const unlockDevice = async () => {
+    if (!editing) return;
+    const confirmed = await confirmDiscard({
+      title: `Mở khoá máy của ${editing.name}?`,
+      content: 'Người này sẽ bị đăng xuất khỏi app. Lần chấm tiếp theo sẽ gắn với điện thoại đang dùng.',
+      okText: 'Mở khoá máy',
+    });
+    if (!confirmed) return;
+
+    setUnlocking(true);
+    const result = await apiRequest(`/api/v1/employees/${editing.id}/unlock-device`, 'POST');
+    setUnlocking(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Đã mở khoá máy');
+    drawer.close();
+    router.refresh();
+  };
+
   const copyPin = async () => {
     if (!pinNotice) return;
     const link = inviteLink(window.location.origin, companyCode);
@@ -277,6 +302,7 @@ export function StaffPanel({
                     {employee.name}
                     {employee.role !== 'app' ? <Tag color="purple">{ROLE_LABELS[employee.role]}</Tag> : null}
                     {employee.status === 'left' ? <Tag>Đã nghỉ</Tag> : null}
+                    {employee.deviceBoundAt ? <Tag>Đã gắn máy</Tag> : null}
                   </span>
                   <span className={styles.muted}>
                     {position?.name ?? 'Chưa gắn vị trí'} · {CONTRACT_LABELS[employee.contract]} ·{' '}
@@ -318,9 +344,16 @@ export function StaffPanel({
         onSubmit={() => void drawer.submit()}
         footerExtra={
           editing && !readOnly ? (
-            <Button icon={<KeyOutlined />} loading={resetting} onClick={() => void resetPin()}>
-              Đặt lại PIN
-            </Button>
+            <>
+              <Button icon={<KeyOutlined />} loading={resetting} onClick={() => void resetPin()}>
+                Đặt lại PIN
+              </Button>
+              {editing.deviceBoundAt ? (
+                <Button icon={<MobileOutlined />} loading={unlocking} onClick={() => void unlockDevice()}>
+                  Mở khoá máy
+                </Button>
+              ) : null}
+            </>
           ) : null
         }
       >

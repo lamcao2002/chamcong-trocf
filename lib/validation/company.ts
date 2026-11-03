@@ -12,6 +12,7 @@ export const companySchema = z.object({
   otFromRequest: z.boolean(),
   /** null = kỳ lương tròn tháng. */
   cutoffDay: z.number().int().min(1).max(31).nullable(),
+  deviceBinding: z.boolean(),
 });
 
 export const companyPatchSchema = companySchema.partial();
