@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Alert,
@@ -21,6 +21,7 @@ import {
   Typography,
 } from 'antd';
 import {
+  DeleteOutlined,
   KeyOutlined,
   MobileOutlined,
   PlusOutlined,
@@ -46,6 +47,7 @@ import type { ShiftView } from '@/lib/services/shifts';
 import { tokens } from '@/lib/theme/tokens';
 import { employeeCreateSchema } from '@/lib/validation/employee';
 import { BulkAddModal } from './BulkAddModal';
+import { DeleteEmployeeModal } from './DeleteEmployeeModal';
 import { InviteModal } from './InviteModal';
 import { MoneyInput } from './MoneyInput';
 import { PAY_UNITS } from './PositionsPanel';
@@ -111,6 +113,8 @@ export function StaffPanel({
   const [pinNotice, setPinNotice] = useState<{ name: string; email: string; pin: string }>();
   const [resetting, setResetting] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
+  const closeDelete = useCallback(() => setDeleting(null), []);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
 
@@ -319,6 +323,15 @@ export function StaffPanel({
         </div>
       </Card>
 
+      <DeleteEmployeeModal
+        employee={deleting}
+        onClose={closeDelete}
+        onDeleted={() => {
+          setDeleting(null);
+          drawer.close();
+          router.refresh();
+        }}
+      />
       <BulkAddModal
         open={bulkOpen}
         companyCode={companyCode}
@@ -348,6 +361,15 @@ export function StaffPanel({
               <Button icon={<KeyOutlined />} loading={resetting} onClick={() => void resetPin()}>
                 Đặt lại PIN
               </Button>
+              {viewer.role === 'admin' && !isSelf ? (
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => setDeleting({ id: editing.id, name: editing.name })}
+                >
+                  Xoá
+                </Button>
+              ) : null}
               {editing.deviceBoundAt ? (
                 <Button icon={<MobileOutlined />} loading={unlocking} onClick={() => void unlockDevice()}>
                   Mở khoá máy

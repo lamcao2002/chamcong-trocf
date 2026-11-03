@@ -1,5 +1,6 @@
 import 'server-only';
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, type SQL } from 'drizzle-orm';
+import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { ApiError, notFound } from '@/lib/api/errors';
 import { isUniqueViolation } from '@/lib/api/server';
 import { writeAudit, type Tx } from '@/lib/audit';
@@ -14,19 +15,35 @@ import {
 import type { Role } from '@/lib/auth/roles';
 import { getDb } from '@/lib/db/client';
 import {
+  adjustments,
+  approvals,
+  attendanceLogs,
+  auditLogs,
+  dayRecords,
   employeeLocations,
   employees,
   employeeShifts,
+  explanations,
   locations,
+  notifications,
+  payrollPeriods,
+  payslips,
   positions,
+  requests,
+  scheduleCells,
   sessions,
   shifts,
 } from '@/lib/db/schema';
 import { generatePin } from '@/lib/domain/pin';
-import type { EmployeeBulkInput, EmployeeCreateInput, EmployeePatchInput } from '@/lib/validation/employee';
+import type {
+  EmployeeBulkInput,
+  EmployeeCreateInput,
+  EmployeeDeleteInput,
+  EmployeePatchInput,
+} from '@/lib/validation/employee';
 import { actorOf } from './actor';
 import { vietnamToday } from '@/lib/domain/date';
-import { recomputeOpenPeriod } from './recompute';
+import { lockEmployees, recomputeOpenPeriod } from './recompute';
 import { assertOwned } from './references';
 
 /** Không có `pin_hash` và bộ đếm PIN: mọi đọc nhân viên ra API đều qua danh sách cột này. */
@@ -317,4 +334,91 @@ export async function resetEmployeePin(ctx: AuthContext, id: string) {
     await writeAudit(tx, actorOf(ctx), { action: 'employee.reset_pin', entity: 'employee', entityId: id });
   });
   return pin;
+}
+
+/** Dữ liệu của chính người đó, xoá cùng hồ sơ; số lượng hiện trong hộp xác nhận. */
+async function ownedCounts(db: Pick<Tx, 'select'>, id: string) {
+  const counted = async (table: PgTable & { employeeId: PgColumn }) =>
+    (await db.select({ total: count() }).from(table).where(eq(table.employeeId, id)))[0]?.total ?? 0;
+  const [punches, days, requestRows, payslipRows, adjustmentRows] = await Promise.all([
+    counted(attendanceLogs),
+    counted(dayRecords),
+    counted(requests),
+    counted(payslips),
+    counted(adjustments),
+  ]);
+  return {
+    punches,
+    days,
+    requests: requestRows,
+    payslips: payslipRows,
+    adjustments: adjustmentRows,
+  };
+}
+
+async function assertCanDelete(db: Pick<Tx, 'select'>, ctx: AuthContext, id: string) {
+  if (id === ctx.employee.id) throw new ApiError(409, 'Không thể tự xoá tài khoản của mình');
+  const [target] = await db
+    .select({ id: employees.id, name: employees.name, email: employees.email, role: employees.role })
+    .from(employees)
+    .where(findEmployee(ctx, id));
+  if (!target) throw notFound('nhân viên');
+  return target;
+}
+
+/** Những gì sẽ mất nếu xoá, để Quản trị viên đọc trước khi bấm. */
+export async function deletionImpact(ctx: AuthContext, id: string) {
+  const db = getDb();
+  const target = await assertCanDelete(db, ctx, id);
+  return { name: target.name, email: target.email, ...(await ownedCounts(db, id)) };
+}
+
+export type DeletionImpact = Awaited<ReturnType<typeof deletionImpact>>;
+
+/**
+ * Xoá hẳn một nhân viên và mọi dữ liệu của người đó. Quyết định người đó đã đưa ra cho người khác
+ * (duyệt công, duyệt đơn, công bố lương) được giữ và bỏ tên: xoá chúng sẽ làm đổi công và lương của
+ * người còn lại. Nhật ký giữ một dòng ghi ai đã xoá ai.
+ */
+export async function deleteEmployee(ctx: AuthContext, id: string, { email }: EmployeeDeleteInput) {
+  await getDb().transaction(async (tx) => {
+    await lockEmployees(tx, [id]);
+    const target = await assertCanDelete(tx, ctx, id);
+    if (email !== target.email) {
+      throw new ApiError(400, 'Email xác nhận không khớp', { email: 'Gõ đúng email của nhân viên này' });
+    }
+    await tx.select({ id: employees.id }).from(employees).where(eq(employees.id, id)).for('update');
+    const counts = await ownedCounts(tx, id);
+
+    // Lần chấm tổng hợp trỏ tới đơn, nên xoá lần chấm trước đơn
+    for (const table of [
+      notifications,
+      attendanceLogs,
+      explanations,
+      approvals,
+      dayRecords,
+      adjustments,
+      payslips,
+      scheduleCells,
+      requests,
+    ] as const) {
+      await tx.delete(table).where(eq(table.employeeId, id));
+    }
+    await tx.delete(auditLogs).where(eq(auditLogs.entityId, id));
+
+    await tx.update(employees).set({ managerId: null }).where(eq(employees.managerId, id));
+    await tx.update(requests).set({ decidedBy: null }).where(eq(requests.decidedBy, id));
+    await tx.update(approvals).set({ by: null }).where(eq(approvals.by, id));
+    await tx.update(adjustments).set({ by: null }).where(eq(adjustments.by, id));
+    await tx.update(payrollPeriods).set({ publishedBy: null }).where(eq(payrollPeriods.publishedBy, id));
+    await tx.update(auditLogs).set({ actorId: null }).where(eq(auditLogs.actorId, id));
+
+    // Ca riêng, địa điểm riêng và phiên đăng nhập tự xoá theo khoá ngoại
+    await tx.delete(employees).where(eq(employees.id, id));
+    await writeAudit(tx, actorOf(ctx), {
+      action: 'employee.delete',
+      entity: 'employee',
+      before: { name: target.name, role: target.role, ...counts },
+    });
+  });
 }

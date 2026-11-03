@@ -414,9 +414,8 @@ export const approvals = pgTable(
     confirmShiftId: uuid('confirm_shift_id').references(() => shifts.id),
     approveGps: boolean('approve_gps').notNull().default(false),
     note: text('note'),
-    by: uuid('by')
-      .notNull()
-      .references(() => employees.id),
+    /** NULL khi người quyết định đã bị xoá: quyết định vẫn giữ để công của người khác không đổi. */
+    by: uuid('by').references(() => employees.id),
     at: timestamptz('at').notNull().defaultNow(),
     /** Hoàn duyệt: giữ dòng để truy vết, chỉ dòng chưa thu hồi mới có hiệu lực. */
     revokedAt: timestamptz('revoked_at'),
@@ -478,9 +477,8 @@ export const adjustments = pgTable(
     kind: adjustmentKindEnum('kind').notNull(),
     amount: money('amount').notNull(),
     note: text('note').notNull(),
-    by: uuid('by')
-      .notNull()
-      .references(() => employees.id),
+    /** NULL khi người quyết định đã bị xoá: quyết định vẫn giữ để công của người khác không đổi. */
+    by: uuid('by').references(() => employees.id),
     createdAt: createdAt(),
   },
   (t) => [

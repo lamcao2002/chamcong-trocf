@@ -31,6 +31,8 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'POST', path: '/employees/bulk', allowed: ['hr', 'admin'], body: {} },
   { method: 'GET', path: `/employees/${NIL}`, allowed: ['hr', 'admin'] },
   { method: 'PATCH', path: `/employees/${NIL}`, allowed: ['hr', 'admin'], body: {} },
+  { method: 'DELETE', path: `/employees/${NIL}`, allowed: ['admin'], body: { email: 'x' } },
+  { method: 'GET', path: `/employees/${NIL}/deletion`, allowed: ['admin'] },
   { method: 'POST', path: `/employees/${NIL}/reset-pin`, allowed: ['hr', 'admin'] },
   { method: 'POST', path: `/employees/${NIL}/unlock-device`, allowed: ['hr', 'admin'] },
   { method: 'GET', path: '/schedule?week=2026-11-02', allowed: ['manager', 'hr', 'admin'] },

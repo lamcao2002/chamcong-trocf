@@ -294,3 +294,23 @@ test('gắn thiết bị: máy khác bị chặn, Nhân sự mở khoá thì má
     await api.patch('/api/v1/company', { data: { deviceBinding: false } });
   }
 });
+
+test('Quản trị viên xoá nhân viên sau khi gõ lại email', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/nhan-su');
+  await admin.getByRole('button', { name: new RegExp(staff.name) }).click();
+  await admin.getByRole('button', { name: /^(delete )?Xoá$/ }).click();
+
+  const dialog = admin.getByRole('dialog', { name: new RegExp(`Xoá hẳn ${staff.name}`) });
+  await expect(dialog.getByText('Không khôi phục được')).toBeVisible();
+  const confirm = dialog.getByRole('button', { name: 'Xoá vĩnh viễn' });
+  await expect(confirm).toBeDisabled();
+  await dialog.getByLabel('Email xác nhận').fill(staff.email);
+  await confirm.click();
+
+  await expect(admin.getByText(`Đã xoá ${staff.name}`)).toBeVisible();
+  await expect(admin.getByRole('button', { name: new RegExp(staff.name) })).toHaveCount(0);
+});

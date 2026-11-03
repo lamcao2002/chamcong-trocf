@@ -60,3 +60,8 @@ export const employeeBulkSchema = z.object({
 export type EmployeeBulkInput = z.infer<typeof employeeBulkSchema>;
 export type EmployeeCreateInput = z.infer<typeof employeeCreateSchema>;
 export type EmployeePatchInput = z.infer<typeof employeePatchSchema>;
+
+/** Gõ lại email của người bị xoá, để không xoá nhầm người chỉ vì bấm nhanh. */
+export const employeeDeleteSchema = z.object({ email: z.string().trim().toLowerCase() });
+
+export type EmployeeDeleteInput = z.infer<typeof employeeDeleteSchema>;

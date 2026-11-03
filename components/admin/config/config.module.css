@@ -214,3 +214,9 @@
   color: var(--warn-fg);
   font-size: 12px;
 }
+
+.impactList {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-weight: 600;
+}
