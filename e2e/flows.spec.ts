@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Browser } from '@playwright/test';
 import { adminApi, adminPage, newStaff, scheduleToday, staffPage, today } from './helpers';
 
 test('quản lý xếp ca, nhân viên chấm công, Bảng công có ngày công', async ({ browser }) => {
@@ -82,4 +82,215 @@ test('nhân viên gửi đơn quên chấm, quản lý duyệt, app thấy trạ
   await phone.goto('/m#/lich');
   await expect(phone.getByText('Đơn của tôi')).toBeVisible();
   await expect(phone.getByText('Đã duyệt', { exact: true })).toBeVisible();
+});
+
+test('quản lý công bố phiếu, nhân viên xem phiếu trong app', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  await scheduleToday(api, staff);
+
+  const phone = await staffPage(browser, staff);
+  const request = phone.context().request;
+  for (const type of ['in', 'out']) {
+    const punched = await request.post('/api/v1/app/punch', {
+      data: { type, lat: 21.02452, lng: 105.85308, accuracy: 10, chosenShiftId: staff.shiftId },
+    });
+    expect(punched.status()).toBe(201);
+  }
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/luong');
+  await admin.getByRole('button', { name: /^Công bố (phiếu lương|lại)$/ }).click();
+  const dialog = admin.getByRole('dialog');
+  await expect(dialog.getByText(/sẽ thấy phiếu lương kỳ này/)).toBeVisible();
+  await dialog.getByRole('button', { name: /^Công bố \d+ phiếu$/ }).click();
+  await expect(admin.getByText(/^Đã công bố (lại )?phiếu lương$/)).toBeVisible();
+  await expect(admin.getByText('Đã công bố', { exact: true })).toBeVisible();
+
+  await phone.goto('/m#/luong');
+  await expect(phone.getByRole('heading', { name: 'Phiếu lương' })).toBeVisible();
+  await phone.locator('main button', { hasText: 'Công bố' }).first().click();
+  const slip = phone.getByRole('dialog');
+  await expect(slip.getByText('Thực lĩnh')).toBeVisible();
+  await expect(slip.getByText(/bản đã công bố/)).toBeVisible();
+});
+
+test('thêm hàng loạt: dán danh sách, xem trước, nhân viên đăng nhập bằng PIN vừa hiện', async ({
+  browser,
+}) => {
+  const tag = Date.now().toString(36);
+  const good = `lo-${tag}@phonho.vn`;
+  const admin = await adminPage(browser);
+  await admin.goto('/app/nhan-su');
+  await admin.getByRole('button', { name: 'Thêm hàng loạt' }).click();
+
+  const dialog = admin.getByRole('dialog');
+  await dialog.getByLabel('Danh sách nhân viên').fill(`Người Lô ${tag}\t${good}\tphuc vu\nThiếu Email, sai`);
+  await expect(dialog.getByText('1 người sẵn sàng, 1 dòng bỏ qua.')).toBeVisible();
+  await expect(dialog.getByText('Thiếu email hoặc email sai')).toBeVisible();
+  await expect(dialog.getByText('Phục vụ')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Thêm 1 người' }).click();
+
+  const result = admin.getByRole('dialog', { name: 'Đã thêm 1 người' });
+  const pin = await result.locator('tbody strong').innerText();
+  await result.getByRole('button', { name: 'Đã lưu PIN, đóng' }).click();
+  await expect(admin.getByText(`Người Lô ${tag}`)).toBeVisible();
+
+  const login = await (
+    await adminApi()
+  ).post('/api/v1/auth/app/login', {
+    data: { companyCode: 'PHONHO', email: good, pin },
+  });
+  expect(login.status()).toBe(200);
+});
+
+/** Nhân viên chấm ngoài vùng hôm nay: một việc có đề xuất Duyệt vị trí. */
+async function outOfZone(api: Awaited<ReturnType<typeof adminApi>>, browser: Browser) {
+  const staff = await newStaff(api);
+  await scheduleToday(api, staff);
+  const phone = await staffPage(browser, staff);
+  const punched = await phone.context().request.post('/api/v1/app/punch', {
+    data: { type: 'in', lat: 21.1, lng: 105.9, accuracy: 10, chosenShiftId: staff.shiftId },
+  });
+  expect(punched.status()).toBe(201);
+  return staff;
+}
+
+test('Hộp việc: tích nhiều việc rồi duyệt theo đề xuất', async ({ browser }) => {
+  const api = await adminApi();
+  const first = await outOfZone(api, browser);
+  const second = await outOfZone(api, browser);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app');
+  await admin.getByRole('checkbox', { name: new RegExp(`Chọn ${first.name}`) }).check();
+  await admin.getByRole('checkbox', { name: new RegExp(`Chọn ${second.name}`) }).check();
+  await admin.getByRole('button', { name: 'Duyệt theo đề xuất · 2' }).click();
+  await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt', exact: true }).click();
+
+  await expect(admin.getByText('Đã duyệt 2 việc')).toBeVisible();
+  await expect(admin.getByRole('button', { name: new RegExp(first.name) })).toHaveCount(0);
+  await expect(admin.getByRole('button', { name: new RegExp(second.name) })).toHaveCount(0);
+});
+
+test('Bảng công: chọn ô cần duyệt rồi Duyệt loạt', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await outOfZone(api, browser);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/bang-cong');
+  await admin.getByLabel('Tìm tên').fill(staff.name);
+  await admin.getByRole('button', { name: 'Duyệt loạt' }).click();
+  await admin.getByRole('button', { name: 'Chọn mọi ô cần duyệt' }).click();
+  await admin.getByRole('button', { name: /Duyệt 1$/ }).click();
+  await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt', exact: true }).click();
+
+  await expect(admin.getByText('Đã duyệt 1 việc')).toBeVisible();
+  await expect(admin.getByRole('button', { name: 'Duyệt loạt' })).toBeDisabled();
+});
+
+test('Bảng công: Kỳ lệch, Tự chọn và Theo tuần', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await outOfZone(api, browser);
+
+  const admin = await adminPage(browser);
+  await admin.goto(`/app/bang-cong?from=${today()}&to=${today()}`);
+  await expect(admin.getByText('Đây là khoảng xem, không phải kỳ lương')).toBeVisible();
+  await expect(admin.getByRole('button', { name: 'Kỳ sau' })).toHaveCount(0);
+
+  await admin.getByText('Theo tuần', { exact: true }).click();
+  await expect(admin).toHaveURL(/view=week/);
+  await admin.getByLabel('Tìm tên').fill(staff.name);
+  await expect(admin.getByRole('button', { name: 'Duyệt loạt' })).toHaveCount(0);
+  await admin.getByRole('button', { name: new RegExp(`^${staff.name}, `) }).click();
+  await expect(admin.getByRole('dialog').getByText('Lần chấm')).toBeVisible();
+
+  await admin.goto('/app/bang-cong?start=16');
+  await expect(admin.getByText('Bắt đầu từ ngày')).toBeVisible();
+  await expect(admin.getByRole('link', { name: 'Kỳ này' })).toBeVisible();
+});
+
+test('nhân viên đăng ký ca tuần sau, quản lý nhận, chuông báo kết quả', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+
+  const phone = await staffPage(browser, staff);
+  await phone.goto('/m#/lich');
+  await expect(phone.getByText('Đăng ký ca tuần sau')).toBeVisible();
+  await phone
+    .getByRole('button', { name: new RegExp(`^Ca ${staff.tag}`) })
+    .first()
+    .click();
+  await phone.getByRole('button', { name: /Gửi đăng ký · 1 ca/ }).click();
+  await expect(phone.getByText('Đã gửi đăng ký')).toBeVisible();
+
+  const admin = await adminPage(browser);
+  const monday = new Date(`${today()}T00:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+  await admin.goto(`/app/xep-ca?week=${monday.toISOString().slice(0, 10)}`);
+  await admin.getByRole('button', { name: new RegExp(`^Nhận ${staff.name}`) }).click();
+  await expect(admin.getByText('Đã nhận 1 đăng ký')).toBeVisible();
+
+  await phone.reload();
+  await phone.getByRole('button', { name: /Thông báo, 1 chưa đọc/ }).click();
+  await expect(phone.getByText('Đăng ký ca đã được nhận')).toBeVisible();
+});
+
+test('nhân viên gửi đơn Muộn/sớm, quản lý thấy đúng nội dung trong Hộp việc', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+
+  const phone = await staffPage(browser, staff);
+  await phone.goto('/m');
+  await phone.getByRole('button', { name: 'Tạo đơn' }).click();
+  const sheet = phone.getByRole('dialog');
+  await sheet.getByRole('button', { name: 'Muộn / sớm' }).click();
+  await sheet.getByLabel('Ngày').fill(today());
+  await sheet.getByLabel('Số phút').fill('15');
+  await sheet.getByLabel('Lý do').fill('Xe hỏng giữa đường');
+  await sheet.getByRole('button', { name: 'Gửi đơn' }).click();
+  await expect(phone.getByText('Đã gửi đơn')).toBeVisible();
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app');
+  await expect(admin.getByText('Xin đi trễ 15 phút · Cả ngày').first()).toBeVisible();
+});
+
+test('gắn thiết bị: máy khác bị chặn, Nhân sự mở khoá thì máy mới chấm được', async ({ browser }) => {
+  const api = await adminApi();
+  await api.patch('/api/v1/company', { data: { deviceBinding: true } });
+  try {
+    const staff = await newStaff(api);
+    await scheduleToday(api, staff);
+    const data = { lat: 21.02452, lng: 105.85308, accuracy: 10, chosenShiftId: staff.shiftId };
+
+    const first = await staffPage(browser, staff);
+    expect(
+      (await first.context().request.post('/api/v1/app/punch', { data: { ...data, type: 'in' } })).status(),
+    ).toBe(201);
+
+    const second = await staffPage(browser, staff);
+    await second.goto('/m');
+    const blocked = await second
+      .context()
+      .request.post('/api/v1/app/punch', { data: { ...data, type: 'out' } });
+    expect(blocked.status()).toBe(403);
+
+    const admin = await adminPage(browser);
+    await admin.goto('/app/nhan-su');
+    await admin.getByRole('button', { name: new RegExp(staff.name) }).click();
+    await admin.getByRole('button', { name: 'Mở khoá máy' }).click();
+    await admin.locator('.ant-modal-confirm').getByRole('button', { name: 'Mở khoá máy' }).click();
+    await expect(admin.getByText('Đã mở khoá máy')).toBeVisible();
+
+    const login = await second.context().request.post('/api/v1/auth/app/login', {
+      data: { companyCode: 'PHONHO', email: staff.email, pin: staff.pin },
+    });
+    expect(login.status()).toBe(200);
+    expect(
+      (await second.context().request.post('/api/v1/app/punch', { data: { ...data, type: 'out' } })).status(),
+    ).toBe(201);
+  } finally {
+    await api.patch('/api/v1/company', { data: { deviceBinding: false } });
+  }
 });

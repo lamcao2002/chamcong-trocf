@@ -15,7 +15,7 @@ export async function adminApi(): Promise<APIRequestContext> {
   return api;
 }
 
-type Staff = { id: string; name: string; email: string; pin: string; shiftId: string };
+type Staff = { id: string; name: string; email: string; pin: string; shiftId: string; tag: string };
 
 /** Tạo nhân viên riêng cho mỗi test, ca kéo dài cả ngày để chạy được bất kể giờ nào. */
 export async function newStaff(api: APIRequestContext): Promise<Staff> {
@@ -58,7 +58,7 @@ export async function newStaff(api: APIRequestContext): Promise<Staff> {
     },
   });
   const { id, pin } = (await created.json()).employee;
-  return { id, name, email, pin, shiftId };
+  return { id, name, email, pin, shiftId, tag };
 }
 
 export const scheduleToday = (api: APIRequestContext, { id, shiftId }: Staff) =>

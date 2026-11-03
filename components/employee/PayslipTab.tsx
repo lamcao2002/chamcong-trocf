@@ -1,0 +1,131 @@
+'use client';
+
+import { useEffect, useState, type CSSProperties } from 'react';
+import { Drawer, Skeleton } from 'antd';
+import { RightOutlined } from '@ant-design/icons';
+import { useToast } from '@/components/common/useToast';
+import { apiRequest } from '@/lib/api/client';
+import { vietnamToday } from '@/lib/domain/date';
+import { formatDate, formatDecimal, formatMoney } from '@/lib/format';
+import type { PayslipRow, PayslipView } from '@/lib/services/payroll';
+import { themeCssVars } from '@/lib/theme/tokens';
+import styles from './EmployeeScreen.module.css';
+
+const PAY_LABELS: Record<PayslipView['summary']['payType'], string> = {
+  month: 'Lương tháng',
+  hour: 'Lương giờ',
+  unit: 'Lương công',
+};
+
+function SlipDetail({ slip }: { slip: PayslipView }) {
+  const { summary } = slip;
+  return (
+    <>
+      <div className={styles.slipNet}>
+        <span>Thực lĩnh</span>
+        <strong>{formatMoney(slip.net)}</strong>
+        <span>
+          Kỳ {formatDate(slip.from).slice(0, 5)} – {formatDate(slip.to)} · {PAY_LABELS[summary.payType]}
+        </span>
+        <span>Công bố {formatDate(vietnamToday(new Date(slip.publishedAt)))}</span>
+      </div>
+      <div className={styles.slipStats}>
+        <div>
+          <span>Công</span>
+          <strong>{formatDecimal(summary.cong)}</strong>
+        </div>
+        <div>
+          <span>Muộn</span>
+          <strong>{summary.lateMin}p</strong>
+        </div>
+        <div>
+          <span>Thiếu chấm</span>
+          <strong>{summary.missing}</strong>
+        </div>
+        <div>
+          <span>OT</span>
+          <strong>{summary.otApprovedMin}p</strong>
+        </div>
+      </div>
+      <ul className={styles.slipLines}>
+        {slip.lines.map(({ key, name, amount, how }) => (
+          <li key={key}>
+            <span>
+              {name}
+              <span className={styles.timelineSub}>{how}</span>
+            </span>
+            <strong>{formatMoney(amount)}</strong>
+          </li>
+        ))}
+      </ul>
+      <p className={styles.muted}>
+        Phiếu này là bản đã công bố, không đổi khi bảng công được sửa sau ngày công bố.
+      </p>
+    </>
+  );
+}
+
+/** Màn M4: các kỳ đã công bố và phiếu từng kỳ, chỉ đọc từ bản chụp (US36). */
+export function PayslipTab({ brandColor }: { brandColor: string | null }) {
+  const toast = useToast();
+  const [rows, setRows] = useState<PayslipRow[] | null>(null);
+  const [slip, setSlip] = useState<PayslipView | null>(null);
+
+  useEffect(() => {
+    void apiRequest<{ payslips: PayslipRow[] }>('/api/v1/app/payslips', 'GET').then((result) => {
+      if (result.ok) setRows(result.payslips);
+      else toast.error(result.error);
+    });
+  }, [toast]);
+
+  const open = async (periodKey: string) => {
+    const result = await apiRequest<{ payslip: PayslipView }>(`/api/v1/app/payslips/${periodKey}`, 'GET');
+    if (result.ok) setSlip(result.payslip);
+    else toast.error(result.error);
+  };
+
+  return (
+    <main className={styles.body}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>Phiếu lương</h1>
+        {!rows ? <Skeleton active paragraph={{ rows: 3 }} title={false} /> : null}
+        {rows?.length === 0 ? <p className={styles.muted}>Chưa có phiếu lương nào được công bố.</p> : null}
+        {rows && rows.length > 0 ? (
+          <ul className={styles.slipList}>
+            {rows.map(({ periodKey, from, to, net, publishedAt }) => (
+              <li key={periodKey}>
+                <button type="button" onClick={() => void open(periodKey)}>
+                  <span>
+                    <strong>
+                      {formatDate(from).slice(0, 5)} – {formatDate(to)}
+                    </strong>
+                    <span className={styles.timelineSub}>
+                      Công bố {formatDate(vietnamToday(new Date(publishedAt)))}
+                    </span>
+                  </span>
+                  <span className={styles.slipAmount}>
+                    {formatMoney(net)} <RightOutlined />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+
+      <Drawer
+        open={slip !== null}
+        title="Phiếu lương"
+        placement="bottom"
+        height="90%"
+        destroyOnHidden
+        onClose={() => setSlip(null)}
+      >
+        {/* Drawer nằm ngoài vùng đặt biến CSS của màn */}
+        <div style={themeCssVars(brandColor ?? undefined) as CSSProperties}>
+          {slip ? <SlipDetail slip={slip} /> : null}
+        </div>
+      </Drawer>
+    </main>
+  );
+}

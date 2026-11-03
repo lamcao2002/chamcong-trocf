@@ -283,15 +283,17 @@ describe('quyết định đơn (US33)', () => {
     ).toBe(401);
   });
 
-  it('kỳ đã công bố không duyệt được đơn', async () => {
+  it('duyệt đơn trong kỳ đã công bố làm kỳ cần công bố lại', async () => {
     const { id, session } = await newEmployee();
     await schedule(id, tomorrow, [shifts.SANG.id]);
-    const { request } = (await send(session, leave(tomorrow))).body;
+    await schedule(id, yesterday, [shifts.SANG.id]);
+    const { request } = (await send(session, leave(yesterday))).body;
     const [period] =
       await sql`insert into payroll_periods (company_id, period_key, from_date, to_date, published)
-      select company_id, ${`RQ${Date.now()}`}, ${tomorrow}, ${tomorrow}, true from employees where id = ${id} returning id`;
+      select company_id, ${`RQ${Date.now()}`}, ${yesterday}, ${yesterday}, true from employees where id = ${id} returning id`;
     try {
-      expect((await decide(request.id, { decision: 'approve' })).status).toBe(409);
+      expect((await decide(request.id, { decision: 'approve' })).status).toBe(200);
+      expect((await sql`select stale from payroll_periods where id = ${period!.id}`)[0]!.stale).toBe(true);
     } finally {
       await sql`delete from payroll_periods where id = ${period!.id}`;
     }

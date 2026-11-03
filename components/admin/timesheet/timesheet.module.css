@@ -267,3 +267,247 @@
     font-size: 11px;
   }
 }
+
+.pickable {
+  border: 1px dashed var(--text);
+}
+
+.picked {
+  border: 2px solid var(--text);
+}
+
+.cell:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* Thanh dưới điện thoại che đáy màn hình, nên nổi phía trên nó */
+.bulkBar {
+  position: sticky;
+  z-index: 3;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-card);
+  background: var(--text);
+  color: var(--surface);
+}
+
+.bulkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 991px) {
+  .bulkBar {
+    bottom: calc(var(--bottom-nav-h) + 12px);
+  }
+}
+
+.mode {
+  flex: 0 0 116px;
+}
+
+.startField {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.thisPeriod {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.viewBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.notice {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.weekChips {
+  display: flex;
+  flex: 1 1 0;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.weekChip {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.weekChipActive {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--surface);
+}
+
+.weekGrid {
+  width: 100%;
+}
+
+.weekHead {
+  min-width: 96px;
+  padding: 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.weekDay {
+  padding: 2px;
+  vertical-align: top;
+}
+
+.weekEmpty {
+  padding: 8px 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.weekCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weekCell:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.weekRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.miniBar {
+  position: relative;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.miniShift {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(135deg, var(--border) 0 3px, transparent 3px 6px);
+}
+
+.miniPresent {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--brand);
+}
+
+.miniMark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--brand);
+}
+
+.toneAlert {
+  color: var(--danger-fg);
+  font-weight: 600;
+}
+
+.toneWarn {
+  color: var(--warn-fg);
+  font-weight: 600;
+}
+
+.toneOt {
+  color: var(--ot-fg);
+  font-weight: 600;
+}
+
+.weekTotal {
+  min-width: 84px;
+  padding: 4px 8px;
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.weekTotal strong,
+.weekTotal span {
+  display: block;
+}
+
+.weekOk,
+.weekLegend {
+  color: var(--text-muted);
+}
+
+.weekLegend {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+/* Hàng riêng trên điện thoại: ô ngày nằm giữa màn hình thì lịch bật ra bị cắt mép */
+.rangeFields {
+  display: flex;
+  flex: 0 1 300px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rangeFields > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (max-width: 991px) {
+  .rangeFields {
+    flex: 1 1 100%;
+  }
+}
+
+/* Lịch rộng gần bằng màn hình điện thoại: canh theo mép màn hình thay vì theo ô ngày */
+@media (max-width: 480px) {
+  .calendar {
+    left: var(--gutter-mobile, 16px) !important;
+  }
+}

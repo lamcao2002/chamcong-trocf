@@ -17,7 +17,7 @@ type AuditEntry = {
 /** Không bao giờ ghi PIN vào nhật ký, kể cả dạng băm. */
 function redact(snapshot: object | null | undefined) {
   if (!snapshot) return snapshot;
-  const { pinHash: _pinHash, ...rest } = snapshot as Record<string, unknown>;
+  const { pinHash: _pinHash, deviceHash: _deviceHash, ...rest } = snapshot as Record<string, unknown>;
   return rest;
 }
 

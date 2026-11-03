@@ -380,3 +380,220 @@
   gap: 8px;
   margin-top: 10px;
 }
+
+.slipList {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slipList button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.slipList button > span:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.slipList button:focus-visible {
+  outline: 2px solid var(--brand);
+}
+
+.slipAmount {
+  flex: none;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.slipNet {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--header-gradient);
+  color: var(--surface);
+  font-size: 13px;
+}
+
+.slipNet strong {
+  font-size: 28px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 36px;
+}
+
+.slipStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.slipStats div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 2px;
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  font-size: 12px;
+}
+
+.slipStats strong {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.slipLines {
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slipLines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.slipLines li > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.slipLines strong {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.notifications {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notifications a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+}
+
+.notificationNew {
+  background: var(--brand-soft);
+}
+
+.notificationTime {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.register {
+  width: 100%;
+  margin: 8px 0;
+  border-collapse: separate;
+  border-spacing: 3px;
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.register th {
+  overflow: hidden;
+  font-weight: 600;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Bảng `fixed` lấy độ rộng từ hàng đầu; mã ca là thứ nhân viên đọc để chọn, không được cắt mất */
+.register thead th:first-child {
+  width: 54px;
+}
+
+.register tbody th {
+  text-align: left;
+}
+
+.registerCell {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--surface);
+  font: inherit;
+  font-weight: 700;
+}
+
+.registerPicked {
+  border-color: var(--brand);
+  background: var(--brand);
+}
+
+.register_pending {
+  border: 1px dashed var(--info-fg);
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
+
+.register_scheduled {
+  border-color: var(--text-muted);
+  background: var(--text-muted);
+}
+
+.registerLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  list-style: none;
+}
+
+.registerLegend li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.registerMark {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.headerActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}

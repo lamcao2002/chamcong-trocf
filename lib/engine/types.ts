@@ -60,7 +60,10 @@ export type OtRates = {
 };
 
 export type EngineRequest =
-  { type: 'leave'; leaveType: 'annual' | 'sick' | 'unpaid' } | { type: 'overtime'; from: string; to: string };
+  | { type: 'leave'; leaveType: 'annual' | 'sick' | 'unpaid' }
+  | { type: 'overtime'; from: string; to: string }
+  /** `shiftId` trống là cả ngày: áp cho mọi ca trong ngày. */
+  | { type: 'late_early'; kind: 'late' | 'early'; minutes: number; shiftId: string | null };
 
 export type EngineExplanation = { shiftId: string | null; reason: string };
 

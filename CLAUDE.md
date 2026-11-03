@@ -16,9 +16,11 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 |---|---|
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
+| `docs/product/08-should-have.md` | Danh sách việc SH-01…SH-35 sau MVP, thứ tự nhóm, quyết định đang để mặc định |
+| `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, 18 ca P01–P18, kế hoạch production |
 | `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
-| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **59 ca kiểm thử T01–T59**, ký hiệu ô Bảng công, quyết định đã chốt |
+| `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **66 ca kiểm thử T01–T66**, ký hiệu ô Bảng công, quyết định đã chốt |
 | `docs/product/01-ke-hoach-mvp.md` | Kế hoạch 5 bước, 4 quyết định đã chốt |
 | `docs/website-analysis/` | Phân tích sản phẩm gốc: UI tokens (05), data model (07), flows (06) |
 | `docs/setup-supabase.md` | Hạ tầng dev/staging |
@@ -45,7 +47,7 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S1-04 Migration 21 bảng + seed "Cà phê Phố Nhỏ" | Code xong, đã chạy thử trên PostgreSQL 16 trống — chưa áp lên Supabase, chờ review schema |
 | S1-05 Khung giao diện quản trị | Code xong, đã thử trên Chrome 375–1440 px — người xem còn là `DEV_VIEWER`, S1-08 thay bằng phiên thật |
 | S1-06 Drawer form, thanh chưa lưu, toast, hỏi khi rời trang | Code xong, đã thử trên Chrome 375–1440 px — chưa có màn thật nào dùng, chưa thử trên điện thoại thật |
-| S1-07 API đăng nhập, phiên cookie, đăng xuất | Code xong, đã chạy thử trên PostgreSQL trống — **chưa làm khoá 15 phút sau 5 lần sai** theo yêu cầu; cột `failed_pin_attempts`, `locked_until` chưa dùng |
+| S1-07 API đăng nhập, phiên cookie, đăng xuất | Code xong, đã chạy thử trên PostgreSQL trống — khoá 15 phút làm ở S4-21 |
 | S1-08 Phân quyền 4 cấp, lọc `company_id`, lọc người được quản lý | Code xong, đã chạy thử trên PostgreSQL trống |
 | S1-09 Màn A1 đăng nhập quản trị, nút Đăng xuất | Code xong, đã thử trên Chrome 320–1440 px |
 | S1-10 Màn M1, đọc `?ma=`, PWA manifest | Code xong, Chrome xác nhận cài được PWA — M2 còn là màn tạm, chưa thử cài trên điện thoại thật |
@@ -93,6 +95,37 @@ Cập nhật bảng này khi xong một việc.
 | S3-20 Dữ liệu thật | Mới mô phỏng một tuần trên PostgreSQL tạm; **chưa có dữ liệu thật tại quán** |
 | S3-21 Triển khai, demo | Đã đẩy nhánh `feat/sprint-3`; **chưa merge, chưa demo** |
 
+## Tiến độ Sprint 4
+
+| Việc | Trạng thái |
+|---|---|
+| S4-01 Chốt quyết định | 19 quyết định đã ghi vào `docs/product/07-sprint-4.md`, thêm P15–P17 và S4-21; **chưa đối chiếu với bảng lương của quán** |
+| S4-02 Bộ tính lương | Code xong `lib/payroll/compute-pay.ts`: 18/18 ca P01–P18, hàm thuần |
+| S4-03 → S4-07 API lương | Code xong `/payroll`, `/adjustments`, `/payroll/publish`, `/app/payslips`; kỳ đã công bố dùng cờ `stale` thay cho 409 |
+| S4-08 → S4-11 Màn A5 | Code xong tổng quan, danh sách, sao kê, thưởng/phạt, hộp công bố, báo cần công bố lại |
+| S4-12 Màn M4 | Code xong danh sách kỳ và phiếu; **chưa thử điện thoại thật** |
+| S4-13 Test | Code xong test API và Playwright luồng công bố |
+| S4-21 Khoá PIN | Code xong: khoá theo tài khoản trong `lib/auth/login.ts`, phản hồi giống tài khoản không tồn tại, Đặt lại PIN mở khoá ngay |
+| S4-14 Chuẩn bị production | Code xong `npm run company:create`, khoá ngày chốt sau kỳ công bố đầu tiên, chặn seed theo CSDL đích (`lib/db/target.ts`) |
+
+## Tiến độ Should Have
+
+| Việc | Trạng thái |
+|---|---|
+| SH-01 Thêm hàng loạt | Code xong `POST /employees/bulk`, bộ đọc `lib/domain/staff-import.ts`, đã thử trên Chrome 375 và 1440 px |
+| SH-02 Gửi link cài app, QR | Code xong; tin nhắn chỉ kèm PIN ngay sau khi tạo hoặc đặt lại PIN; **chưa quét QR bằng điện thoại thật** |
+| SH-03, SH-04 Xuất Excel | Code xong `/timesheet/export`, `/payroll/export`; kỳ đã công bố lấy bản chụp |
+| SH-05 In phiếu | Code xong trang `/app/in-phieu`, in một người hoặc cả kỳ, mỗi người một tờ; **chưa in ra giấy thật** |
+| SH-09, SH-10 Duyệt hàng loạt | Code xong `POST /approvals/bulk` (`lib/services/bulk-approval.ts`), chọn nhiều ở Hộp việc; đề xuất lấy lại từ server, số đổi thì bỏ qua và báo lại |
+| SH-12 Duyệt loạt Bảng công | Code xong chế độ chọn ô, dùng chung API với Hộp việc |
+| SH-13 Kỳ lệch, Tự chọn | Code xong `lib/domain/timesheet-view.ts`: chỉ đổi khoảng xem, tối đa 62 ngày; Excel, drawer một người và duyệt loạt đi theo khoảng đó |
+| SH-14 Theo tuần | Code xong `?view=week`, `TimesheetWeek.tsx`; chưa thử điện thoại thật |
+| SH-16 Thông báo | Code xong bảng `notifications`, `lib/services/notifications.ts`, chuông ở app nhân viên; chưa có web push |
+| SH-17, SH-18 Đăng ký ca | Code xong: mỗi ô một đơn `shift_register`, lưới ở tab Lịch, nhận ở Xếp ca và Hộp việc; **chưa thử điện thoại thật** |
+| SH-19 Đơn Muộn/sớm | Code xong, engine thêm T60–T66; miễn tính muộn, không đổi công |
+| SH-20 Đơn Đổi ca | Code xong: duyệt thì sửa lịch hai ngày; đã có lần chấm thì chặn |
+| SH-27, SH-28 Gắn thiết bị | Code xong `lib/services/device.ts`, mặc định tắt; gắn ở lần chấm đầu, chỉ chặn ở bước chấm; **chưa thử iPhone/Android thật, không bật cho quán trước khi thử** |
+
 ## Lệnh
 
 ```bash
@@ -104,7 +137,8 @@ npm run test:api     # test API qua HTTP: cần app đang chạy, DATABASE_URL p
 npm run test:e2e     # Playwright trên app đang chạy; PW_CHANNEL=chrome để dùng Chrome của máy
 npm run db:generate  # sau khi sửa lib/db/schema.ts, commit cả thư mục drizzle/
 npm run db:migrate
-npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production bị chặn
+npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN và CONFIRM_DB, production bị chặn
+npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn Văn A" --admin-email=a@quan.vn  # CSDL ngoài máy cần CONFIRM_DB
 ```
 
 ## Quy ước code
@@ -120,9 +154,15 @@ npm run db:seed      # dữ liệu mẫu; staging cần SEED_PIN, production b�
 - Service ở `lib/services/`: mọi truy vấn lọc `company_id`, ID từ client qua `assertOwned`, ghi kèm `writeAudit`; route chỉ parse rồi gọi service
 - Mọi thao tác làm đổi ngày công gọi `recomputeDays` hoặc `recomputeOpenPeriod` trong cùng transaction; `day_records` là kết quả tính lại được, không ghi tay
 - Mọi màn đọc ngày công đi qua `readDayRecords` (`lib/services/day.ts`), không đọc thẳng `day_records`; việc trong Hộp việc định danh bằng nhân viên × ngày × ca × cờ, không dùng `day_records.id`
+- Tiền chỉ tính trong `lib/payroll/compute-pay.ts`; phiếu đã công bố đọc từ bản chụp `payslips`, không tính lại
+- Excel và phiếu in lấy số qua `getPayrollDocument`; modal hiện PIN phải `destroyOnHidden`, nếu không PIN nằm lại trong DOM
+- Duyệt hàng loạt không nhận quyết định từ client: chỉ nhận khoá việc và nhãn đã thấy, đề xuất lấy lại qua `getInbox`
+- Kỳ lệch và Tự chọn chỉ là khoảng xem của Bảng công; Lương, Hộp việc và phiếu luôn theo `companies.cutoff_day`
+- Thông báo ghi bằng `notify` trong cùng transaction với việc gây ra nó; đổi ô lịch đi qua `writeCells`
+- Gắn thiết bị dùng cookie httpOnly `cc_device`, không dùng localStorage, không xoá khi đăng xuất; `device_hash` không bao giờ ra API hay `audit_logs`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge
-- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T59
+- Viết test Vitest cạnh file (`*.test.ts`); engine phải có đủ T01–T66
 - Văn bản giao diện tiếng Việt; số `1.234.567đ`, ngày `dd/mm/yyyy`

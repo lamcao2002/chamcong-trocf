@@ -5,17 +5,18 @@ import { getDb } from '@/lib/db/client';
 import { companies, requests, shifts } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import { nextPeriod, periodByKey, periodOf, previousPeriod } from '@/lib/domain/period';
+import { requestSummary } from '@/lib/domain/request-text';
 import { shiftSpanMinutes, toMinutes } from '@/lib/domain/shift';
 import { addDays, atMinute, minuteOfDay } from '@/lib/engine/time';
 import type { Suggestion } from '@/lib/engine/types';
-import { formatDecimal } from '@/lib/format';
 import { canDecideOwn } from './approvals';
 import { readDayRecords, staffInScope, type DayView } from './day';
 
 /** Quá mốc này sau giờ vào ca mà chưa chấm thì tính là Chưa chấm công (US23). */
 const MISSING_AFTER_MINUTES = 15;
 
-export type InboxKind = 'vang' | 'thieu_gio' | 'sai_ca' | 'ngoai_vung' | 'ngoai_lich' | 'ot_cho' | 'don';
+export type InboxKind =
+  'vang' | 'thieu_gio' | 'sai_ca' | 'ngoai_vung' | 'ngoai_lich' | 'ot_cho' | 'don' | 'dang_ky';
 
 const KIND_LABELS: Record<InboxKind, string> = {
   vang: 'Vắng',
@@ -25,6 +26,7 @@ const KIND_LABELS: Record<InboxKind, string> = {
   ngoai_lich: 'Ngoài lịch',
   ot_cho: 'OT chờ duyệt',
   don: 'Đơn',
+  dang_ky: 'Đăng ký ca',
 };
 
 type FlagKind = { flag: string; kind: InboxKind; suggestion?: Suggestion['kind']; text: string };
@@ -40,19 +42,29 @@ const FLAG_KINDS: FlagKind[] = [
   { flag: 'ot_cho', kind: 'ot_cho', suggestion: 'approve_ot', text: 'Có OT đề xuất chưa duyệt' },
 ];
 
-const LEAVE_LABELS: Record<string, string> = {
-  annual: 'Phép năm',
-  sick: 'Nghỉ ốm',
-  unpaid: 'Không lương',
-};
+export type ApprovableItem = { key: string; label: string; otMinutes: number };
 
-function requestSummary(type: string, payload: Record<string, unknown>): string {
-  if (type === 'leave')
-    return `Nghỉ phép · ${LEAVE_LABELS[String(payload.leaveType)] ?? ''} · ${formatDecimal(Number(payload.days))} ngày`;
-  if (type === 'forgot')
-    return `Quên chấm · vào ${String(payload.inTime ?? '—')}, ra ${String(payload.outTime ?? '—')}`;
-  return `Làm thêm ${String(payload.from)}–${String(payload.to)}`;
+/** Việc của một dòng ngày công duyệt được theo đề xuất; Bảng công chọn ô bằng đúng các khoá này. */
+export function approvableItems(
+  record: Pick<DayView, 'employeeId' | 'date' | 'shiftId' | 'flags' | 'suggestions'>,
+): ApprovableItem[] {
+  return FLAG_KINDS.filter(({ flag }) => record.flags.includes(flag)).flatMap(({ flag, suggestion }) => {
+    const proposal = record.suggestions.find((row) => row.kind === suggestion);
+    if (!proposal) return [];
+    return [
+      {
+        key: itemKey(record, flag),
+        label: proposal.label,
+        otMinutes: proposal.otMinutes ?? 0,
+      },
+    ];
+  });
 }
+
+const itemKey = (
+  { employeeId, date, shiftId }: Pick<DayView, 'employeeId' | 'date' | 'shiftId'>,
+  flag: string,
+) => `${employeeId}|${date}|${shiftId ?? ''}|${flag}`;
 
 type ShiftClock = { id: string; name: string; startTime: string; endTime: string };
 
@@ -68,7 +80,7 @@ function recordItems(
     ({ flag, kind, suggestion, text }) => {
       const proposal = record.suggestions.find((row) => row.kind === suggestion) ?? null;
       return {
-        key: `${record.employeeId}|${record.date}|${record.shiftId ?? ''}|${flag}`,
+        key: itemKey(record, flag),
         kind,
         kindLabel: KIND_LABELS[kind],
         employeeId: record.employeeId,
@@ -105,9 +117,24 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
     .where(eq(companies.id, ctx.company.id));
   const cutoffDay = company?.cutoffDay ?? null;
   const period = periodKey ? periodByKey(periodKey, cutoffDay) : periodOf(today, cutoffDay);
+  const next = nextPeriod(period, cutoffDay);
+  return {
+    period,
+    /** Đầu tháng quản lý vẫn cần xử lý tồn của kỳ trước, nên phải chuyển kỳ được. */
+    previousKey: previousPeriod(period, cutoffDay).key,
+    nextKey: next.from <= today ? next.key : null,
+    ...(await inboxBetween(ctx, period.from, period.to, now)),
+  };
+}
 
+export type InboxView = Awaited<ReturnType<typeof getInbox>>;
+
+/** Việc trong một khoảng ngày; duyệt hàng loạt từ Bảng công dùng được cả khoảng không trùng kỳ lương. */
+export async function inboxBetween(ctx: AuthContext, from: string, to: string, now: Date = new Date()) {
+  const db = getDb();
+  const today = vietnamToday(now);
   const [allStaff, library, ownAllowed] = await Promise.all([
-    staffInScope(ctx, period.from),
+    staffInScope(ctx, from),
     db
       .select({ id: shifts.id, name: shifts.name, startTime: shifts.startTime, endTime: shifts.endTime })
       .from(shifts)
@@ -118,7 +145,7 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
   const ids = staff.map(({ id }) => id);
 
   const [records, pending] = await Promise.all([
-    readDayRecords(db, ctx.company.id, ids, period.from, period.to < today ? period.to : today, now),
+    readDayRecords(db, ctx.company.id, ids, from, to < today ? to : today, now),
     db
       .select()
       .from(requests)
@@ -126,8 +153,8 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
         and(
           scopeToStaff(ctx, { companyId: requests.companyId, employeeId: requests.employeeId }),
           eq(requests.status, 'pending'),
-          lte(requests.fromDate, period.to),
-          gte(requests.toDate, period.from),
+          lte(requests.fromDate, to),
+          gte(requests.toDate, from),
         ),
       ),
   ]);
@@ -136,14 +163,16 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
     const employee = staff.find(({ id }) => id === record.employeeId);
     return employee ? recordItems(record, employee, library) : [];
   });
+  const shiftName = (id: unknown) => library.find((shift) => shift.id === id)?.name ?? null;
   const requestItems = pending.flatMap((request): InboxItem[] => {
     const employee = staff.find(({ id }) => id === request.employeeId);
     if (!employee) return [];
+    const kind: InboxKind = request.type === 'shift_register' ? 'dang_ky' : 'don';
     return [
       {
         key: `request|${request.id}`,
-        kind: 'don',
-        kindLabel: KIND_LABELS.don,
+        kind,
+        kindLabel: KIND_LABELS[kind],
         employeeId: request.employeeId,
         employeeName: employee.name,
         positionName: employee.positionName,
@@ -151,7 +180,7 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
         toDate: request.toDate,
         shiftId: null,
         shiftName: null,
-        description: requestSummary(request.type, request.payload as Record<string, unknown>),
+        description: requestSummary(request.type, request.payload as Record<string, unknown>, shiftName),
         suggestion: null,
         evidence: request.reason ? [`Lý do: ${request.reason}`] : [],
         inAt: null,
@@ -172,19 +201,8 @@ export async function getInbox(ctx: AuthContext, periodKey?: string, now: Date =
     return all;
   }, {});
 
-  const next = nextPeriod(period, cutoffDay);
-  return {
-    period,
-    /** Đầu tháng quản lý vẫn cần xử lý tồn của kỳ trước, nên phải chuyển kỳ được. */
-    previousKey: previousPeriod(period, cutoffDay).key,
-    nextKey: next.from <= today ? next.key : null,
-    total: items.length,
-    counts,
-    items,
-  };
+  return { total: items.length, counts, items };
 }
-
-export type InboxView = Awaited<ReturnType<typeof getInbox>>;
 
 /** 4 thẻ số hôm nay (US23); tính tại chỗ vì đổi theo đồng hồ. */
 export async function getOverview(ctx: AuthContext, pending: number, now: Date = new Date()) {

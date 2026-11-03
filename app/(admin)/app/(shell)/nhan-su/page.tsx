@@ -26,6 +26,7 @@ export default async function StaffPage() {
         shifts={shifts}
         locations={locations}
         viewer={{ id: ctx.employee.id, role: ctx.employee.role }}
+        companyCode={ctx.company.code}
       />
     </AdminPage>
   );

@@ -1,11 +1,12 @@
 import 'server-only';
-import { and, eq, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { writeAudit } from '@/lib/audit';
 import { companies, employees, sessions } from '@/lib/db/schema';
 import type { LoginInput } from '@/lib/validation/auth';
 import { hashPin, verifyPin } from './pin';
 import {
+  LOGIN_POLICY,
   SESSION_POLICY,
   canOpen,
   generateSessionToken,
@@ -24,6 +25,43 @@ export type LoginResult =
 
 let dummyHash: Promise<string> | undefined;
 
+const NO_EMPLOYEE = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Giữ chỗ một lần thử trước khi so PIN; trả false nếu tài khoản đang khoá hoặc không có. Tăng bộ đếm
+ * trong một câu UPDATE vì đọc rồi mới tăng thì gửi song song sẽ thử được nhiều PIN hơn giới hạn.
+ * Lần thử trong lúc khoá không được tính, nên thời hạn khoá không bị kéo dài thêm.
+ */
+async function reserveAttempt(employee: { id: string; companyId: string } | undefined) {
+  const attempts = sql`${employees.failedPinAttempts} + 1`;
+  const reachedLimit = sql`${attempts} >= ${LOGIN_POLICY.maxAttempts}`;
+  return getDb().transaction(async (tx) => {
+    const [reserved] = await tx
+      .update(employees)
+      .set({
+        failedPinAttempts: sql`case when ${reachedLimit} then 0 else ${attempts} end`,
+        lockedUntil: sql`case when ${reachedLimit} then now() + make_interval(mins => ${LOGIN_POLICY.lockMinutes}) end`,
+      })
+      .where(
+        and(
+          // Vẫn chạy câu này khi không có tài khoản, để thời gian phản hồi giống nhau
+          eq(employees.id, employee?.id ?? NO_EMPLOYEE),
+          or(isNull(employees.lockedUntil), lte(employees.lockedUntil, sql`now()`)),
+        ),
+      )
+      .returning({ lockedUntil: employees.lockedUntil });
+
+    if (employee && reserved?.lockedUntil) {
+      await writeAudit(
+        tx,
+        { companyId: employee.companyId, actorId: employee.id },
+        { action: 'auth.lock', entity: 'employee', entityId: employee.id, after: reserved },
+      );
+    }
+    return Boolean(reserved);
+  });
+}
+
 /** Kiểm tra PIN + tạo phiên. Nhân viên Đã nghỉ bị coi như không tồn tại (US03). */
 export async function login(kind: SessionKind, input: LoginInput): Promise<LoginResult> {
   const db = getDb();
@@ -39,12 +77,19 @@ export async function login(kind: SessionKind, input: LoginInput): Promise<Login
       ),
     );
 
-  // Vẫn băm khi không có tài khoản, để thời gian phản hồi không lộ email nào tồn tại
+  const open = await reserveAttempt(found?.employee);
+
+  // Vẫn băm khi không có tài khoản hoặc đang khoá, để phản hồi không lộ email tồn tại hay PIN đúng
   dummyHash ??= hashPin('0000');
-  const pinMatches = await verifyPin(found?.employee.pinHash ?? (await dummyHash), input.pin);
-  if (!found || !pinMatches) return { ok: false, reason: 'invalid_credentials' };
+  const pinHash = found && open ? found.employee.pinHash : await dummyHash;
+  const pinMatches = await verifyPin(pinHash, input.pin);
+  if (!found || !open || !pinMatches) return { ok: false, reason: 'invalid_credentials' };
 
   const { employee, company } = found;
+  await db
+    .update(employees)
+    .set({ failedPinAttempts: 0, lockedUntil: null })
+    .where(eq(employees.id, employee.id));
   if (!canOpen(kind, employee.role)) return { ok: false, reason: 'no_admin_access' };
 
   const token = generateSessionToken();

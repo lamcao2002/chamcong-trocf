@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, between, eq, gte, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, between, count, eq, gte, inArray, ne, or, sql } from 'drizzle-orm';
 import { ApiError } from '@/lib/api/errors';
 import { writeAudit, type Tx } from '@/lib/audit';
 import { scopeToCompany, scopeToStaff, type AuthContext } from '@/lib/auth/policy';
@@ -10,15 +10,20 @@ import {
   holidays,
   positionShifts,
   positions,
+  requests,
   scheduleCells,
   shifts,
 } from '@/lib/db/schema';
+import { vietnamToday } from '@/lib/domain/date';
 import { expectedShifts } from '@/lib/engine/expected-shifts';
 import { addDays } from '@/lib/engine/time';
 import type { EngineShift } from '@/lib/engine/types';
+import { formatDate } from '@/lib/format';
 import type { ScheduleSaveInput } from '@/lib/validation/schedule';
 import { actorOf } from './actor';
-import { assertNotPublished, loadEmployeeRules, recomputeDays } from './recompute';
+import { canDecideOwn } from './approvals';
+import { notify } from './notifications';
+import { loadEmployeeRules, recomputeDays } from './recompute';
 import { assertOwned } from './references';
 
 const WEEK_DAYS = 7;
@@ -47,6 +52,44 @@ export async function allowedShiftIds(db: Reader, employeeRows: { id: string; po
       return [id, [...new Set([...allowed, ...(fixedShift ? [fixedShift] : [])])]];
     }),
   );
+}
+
+/** Đăng ký chờ nhận của một tuần và số của tuần sau đó, cho banner màn Xếp ca (SCH-11). */
+async function pendingRegistrations(ctx: AuthContext, week: string, ownAllowed: boolean) {
+  const db = getDb();
+  const nextWeek = addDays(week, WEEK_DAYS);
+  const notSelf = ownAllowed ? undefined : ne(requests.employeeId, ctx.employee.id);
+  const pending = and(
+    scopeToStaff(ctx, { companyId: requests.companyId, employeeId: requests.employeeId }),
+    eq(requests.type, 'shift_register'),
+    eq(requests.status, 'pending'),
+    notSelf,
+  );
+  const [rows, [next]] = await Promise.all([
+    db
+      .select({
+        id: requests.id,
+        employeeId: requests.employeeId,
+        employeeName: employees.name,
+        date: requests.fromDate,
+        payload: requests.payload,
+      })
+      .from(requests)
+      .innerJoin(employees, eq(employees.id, requests.employeeId))
+      .where(and(pending, between(requests.fromDate, week, addDays(week, WEEK_DAYS - 1))))
+      .orderBy(asc(requests.fromDate), asc(employees.name)),
+    db
+      .select({ total: count() })
+      .from(requests)
+      .where(and(pending, between(requests.fromDate, nextWeek, addDays(nextWeek, WEEK_DAYS - 1)))),
+  ]);
+  return {
+    registrations: rows.map(({ payload, ...row }) => ({
+      ...row,
+      shiftId: (payload as { shiftId: string }).shiftId,
+    })),
+    nextWeekRegistrations: next?.total ?? 0,
+  };
 }
 
 /** Lưới một tuần: người được quản lý, ô đã xếp, và ô ca cố định không cần xếp (US14). */
@@ -86,16 +129,18 @@ export async function getSchedule(ctx: AuthContext, week: string) {
   ]);
 
   const ids = staff.map(({ id }) => id);
-  const [cells, rules, allowed] = await Promise.all([
+  const [cells, rules, allowed, ownAllowed] = await Promise.all([
     db
       .select()
       .from(scheduleCells)
       .where(and(inArray(scheduleCells.employeeId, ids), between(scheduleCells.date, week, to))),
     loadEmployeeRules(db, ids),
     allowedShiftIds(db, staff),
+    canDecideOwn(db, ctx),
   ]);
 
   return {
+    ...(await pendingRegistrations(ctx, week, ownAllowed)),
     week,
     dates,
     holidays: holidayRows,
@@ -137,6 +182,104 @@ export async function getSchedule(ctx: AuthContext, week: string) {
   };
 }
 
+type CellWrite = { employeeId: string; date: string; shiftIds: string[]; isOff: boolean };
+
+const sameShifts = (a: readonly string[], b: readonly string[]) =>
+  [...a].sort().join() === [...b].sort().join();
+
+/**
+ * Ghi ô lịch kèm nhật ký; ô trống và không Cho nghỉ là xoá ô. Mặc định báo cho nhân viên các ngày từ
+ * hôm nay trở đi thực sự đổi; luồng đơn tự báo kết quả của mình nên truyền `silent`.
+ */
+export async function writeCells(
+  tx: Tx,
+  ctx: AuthContext,
+  cells: readonly CellWrite[],
+  { silent = false }: { silent?: boolean } = {},
+) {
+  const ids = [...new Set(cells.map(({ employeeId }) => employeeId))];
+  const before = await tx
+    .select()
+    .from(scheduleCells)
+    .where(
+      and(
+        inArray(scheduleCells.employeeId, ids),
+        or(
+          ...cells.map(({ employeeId, date }) =>
+            and(eq(scheduleCells.employeeId, employeeId), eq(scheduleCells.date, date)),
+          ),
+        ),
+      ),
+    );
+
+  for (const { employeeId, date, shiftIds, isOff } of cells) {
+    if (shiftIds.length === 0 && !isOff) {
+      await tx
+        .delete(scheduleCells)
+        .where(and(eq(scheduleCells.employeeId, employeeId), eq(scheduleCells.date, date)));
+      continue;
+    }
+    await tx
+      .insert(scheduleCells)
+      .values({ companyId: ctx.company.id, employeeId, date, shiftIds, isOff })
+      .onConflictDoUpdate({
+        target: [scheduleCells.employeeId, scheduleCells.date],
+        set: { shiftIds: sql`excluded.shift_ids`, isOff: sql`excluded.is_off` },
+      });
+  }
+
+  await writeAudit(tx, actorOf(ctx), {
+    action: 'schedule.update',
+    entity: 'schedule',
+    before: { cells: before },
+    after: { cells },
+  });
+  if (silent) return;
+
+  const today = vietnamToday();
+  const changed = cells.filter(({ employeeId, date, shiftIds, isOff }) => {
+    const old = before.find((row) => row.employeeId === employeeId && row.date === date);
+    const same = (old?.isOff ?? false) === isOff && sameShifts(old?.shiftIds ?? [], shiftIds);
+    return date >= today && !same && employeeId !== ctx.employee.id;
+  });
+  await notify(
+    tx,
+    [...new Set(changed.map(({ employeeId }) => employeeId))].map((employeeId) => ({
+      companyId: ctx.company.id,
+      employeeId,
+      kind: 'schedule' as const,
+      title: 'Lịch làm việc thay đổi',
+      body: changed
+        .filter((cell) => cell.employeeId === employeeId)
+        .map(({ date }) => date)
+        .sort()
+        .map((date) => formatDate(date).slice(0, 5))
+        .join(', '),
+      href: '#/lich',
+    })),
+  );
+}
+
+/** Ca thực tế của một ngày, tính cả ca cố định khi chưa có ô lịch. */
+export async function expectedShiftIds(db: Reader, ctx: AuthContext, employeeId: string, date: string) {
+  const [rules, library, [cell]] = await Promise.all([
+    loadEmployeeRules(db, [employeeId]),
+    db.select().from(shifts).where(scopeToCompany(ctx, shifts.companyId)),
+    db
+      .select({ shiftIds: scheduleCells.shiftIds, isOff: scheduleCells.isOff })
+      .from(scheduleCells)
+      .where(and(eq(scheduleCells.employeeId, employeeId), eq(scheduleCells.date, date))),
+  ]);
+  const employee = rules.get(employeeId)!;
+  const expected = expectedShifts({
+    date,
+    employee,
+    schedule: cell ?? null,
+    shifts: library as EngineShift[],
+  });
+  return expected.shifts.map(({ id }) => id);
+}
+
 /** Lưu các ô thay đổi rồi tính lại ngày công; ô trống và không Cho nghỉ là xoá ô (US15, US16). */
 export async function saveSchedule(ctx: AuthContext, { cells }: ScheduleSaveInput) {
   await getDb().transaction(async (tx) => {
@@ -166,9 +309,6 @@ export async function saveSchedule(ctx: AuthContext, { cells }: ScheduleSaveInpu
       'cells',
     );
 
-    const days = cells.map(({ date }) => date).sort();
-    await assertNotPublished(tx, ctx.company.id, days[0]!, days[days.length - 1]!);
-
     const allowed = await allowedShiftIds(tx, staff);
     for (const { employeeId, date, shiftIds } of cells) {
       const employee = staff.find(({ id }) => id === employeeId)!;
@@ -182,42 +322,7 @@ export async function saveSchedule(ctx: AuthContext, { cells }: ScheduleSaveInpu
       }
     }
 
-    const before = await tx
-      .select()
-      .from(scheduleCells)
-      .where(
-        and(
-          inArray(scheduleCells.employeeId, ids),
-          or(
-            ...cells.map(({ employeeId, date }) =>
-              and(eq(scheduleCells.employeeId, employeeId), eq(scheduleCells.date, date)),
-            ),
-          ),
-        ),
-      );
-
-    for (const { employeeId, date, shiftIds, isOff } of cells) {
-      if (shiftIds.length === 0 && !isOff) {
-        await tx
-          .delete(scheduleCells)
-          .where(and(eq(scheduleCells.employeeId, employeeId), eq(scheduleCells.date, date)));
-        continue;
-      }
-      await tx
-        .insert(scheduleCells)
-        .values({ companyId: ctx.company.id, employeeId, date, shiftIds, isOff })
-        .onConflictDoUpdate({
-          target: [scheduleCells.employeeId, scheduleCells.date],
-          set: { shiftIds: sql`excluded.shift_ids`, isOff: sql`excluded.is_off` },
-        });
-    }
-
-    await writeAudit(tx, actorOf(ctx), {
-      action: 'schedule.update',
-      entity: 'schedule',
-      before: { cells: before },
-      after: { cells },
-    });
+    await writeCells(tx, ctx, cells);
 
     // Tính cả ngày kế tiếp: đổi ca đêm thì lần ra sáng hôm sau đổi chỗ thuộc về
     for (const employeeId of ids) {

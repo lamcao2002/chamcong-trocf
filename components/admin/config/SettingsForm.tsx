@@ -7,6 +7,7 @@ import { CopyOutlined } from '@ant-design/icons';
 import { UnsavedBar } from '@/components/common/UnsavedBar';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
+import { inviteLink } from '@/lib/domain/invite';
 import { WEEK_DAYS } from '@/lib/format';
 import type { CompanyView } from '@/lib/services/company';
 import { tokens } from '@/lib/theme/tokens';
@@ -23,6 +24,7 @@ const FIELDS = [
   'otMin',
   'otFromRequest',
   'cutoffDay',
+  'deviceBinding',
 ] as const satisfies readonly (keyof CompanyInput)[];
 
 function pickValues(company: CompanyView): CompanyInput {
@@ -43,7 +45,7 @@ export function SettingsForm({ company }: { company: CompanyView }) {
   const [changed, setChanged] = useState<(keyof CompanyInput)[]>([]);
   const [saving, setSaving] = useState(false);
   const [origin] = useState(() => (typeof window === 'undefined' ? '' : window.location.origin));
-  const inviteLink = useMemo(() => `${origin}/m?ma=${company.code}`, [origin, company.code]);
+  const link = useMemo(() => inviteLink(origin, company.code), [origin, company.code]);
 
   const refreshChanged = (edited: Partial<CompanyInput>) => {
     form.setFields(Object.keys(edited).map((name) => ({ name, errors: [] })) as never);
@@ -84,7 +86,7 @@ export function SettingsForm({ company }: { company: CompanyView }) {
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      await navigator.clipboard.writeText(link);
       toast.success('Đã chép link cài app.');
     } catch {
       toast.error('Không chép được, hãy chọn link rồi chép tay.');
@@ -125,7 +127,7 @@ export function SettingsForm({ company }: { company: CompanyView }) {
           Mã công ty: <strong>{company.code}</strong>
         </p>
         <Space.Compact style={{ width: '100%' }}>
-          <Input value={inviteLink} readOnly aria-label="Link cài app" />
+          <Input value={link} readOnly aria-label="Link cài app" />
           <Button icon={<CopyOutlined />} onClick={() => void copyLink()}>
             Chép link
           </Button>
@@ -168,11 +170,28 @@ export function SettingsForm({ company }: { company: CompanyView }) {
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
-            <Form.Item label="Ngày chốt kỳ lương" name="cutoffDay" extra="Để trống là tròn tháng.">
-              <InputNumber min={1} max={31} style={{ width: '100%' }} />
+            <Form.Item
+              label="Ngày chốt kỳ lương"
+              name="cutoffDay"
+              extra={
+                company.cutoffLocked ? 'Đã có kỳ công bố nên không đổi được.' : 'Để trống là tròn tháng.'
+              }
+            >
+              <InputNumber min={1} max={31} disabled={company.cutoffLocked} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
         </Row>
+      </Card>
+
+      <Card title="Chống chấm hộ" style={{ boxShadow: tokens.shadowCard }}>
+        <Form.Item
+          label="Gắn thiết bị"
+          name="deviceBinding"
+          valuePropName="checked"
+          extra="Mỗi tài khoản chỉ chấm công được trên điện thoại đã chấm lần đầu. Đổi máy thì Nhân sự bấm Mở khoá máy trong hồ sơ. Nên thử trên iPhone và Android của quán trước khi bật."
+        >
+          <Switch />
+        </Form.Item>
       </Card>
 
       <UnsavedBar

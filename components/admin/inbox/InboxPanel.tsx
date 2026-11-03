@@ -3,19 +3,30 @@
 import { useEffect, useState, useTransition, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Drawer, Empty, Grid } from 'antd';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { Button, Checkbox, Drawer, Empty, Grid } from 'antd';
+import { CheckOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { AdjustDrawer, type AdjustTarget } from '@/components/admin/AdjustDrawer';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest, type ApiResult } from '@/lib/api/client';
+import { decisionOf } from '@/lib/domain/approval';
 import { formatDate } from '@/lib/format';
 import type { InboxItem, InboxKind, InboxView, OverviewView } from '@/lib/services/inbox';
 import { themeCssVars } from '@/lib/theme/tokens';
-import { decisionOf, InboxActions } from './InboxActions';
+import { InboxActions } from './InboxActions';
 import { InboxDetail } from './InboxDetail';
+import { useBulkApprove } from './useBulkApprove';
 import styles from './inbox.module.css';
 
-const KIND_ORDER: InboxKind[] = ['vang', 'thieu_gio', 'sai_ca', 'ngoai_vung', 'ngoai_lich', 'ot_cho', 'don'];
+const KIND_ORDER: InboxKind[] = [
+  'vang',
+  'thieu_gio',
+  'sai_ca',
+  'ngoai_vung',
+  'ngoai_lich',
+  'ot_cho',
+  'don',
+  'dang_ky',
+];
 
 type Filter = InboxKind | 'all';
 
@@ -36,7 +47,12 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
   const [doneKeys, setDoneKeys] = useState<readonly string[]>([]);
   const [adjusting, setAdjusting] = useState<AdjustTarget | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checked, setChecked] = useState<readonly string[]>([]);
   const [, startRefresh] = useTransition();
+  const bulk = useBulkApprove(inbox.period, () => {
+    setChecked([]);
+    startRefresh(() => router.refresh());
+  });
 
   useEffect(() => setDoneKeys([]), [inbox]);
 
@@ -51,6 +67,13 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
   const items = active === 'all' ? visible : visible.filter(({ kind }) => kind === active);
   const opened = items.find(({ key }) => key === selectedKey) ?? null;
   const selected = opened ?? (desktop ? (items[0] ?? null) : null);
+  // Chỉ tính việc đang nhìn thấy: việc đã tích mà bị bộ lọc ẩn không được duyệt ngầm
+  const approvable = items.filter(({ suggestion }) => suggestion);
+  const picked = approvable.filter(({ key }) => checked.includes(key));
+  const allPicked = approvable.length > 0 && picked.length === approvable.length;
+
+  const toggle = (key: string, on: boolean) =>
+    setChecked((keys) => (on ? [...keys, key] : keys.filter((value) => value !== key)));
 
   const moveOn = (key: string) => {
     const index = items.findIndex((item) => item.key === key);
@@ -125,8 +148,22 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
   );
 
   const row = (item: InboxItem) => (
+    <div key={item.key} className={styles.rowLine}>
+      <span className={styles.rowCheck}>
+        {item.suggestion ? (
+          <Checkbox
+            aria-label={`Chọn ${item.employeeName}, ${formatDate(item.date)}, ${item.kindLabel}`}
+            checked={checked.includes(item.key)}
+            onChange={(event) => toggle(item.key, event.target.checked)}
+          />
+        ) : null}
+      </span>
+      {rowButton(item)}
+    </div>
+  );
+
+  const rowButton = (item: InboxItem) => (
     <button
-      key={item.key}
       type="button"
       aria-current={item.key === selected?.key ? 'true' : undefined}
       className={`${styles.row} ${desktop && item.key === selected?.key ? styles.rowActive : ''}`}
@@ -206,6 +243,41 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
                 return count ? chip(kind, label, count) : null;
               })}
             </div>
+            {approvable.length > 0 ? (
+              <div className={styles.bulkBar}>
+                {desktop ? (
+                  <Checkbox
+                    checked={allPicked}
+                    indeterminate={picked.length > 0 && !allPicked}
+                    onChange={(event) =>
+                      setChecked(event.target.checked ? approvable.map(({ key }) => key) : [])
+                    }
+                  >
+                    Chọn tất cả
+                  </Checkbox>
+                ) : (
+                  <span />
+                )}
+                {picked.length > 0 ? (
+                  <Button
+                    type="primary"
+                    icon={<CheckOutlined />}
+                    loading={bulk.busy}
+                    onClick={() =>
+                      bulk.confirm(
+                        picked.map(({ key, suggestion }) => ({
+                          key,
+                          label: suggestion!.label,
+                          otMinutes: suggestion!.otMinutes ?? 0,
+                        })),
+                      )
+                    }
+                  >
+                    Duyệt theo đề xuất · {picked.length}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             <div className={styles.split}>
               <div className={styles.list}>{items.map(row)}</div>
               {desktop && selected ? <InboxDetail item={selected} actions={actions(selected)} /> : null}

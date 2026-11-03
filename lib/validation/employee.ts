@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_IMPORT_ROWS } from '@/lib/domain/staff-import';
 import { isoDate, requiredText, uuid } from './common';
 
 /** Công tắc riêng đang bật thì phải chọn ít nhất một mục; null là tắt. */
@@ -44,5 +45,18 @@ export const employeePatchSchema = z
   .object({ ...employeeFields, status: z.enum(['active', 'left']) })
   .partial();
 
+/** Một dòng của Thêm hàng loạt; hợp đồng, quyền và ngày vào làm lấy mặc định, sửa sau ở hồ sơ. */
+export const employeeBulkSchema = z.object({
+  employees: z
+    .array(z.object({ name: employeeFields.name, email: employeeFields.email, positionId: uuid.nullable() }))
+    .min(1)
+    .max(MAX_IMPORT_ROWS)
+    .refine(
+      (rows) => new Set(rows.map(({ email }) => email)).size === rows.length,
+      'Danh sách có email trùng',
+    ),
+});
+
+export type EmployeeBulkInput = z.infer<typeof employeeBulkSchema>;
 export type EmployeeCreateInput = z.infer<typeof employeeCreateSchema>;
 export type EmployeePatchInput = z.infer<typeof employeePatchSchema>;

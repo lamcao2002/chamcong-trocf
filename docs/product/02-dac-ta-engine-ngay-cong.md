@@ -156,7 +156,7 @@ Duyệt không sửa lần chấm gốc; nó lưu một bản ghi duyệt riêng
 - Mỗi nhân viên × ngày × ca có một bản ghi duyệt hiệu lực: quyết định sau gộp vào bản ghi đang có (T54), Hoàn duyệt thu hồi cả bản ghi \[Đề xuất\].
 - Giải trình gắn vào việc của ngày đó, không phải việc riêng; duyệt ngày thì giải trình đóng theo, giải trình đã từ chối không đưa vào đầu vào \[Đề xuất\].
 - Tha muộn và tha sớm độc lập với nhau (T57, T58); thao tác này nằm ở drawer ngày của Bảng công vì `muon` không vào Hộp việc \[Đề xuất\].
-- Không duyệt được ngày thuộc kỳ đã công bố cho tới khi Sprint 4 có "cần công bố lại" \[Đề xuất\].
+- Sửa ngày thuộc kỳ đã công bố vẫn được, kỳ đó chuyển sang "cần công bố lại" và phiếu cũ giữ nguyên tới khi công bố lại (quyết định D10 của [Sprint 4](07-sprint-4.md)) \[Đề xuất\].
 
 - Mọi duyệt và đơn đều ghi người làm và thời điểm để truy vết \[Đề xuất\].
 - Sau mỗi thay đổi, tính lại **ngay** ngày công liên quan và cập nhật Hộp việc, Bảng công, Lương trong cùng giao dịch — tránh lỗi bản gốc: OT đã duyệt ở Hộp việc nhưng Lương vẫn báo "chờ" \[Đề xuất\].
@@ -183,7 +183,7 @@ Mười bốn trạng thái ngày công hiện bằng 12 ký hiệu của bản 
 
 ## Bộ ca kiểm thử
 
-T01–T50 và các ca bổ sung T51–T59 là đặc tả chạy được: mỗi dòng thành một unit test, và engine chỉ được coi là xong khi tất cả đều đúng. Trừ khi ghi `now`, các ca chạy với `now` sau cửa sổ 6 giờ của ca cuối.
+T01–T50 và các ca bổ sung T51–T66 là đặc tả chạy được: mỗi dòng thành một unit test, và engine chỉ được coi là xong khi tất cả đều đúng. Trừ khi ghi `now`, các ca chạy với `now` sau cửa sổ 6 giờ của ca cuối.
 
 **Cấu hình ca dùng trong test** (cho phép muộn 5', OT tối thiểu 30', chế độ muộn "Tính cả số phút" trừ khi ghi khác):
 
@@ -254,6 +254,13 @@ T01–T50 và các ca bổ sung T51–T59 là đặc tả chạy được: mỗi
 | T57 | Tha về sớm | CA1, phạt 1.000đ/phút bật | T05 + quản lý tha sớm | Về sớm 10 hiển thị, `waived`, phạt 0, `du` | Đề xuất |
 | T58 | Tha muộn, chưa tha sớm | CA1, phạt 1.000đ/phút bật | Vào 06:14, ra 13:50; tha muộn | Phạt 10.000đ, vẫn `muon` | Đề xuất |
 | T59 | Điều chỉnh nửa công | SANG | T17 + quản lý chọn 0,5 công | 0,5 công, `nua_cong`, hết cần duyệt | Gốc ý, Đề xuất trạng thái |
+| T60 | Đơn đi trễ phủ hết | CA1, phạt 1.000đ/phút bật | T03 + đơn đi trễ 15 phút đã duyệt | Muộn 14 hiển thị, `waived`, phạt 0, `du` | Đề xuất |
+| T61 | Đơn đi trễ ít hơn số phút muộn | CA1, phạt 1.000đ/phút bật | T03 + đơn đi trễ 10 phút đã duyệt | Muộn 4, phạt 4.000đ, `muon` | Đề xuất |
+| T62 | Đơn về sớm phủ hết | CA1 | T05 + đơn về sớm 10 phút đã duyệt | Về sớm 10 hiển thị, `waived`, `du` | Đề xuất |
+| T63 | Đơn ghi ca khác | CA1 | T03 + đơn đi trễ 15 phút của CA2 | Không đổi: muộn 14, `muon` | Đề xuất |
+| T64 | Đơn cả ngày, ca ghép | SANG + CHIEU | Muộn cả hai ca, đơn cả ngày 30 phút | Cả hai ca `waived`, số phút áp riêng từng ca | Đề xuất |
+| T65 | Đơn không đổi công | CA1 | Vào 08:30, ra 14:00; đơn đi trễ 150 phút | Số công như khi không có đơn, `waived` | Đề xuất |
+| T66 | Bản ghi duyệt việc khác | CA1, phạt 1.000đ/phút bật | T03 + đơn 15 phút + bản ghi duyệt vị trí | Đơn vẫn có hiệu lực: `waived`, phạt 0 | Đề xuất |
 
 ## Quyết định đã chốt
 
@@ -285,7 +292,7 @@ Nhóm A, B được chốt ngày 01/11/2026 theo đề xuất của [Sprint 2](0
 | C5 | Xin nghỉ ngày chưa có lịch | Chỉ xin được ngày đã có ca, kể cả ca cố định |
 | C6 | Tự duyệt | Không, trừ khi công ty chỉ có một Quản trị viên |
 | C7 | Người không có quản lý trực tiếp | Quản trị viên và Nhân sự thấy toàn công ty; Quản lý nhóm chỉ thấy người của mình |
-| C8 | Kỳ đã công bố | Trả 409 cho duyệt, đơn, lịch, ngày lễ; Sprint 4 mở lại qua "cần công bố lại" |
+| C8 | Kỳ đã công bố | Sprint 3 trả 409 cho duyệt, đơn, lịch, ngày lễ; S4-04 thay bằng cờ "cần công bố lại" theo D10 |
 | C9 | Giải trình | Gắn vào việc của ngày; gửi lại thì cập nhật, duyệt ngày thì đóng theo |
 | C10 | Sửa đơn đã duyệt | Không có hoàn duyệt đơn trong MVP, dùng Điều chỉnh khác ở drawer ngày |
 | C11 | "Chờ xử lý" đếm gì | Mọi việc cần duyệt của kỳ hiện tại, gồm cả đơn chờ |

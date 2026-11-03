@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Alert,
   Button,
@@ -19,7 +20,14 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { KeyOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
+import {
+  KeyOutlined,
+  MobileOutlined,
+  PlusOutlined,
+  QrcodeOutlined,
+  RightOutlined,
+  UsergroupAddOutlined,
+} from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { FormDrawer } from '@/components/common/FormDrawer';
 import { useConfirmDiscard } from '@/components/common/useConfirmDiscard';
@@ -28,6 +36,7 @@ import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
 import { canAssignRole, canEditEmployee } from '@/lib/auth/permissions';
 import { ROLE_LABELS, type Role } from '@/lib/auth/roles';
+import { inviteLink, inviteMessage } from '@/lib/domain/invite';
 import { formatMoney, formatWorkDays } from '@/lib/format';
 import { initials } from '@/lib/navigation/admin';
 import type { EmployeeView } from '@/lib/services/employees';
@@ -36,6 +45,8 @@ import type { PositionView } from '@/lib/services/positions';
 import type { ShiftView } from '@/lib/services/shifts';
 import { tokens } from '@/lib/theme/tokens';
 import { employeeCreateSchema } from '@/lib/validation/employee';
+import { BulkAddModal } from './BulkAddModal';
+import { InviteModal } from './InviteModal';
 import { MoneyInput } from './MoneyInput';
 import { PAY_UNITS } from './PositionsPanel';
 import styles from './config.module.css';
@@ -77,19 +88,31 @@ type StaffPanelProps = {
   shifts: ShiftView[];
   locations: LocationView[];
   viewer: { id: string; role: Role };
+  companyCode: string;
 };
 
 const PIN_MODAL_Z_INDEX = 1100;
 
 const vnToday = () => dayjs().format('YYYY-MM-DD');
 
-export function StaffPanel({ employees, positions, shifts, locations, viewer }: StaffPanelProps) {
+export function StaffPanel({
+  employees,
+  positions,
+  shifts,
+  locations,
+  viewer,
+  companyCode,
+}: StaffPanelProps) {
+  const router = useRouter();
   const toast = useToast();
   const confirmDiscard = useConfirmDiscard();
   const [status, setStatus] = useState<'active' | 'left' | 'all'>('active');
   const [positionFilter, setPositionFilter] = useState<string>();
   const [pinNotice, setPinNotice] = useState<{ name: string; email: string; pin: string }>();
   const [resetting, setResetting] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   const drawer = useCrudDrawer<StaffForm>({
     baseUrl: '/api/v1/employees',
@@ -195,9 +218,31 @@ export function StaffPanel({ employees, positions, shifts, locations, viewer }: 
     setPinNotice({ name: editing.name, email: editing.email, pin: result.pin });
   };
 
+  const unlockDevice = async () => {
+    if (!editing) return;
+    const confirmed = await confirmDiscard({
+      title: `Mở khoá máy của ${editing.name}?`,
+      content: 'Người này sẽ bị đăng xuất khỏi app. Lần chấm tiếp theo sẽ gắn với điện thoại đang dùng.',
+      okText: 'Mở khoá máy',
+    });
+    if (!confirmed) return;
+
+    setUnlocking(true);
+    const result = await apiRequest(`/api/v1/employees/${editing.id}/unlock-device`, 'POST');
+    setUnlocking(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Đã mở khoá máy');
+    drawer.close();
+    router.refresh();
+  };
+
   const copyPin = async () => {
     if (!pinNotice) return;
-    const message = `${pinNotice.name}: đăng nhập bằng ${pinNotice.email}, PIN ${pinNotice.pin}`;
+    const link = inviteLink(window.location.origin, companyCode);
+    const message = inviteMessage({ ...pinNotice, link, companyCode });
     try {
       await navigator.clipboard.writeText(message);
       toast.success('Đã chép.');
@@ -228,6 +273,12 @@ export function StaffPanel({ employees, positions, shifts, locations, viewer }: 
             options={positions.map(({ id, name }) => ({ value: id, label: name }))}
             style={{ flex: '1 1 160px', maxWidth: 260 }}
           />
+          <Button icon={<QrcodeOutlined />} onClick={() => setInviteOpen(true)}>
+            Gửi link cài app
+          </Button>
+          <Button icon={<UsergroupAddOutlined />} onClick={() => setBulkOpen(true)}>
+            Thêm hàng loạt
+          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openNew}>
             Thêm nhân viên
           </Button>
@@ -251,6 +302,7 @@ export function StaffPanel({ employees, positions, shifts, locations, viewer }: 
                     {employee.name}
                     {employee.role !== 'app' ? <Tag color="purple">{ROLE_LABELS[employee.role]}</Tag> : null}
                     {employee.status === 'left' ? <Tag>Đã nghỉ</Tag> : null}
+                    {employee.deviceBoundAt ? <Tag>Đã gắn máy</Tag> : null}
                   </span>
                   <span className={styles.muted}>
                     {position?.name ?? 'Chưa gắn vị trí'} · {CONTRACT_LABELS[employee.contract]} ·{' '}
@@ -267,6 +319,20 @@ export function StaffPanel({ employees, positions, shifts, locations, viewer }: 
         </div>
       </Card>
 
+      <BulkAddModal
+        open={bulkOpen}
+        companyCode={companyCode}
+        employees={employees}
+        positions={positions}
+        onClose={() => setBulkOpen(false)}
+      />
+      <InviteModal
+        open={inviteOpen}
+        companyCode={companyCode}
+        employees={employees}
+        onClose={() => setInviteOpen(false)}
+      />
+
       <FormDrawer
         open={drawer.open}
         title={editing ? editing.name : 'Thêm nhân viên'}
@@ -278,9 +344,16 @@ export function StaffPanel({ employees, positions, shifts, locations, viewer }: 
         onSubmit={() => void drawer.submit()}
         footerExtra={
           editing && !readOnly ? (
-            <Button icon={<KeyOutlined />} loading={resetting} onClick={() => void resetPin()}>
-              Đặt lại PIN
-            </Button>
+            <>
+              <Button icon={<KeyOutlined />} loading={resetting} onClick={() => void resetPin()}>
+                Đặt lại PIN
+              </Button>
+              {editing.deviceBoundAt ? (
+                <Button icon={<MobileOutlined />} loading={unlocking} onClick={() => void unlockDevice()}>
+                  Mở khoá máy
+                </Button>
+              ) : null}
+            </>
           ) : null
         }
       >

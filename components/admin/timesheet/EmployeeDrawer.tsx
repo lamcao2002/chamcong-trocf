@@ -8,7 +8,7 @@ import { dayStatusLabel, formatClock, formatDate, formatDecimal } from '@/lib/fo
 import type { EmployeeTimesheetView } from '@/lib/services/timesheet';
 import { tokens } from '@/lib/theme/tokens';
 
-export type EmployeeTarget = { id: string; name: string; period: string };
+export type EmployeeTarget = { id: string; name: string; search: string };
 
 type Row = EmployeeTimesheetView['rows'][number];
 
@@ -29,7 +29,7 @@ const COLUMNS: TableColumnsType<Row> = [
 
 type EmployeeDrawerProps = { target: EmployeeTarget | null; onClose: () => void };
 
-/** Bảng công cả kỳ của một người (US28). */
+/** Bảng công của một người trong đúng khoảng đang xem (US28). */
 export function EmployeeDrawer({ target, onClose }: EmployeeDrawerProps) {
   const desktop = Grid.useBreakpoint().lg ?? false;
   const toast = useToast();
@@ -38,7 +38,7 @@ export function EmployeeDrawer({ target, onClose }: EmployeeDrawerProps) {
   useEffect(() => {
     setView(null);
     if (!target) return;
-    const url = `/api/v1/timesheet/${target.id}?period=${target.period}`;
+    const url = `/api/v1/timesheet/${target.id}${target.search}`;
     void apiRequest<{ timesheet: EmployeeTimesheetView }>(url, 'GET').then((result) => {
       if (result.ok) setView(result.timesheet);
       else toast.error(result.error);

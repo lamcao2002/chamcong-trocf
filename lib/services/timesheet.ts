@@ -6,16 +6,26 @@ import { getDb } from '@/lib/db/client';
 import { companies, employees, explanations, holidays, scheduleCells, shifts } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import { nextPeriod, periodByKey, periodOf, previousPeriod } from '@/lib/domain/period';
+import { shiftSpanMinutes, toMinutes } from '@/lib/domain/shift';
 import { daySymbol } from '@/lib/domain/symbols';
+import {
+  pickWeek,
+  resolveRange,
+  weekCellText,
+  weeksIn,
+  type TimesheetQuery,
+} from '@/lib/domain/timesheet-view';
 import { expectedShifts } from '@/lib/engine/expected-shifts';
-import { addDays } from '@/lib/engine/time';
+import { addDays, atMinute } from '@/lib/engine/time';
 import type { EngineShift } from '@/lib/engine/types';
+import { canDecideOwn } from './approvals';
 import { readDayRecords, staffInScope, type DayView } from './day';
+import { approvableItems } from './inbox';
 import { loadEmployeeRules } from './recompute';
 
 const WEEK_DAYS = 7;
 
-async function periodFor(ctx: AuthContext, key: string | undefined, today: string) {
+export async function periodFor(ctx: AuthContext, key: string | undefined, today: string) {
   const db = getDb();
   const [company] = await db
     .select({ cutoffDay: companies.cutoffDay })
@@ -64,12 +74,41 @@ function byDate(records: readonly DayView[]) {
   return groups;
 }
 
-/** Lưới công một kỳ của người trong phạm vi quản lý (US27). */
-export async function getTimesheet(ctx: AuthContext, periodKey?: string, now: Date = new Date()) {
+async function rangeFor(ctx: AuthContext, query: TimesheetQuery, today: string) {
+  const [company] = await getDb()
+    .select({ cutoffDay: companies.cutoffDay })
+    .from(companies)
+    .where(eq(companies.id, ctx.company.id));
+  return resolveRange(query, company?.cutoffDay ?? null, today);
+}
+
+type ShiftClock = { id: string; name: string; startTime: string; endTime: string };
+
+/** Một dòng ngày công trong ô tuần: tên ca, chữ trạng thái, mốc để vẽ thanh giờ (TS-05). */
+function weekRow(record: DayView, library: readonly ShiftClock[]) {
+  const shift = library.find(({ id }) => id === record.shiftId);
+  const start = shift ? toMinutes(shift.startTime) : null;
+  return {
+    shiftId: record.shiftId,
+    shiftName: shift?.name ?? null,
+    symbol: daySymbol([record]).key,
+    text: weekCellText(record),
+    congValue: record.cong,
+    needsReview: record.needsReview,
+    inAt: record.inAt,
+    outAt: record.outAt,
+    shiftStartAt: start === null ? null : atMinute(record.date, start),
+    shiftEndAt: start === null ? null : atMinute(record.date, start + shiftSpanMinutes(shift!)),
+  };
+}
+
+/** Lưới công của người trong phạm vi quản lý, theo kỳ lương, kỳ lệch hoặc khoảng tự chọn (US27). */
+export async function getTimesheet(ctx: AuthContext, query: TimesheetQuery = {}, now: Date = new Date()) {
   const db = getDb();
   const today = vietnamToday(now);
-  const { period, previousKey, nextKey } = await periodFor(ctx, periodKey, today);
-  const staff = await staffInScope(ctx, period.from);
+  const range = await rangeFor(ctx, query, today);
+  const { period } = range;
+  const [staff, ownAllowed] = await Promise.all([staffInScope(ctx, period.from), canDecideOwn(db, ctx)]);
   const lastDay = period.to < today ? period.to : today;
   const records = await readDayRecords(
     db,
@@ -87,11 +126,21 @@ export async function getTimesheet(ctx: AuthContext, periodKey?: string, now: Da
     else perEmployee.set(record.employeeId, [record]);
   }
 
+  const weeks = weeksIn(period.from, period.to);
+  const week = pickWeek(weeks, query.week, today);
+  const library =
+    query.view === 'week'
+      ? await db
+          .select({ id: shifts.id, name: shifts.name, startTime: shifts.startTime, endTime: shifts.endTime })
+          .from(shifts)
+          .where(scopeToCompany(ctx, shifts.companyId))
+      : [];
+
   return {
-    period,
-    previousKey,
-    nextKey,
+    ...range,
     today,
+    weeks,
+    week: query.view === 'week' ? week : null,
     dates: datesOf(period.from, period.to),
     employees: staff.map(({ id, name, positionName }) => {
       const own = perEmployee.get(id) ?? [];
@@ -102,9 +151,18 @@ export async function getTimesheet(ctx: AuthContext, periodKey?: string, now: Da
         positionName,
         cells: [...days].map(([date, rows]) => {
           const { key, label, title } = daySymbol(rows);
-          return { date, symbol: key, label, title, shiftCount: rows.length };
+          // Cùng luật với Hộp việc: không tự duyệt việc của mình, trừ khi là Quản trị viên duy nhất
+          const canApprove = id !== ctx.employee.id || ownAllowed;
+          const approvable = canApprove ? rows.flatMap(approvableItems) : [];
+          return { date, symbol: key, label, title, shiftCount: rows.length, approvable };
         }),
         totals: totalsOf(own),
+        weekDays:
+          query.view === 'week'
+            ? [...days]
+                .filter(([date]) => date >= week.from && date <= week.to)
+                .map(([date, rows]) => ({ date, rows: rows.map((row) => weekRow(row, library)) }))
+            : [],
       };
     }),
   };
@@ -116,7 +174,7 @@ export type TimesheetView = Awaited<ReturnType<typeof getTimesheet>>;
 export async function getEmployeeTimesheet(
   ctx: AuthContext,
   employeeId: string,
-  periodKey?: string,
+  query: TimesheetQuery = {},
   now: Date = new Date(),
 ) {
   const db = getDb();
@@ -132,7 +190,7 @@ export async function getEmployeeTimesheet(
     );
   if (!employee) throw notFound('nhân viên');
 
-  const { period, previousKey, nextKey } = await periodFor(ctx, periodKey, today);
+  const { period, previousKey, nextKey } = await rangeFor(ctx, query, today);
   return {
     employee,
     period,

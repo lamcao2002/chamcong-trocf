@@ -46,7 +46,14 @@ export const contractTypeEnum = pgEnum('contract_type', ['full_time', 'part_time
 export const roleEnum = pgEnum('role', ['app', 'manager', 'hr', 'admin']);
 export const sessionKindEnum = pgEnum('session_kind', ['admin', 'app']);
 export const punchTypeEnum = pgEnum('punch_type', ['in', 'out']);
-export const requestTypeEnum = pgEnum('request_type', ['leave', 'forgot', 'overtime']);
+export const requestTypeEnum = pgEnum('request_type', [
+  'leave',
+  'forgot',
+  'overtime',
+  'late_early',
+  'shift_swap',
+  'shift_register',
+]);
 export const requestStatusEnum = pgEnum('request_status', ['pending', 'approved', 'rejected']);
 export const dayStatusEnum = pgEnum('day_status', [
   'chua_toi',
@@ -111,6 +118,8 @@ export const companies = pgTable(
     otFromRequest: boolean('ot_from_request').notNull().default(true),
     /** NULL = kỳ lương tròn tháng. */
     cutoffDay: integer('cutoff_day'),
+    /** Bật thì mỗi tài khoản chỉ chấm công được trên một điện thoại. */
+    deviceBinding: boolean('device_binding').notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [check('companies_cutoff_day_range', sql`${t.cutoffDay} between 1 and 31`)],
@@ -228,6 +237,9 @@ export const employees = pgTable(
     pinHash: text('pin_hash').notNull(),
     failedPinAttempts: integer('failed_pin_attempts').notNull().default(0),
     lockedUntil: timestamptz('locked_until'),
+    /** Băm của cookie thiết bị, gắn ở lần chấm đầu tiên. */
+    deviceHash: text('device_hash'),
+    deviceBoundAt: timestamptz('device_bound_at'),
     status: employeeStatusEnum('status').notNull().default('active'),
     leftDate: date('left_date'),
     contract: contractTypeEnum('contract').notNull().default('full_time'),
@@ -240,6 +252,7 @@ export const employees = pgTable(
   },
   (t) => [
     unique('employees_company_email_unique').on(t.companyId, t.email),
+    unique('employees_company_device_unique').on(t.companyId, t.deviceHash),
     index('employees_manager_idx').on(t.managerId),
     check('employees_email_lowercase', sql`${t.email} = lower(${t.email})`),
     check('employees_left_date', sql`(${t.status} = 'left') = (${t.leftDate} is not null)`),
@@ -507,6 +520,23 @@ export const payslips = pgTable(
     publishedAt: timestamptz('published_at').notNull(),
   },
   (t) => [unique('payslips_period_employee_unique').on(t.periodId, t.employeeId)],
+).enableRLS();
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: id(),
+    companyId: companyId(),
+    employeeId: employeeId(),
+    kind: text('kind').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    /** Tab cần mở trong app nhân viên. */
+    href: text('href').notNull(),
+    readAt: timestamptz('read_at'),
+    createdAt: createdAt(),
+  },
+  (t) => [index('notifications_employee_created_idx').on(t.employeeId, t.createdAt)],
 ).enableRLS();
 
 export const auditLogs = pgTable(

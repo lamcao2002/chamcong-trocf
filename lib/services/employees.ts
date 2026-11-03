@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, eq, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm';
 import { ApiError, notFound } from '@/lib/api/errors';
 import { isUniqueViolation } from '@/lib/api/server';
 import { writeAudit, type Tx } from '@/lib/audit';
@@ -23,7 +23,7 @@ import {
   shifts,
 } from '@/lib/db/schema';
 import { generatePin } from '@/lib/domain/pin';
-import type { EmployeeCreateInput, EmployeePatchInput } from '@/lib/validation/employee';
+import type { EmployeeBulkInput, EmployeeCreateInput, EmployeePatchInput } from '@/lib/validation/employee';
 import { actorOf } from './actor';
 import { vietnamToday } from '@/lib/domain/date';
 import { recomputeOpenPeriod } from './recompute';
@@ -36,6 +36,7 @@ const PUBLIC_COLUMNS = {
   name: employees.name,
   status: employees.status,
   leftDate: employees.leftDate,
+  deviceBoundAt: employees.deviceBoundAt,
   contract: employees.contract,
   onboardDate: employees.onboardDate,
   role: employees.role,
@@ -175,6 +176,61 @@ export async function createEmployee(
   }
 }
 
+/** Thêm cả lô trong một transaction: dòng nào lỗi thì không tạo ai, để PIN đã hiện luôn khớp thực tế. */
+export async function createEmployeesBulk(ctx: AuthContext, input: EmployeeBulkInput) {
+  const pins = input.employees.map(() => generatePin());
+  const pinHashes = await Promise.all(pins.map(hashPin));
+  const emails = input.employees.map(({ email }) => email);
+
+  try {
+    return await getDb().transaction(async (tx) => {
+      await assertOwned(
+        tx,
+        ctx,
+        positions,
+        input.employees.map(({ positionId }) => positionId),
+        'positionId',
+      );
+      const taken = await tx
+        .select({ email: employees.email })
+        .from(employees)
+        .where(and(scopeToCompany(ctx, employees.companyId), inArray(employees.email, emails)));
+      if (taken.length > 0) {
+        const list = taken.map(({ email }) => email).join(', ');
+        throw new ApiError(409, `Email đã có người dùng: ${list}`);
+      }
+
+      const onboardDate = vietnamToday();
+      const created = await tx
+        .insert(employees)
+        .values(
+          input.employees.map((employee, index) => ({
+            ...employee,
+            companyId: ctx.company.id,
+            pinHash: pinHashes[index]!,
+            onboardDate,
+          })),
+        )
+        .returning({
+          id: employees.id,
+          name: employees.name,
+          email: employees.email,
+          positionId: employees.positionId,
+        });
+      await writeAudit(tx, actorOf(ctx), {
+        action: 'employee.bulk_create',
+        entity: 'employee',
+        after: { count: created.length, employees: created },
+      });
+
+      const pinByEmail = new Map(emails.map((email, index) => [email, pins[index]!]));
+      return created.map(({ id, name, email }) => ({ id, name, email, pin: pinByEmail.get(email)! }));
+    });
+  } catch (error) {
+    throw isUniqueViolation(error) ? EMAIL_TAKEN : error;
+  }
+}
+
 export async function updateEmployee(
   ctx: AuthContext,
   id: string,
@@ -210,10 +266,12 @@ export async function updateEmployee(
       // Giữ ngày cũ khi PATCH lặp lại `left`, để công đến ngày nghỉ thật không bị đổi
       const statusChanged = fields.status !== undefined && fields.status !== before.status;
       const leftDate = statusChanged ? { leftDate: fields.status === 'left' ? vietnamToday() : null } : {};
+      // Người nghỉ trả lại máy: giữ mã thì người sau dùng lại điện thoại đó sẽ bị chặn oan
+      const device = fields.status === 'left' ? { deviceHash: null, deviceBoundAt: null } : {};
       if (Object.keys(fields).length > 0) {
         await tx
           .update(employees)
-          .set({ ...fields, ...leftDate })
+          .set({ ...fields, ...leftDate, ...device })
           .where(findEmployee(ctx, id));
       }
       await replaceOverrides(tx, id, { shiftIds, locationIds });
@@ -237,7 +295,7 @@ export async function updateEmployee(
   }
 }
 
-/** Tạo PIN mới và đăng xuất mọi máy; PIN gốc chỉ trả về đúng lần này (US12). */
+/** Tạo PIN mới, mở khoá và đăng xuất mọi máy; PIN gốc chỉ trả về đúng lần này (US12). */
 export async function resetEmployeePin(ctx: AuthContext, id: string) {
   const pin = generatePin();
   const pinHash = await hashPin(pin);
@@ -251,7 +309,10 @@ export async function resetEmployeePin(ctx: AuthContext, id: string) {
     if (!before) throw notFound('nhân viên');
     if (!canEditEmployee(ctx.employee, before)) throw new ApiError(403, 'Bạn không được sửa Quản trị viên');
 
-    await tx.update(employees).set({ pinHash }).where(findEmployee(ctx, id));
+    await tx
+      .update(employees)
+      .set({ pinHash, failedPinAttempts: 0, lockedUntil: null })
+      .where(findEmployee(ctx, id));
     await tx.delete(sessions).where(eq(sessions.employeeId, id));
     await writeAudit(tx, actorOf(ctx), { action: 'employee.reset_pin', entity: 'employee', entityId: id });
   });

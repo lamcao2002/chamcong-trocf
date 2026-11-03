@@ -1,20 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Form, Input, Radio, Segmented, Select, Typography } from 'antd';
+import { Button, Flex, Form, Input, InputNumber, Radio, Select, Typography } from 'antd';
 import { FormDrawer } from '@/components/common/FormDrawer';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
 import { formatDecimal } from '@/lib/format';
 import type { AppHome } from '@/lib/services/attendance';
 
-type RequestType = 'leave' | 'forgot' | 'overtime';
+type RequestType = 'leave' | 'forgot' | 'overtime' | 'late_early' | 'shift_swap';
 type Balance = { total: number; used: number; remaining: number };
 
 const TYPES: { value: RequestType; label: string }[] = [
   { value: 'leave', label: 'Nghỉ phép' },
-  { value: 'forgot', label: 'Quên chấm' },
+  { value: 'late_early', label: 'Muộn / sớm' },
   { value: 'overtime', label: 'Làm thêm' },
+  { value: 'shift_swap', label: 'Đổi ca' },
+  { value: 'forgot', label: 'Quên chấm' },
 ];
 
 const LEAVE_TYPES = [
@@ -32,7 +34,7 @@ type RequestSheetProps = {
   onSent: () => void;
 };
 
-/** Sheet Tạo đơn: nghỉ phép, quên chấm, làm thêm (US29–US31). Quy tắc chặn nằm ở server. */
+/** Sheet Tạo đơn: 5 loại đơn, Đăng ký ca mở lưới ở tab Lịch (US29–US31, EMP-13). Quy tắc chặn nằm ở server. */
 export function RequestSheet({ open, choices, onClose, onSent }: RequestSheetProps) {
   const toast = useToast();
   const [form] = Form.useForm();
@@ -48,6 +50,11 @@ export function RequestSheet({ open, choices, onClose, onSent }: RequestSheetPro
       if (result.ok) setBalance(result.balance);
     });
   }, [open]);
+
+  const shiftOptions = choices.map(({ id, name, startTime, endTime }) => ({
+    value: id,
+    label: `${name} · ${startTime}–${endTime}`,
+  }));
 
   const submit = async () => {
     const values = (await form.validateFields().catch(() => null)) as Record<string, unknown> | null;
@@ -80,22 +87,37 @@ export function RequestSheet({ open, choices, onClose, onSent }: RequestSheetPro
       <Typography.Paragraph type="secondary">
         Gửi tới quản lý trực tiếp của bạn để duyệt.
       </Typography.Paragraph>
-      <Segmented
-        block
-        options={TYPES}
-        value={type}
-        onChange={(value) => {
-          form.resetFields();
-          setType(value);
-        }}
-        style={{ marginBottom: 16 }}
-      />
+      <Flex wrap gap={8} style={{ marginBottom: 16 }}>
+        {TYPES.map(({ value, label }) => (
+          <Button
+            key={value}
+            size="small"
+            type={type === value ? 'primary' : 'default'}
+            aria-pressed={type === value}
+            onClick={() => {
+              form.resetFields();
+              setType(value);
+            }}
+          >
+            {label}
+          </Button>
+        ))}
+        <Button
+          size="small"
+          onClick={() => {
+            onClose();
+            window.location.hash = '#/lich';
+          }}
+        >
+          Đăng ký ca
+        </Button>
+      </Flex>
       <Form
         form={form}
         layout="vertical"
         requiredMark={false}
         preserve={false}
-        initialValues={{ leaveType: 'annual', when: 'after' }}
+        initialValues={{ leaveType: 'annual', when: 'after', kind: 'late' }}
         onValuesChange={() => setDirty(true)}
       >
         {type === 'leave' ? (
@@ -123,13 +145,7 @@ export function RequestSheet({ open, choices, onClose, onSent }: RequestSheetPro
               <Input type="date" />
             </Form.Item>
             <Form.Item label="Ca" name="shiftId" rules={required}>
-              <Select
-                placeholder="Chọn ca"
-                options={choices.map(({ id, name, startTime, endTime }) => ({
-                  value: id,
-                  label: `${name} · ${startTime}–${endTime}`,
-                }))}
-              />
+              <Select placeholder="Chọn ca" options={shiftOptions} />
             </Form.Item>
             <Form.Item label="Giờ vào thực tế" name="inTime" extra="Chỉ cần điền giờ bị thiếu.">
               <Input type="time" />
@@ -158,6 +174,55 @@ export function RequestSheet({ open, choices, onClose, onSent }: RequestSheetPro
             </Form.Item>
             <Form.Item label="Đến giờ" name="to" rules={required}>
               <Input type="time" />
+            </Form.Item>
+          </>
+        ) : null}
+
+        {type === 'late_early' ? (
+          <>
+            <Form.Item label="Bạn xin" name="kind" rules={required}>
+              <Radio.Group
+                options={[
+                  { value: 'late', label: 'Đi trễ' },
+                  { value: 'early', label: 'Về sớm' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="Ngày" name="date" rules={required}>
+              <Input type="date" />
+            </Form.Item>
+            <Form.Item label="Số phút" name="minutes" rules={required}>
+              <InputNumber min={1} max={480} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              label="Ca"
+              name="shiftId"
+              initialValue=""
+              extra="Đơn được duyệt thì số phút này không tính muộn."
+            >
+              <Select options={[{ value: '', label: 'Cả ngày' }, ...shiftOptions]} />
+            </Form.Item>
+          </>
+        ) : null}
+
+        {type === 'shift_swap' ? (
+          <>
+            <Form.Item label="Ngày xin nghỉ" name="offDate" rules={required}>
+              <Input type="date" />
+            </Form.Item>
+            <Form.Item label="Ca nghỉ" name="offShiftId" rules={required}>
+              <Select placeholder="Chọn ca" options={shiftOptions} />
+            </Form.Item>
+            <Form.Item label="Ngày làm bù" name="workDate" rules={required}>
+              <Input type="date" />
+            </Form.Item>
+            <Form.Item
+              label="Ca làm bù"
+              name="workShiftId"
+              rules={required}
+              extra="Nghỉ một ngày theo lịch và đi làm bù vào ngày khác."
+            >
+              <Select placeholder="Chọn ca" options={shiftOptions} />
             </Form.Item>
           </>
         ) : null}

@@ -12,6 +12,9 @@ export const SESSION_POLICY: Record<SessionKind, { cookie: string; maxAgeSeconds
   app: { cookie: 'cc_app_session', maxAgeSeconds: 90 * DAY_SECONDS },
 };
 
+/** US01: khoá theo tài khoản, sai liên tiếp `maxAttempts` lần thì khoá `lockMinutes` phút. */
+export const LOGIN_POLICY = { maxAttempts: 5, lockMinutes: 15 };
+
 export function generateSessionToken(): string {
   return randomBytes(32).toString('base64url');
 }

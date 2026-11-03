@@ -28,17 +28,28 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'POST', path: '/holidays/seed-vn', allowed: ['hr', 'admin'] },
   { method: 'GET', path: '/employees', allowed: ['hr', 'admin'] },
   { method: 'POST', path: '/employees', allowed: ['hr', 'admin'], body: {} },
+  { method: 'POST', path: '/employees/bulk', allowed: ['hr', 'admin'], body: {} },
   { method: 'GET', path: `/employees/${NIL}`, allowed: ['hr', 'admin'] },
   { method: 'PATCH', path: `/employees/${NIL}`, allowed: ['hr', 'admin'], body: {} },
   { method: 'POST', path: `/employees/${NIL}/reset-pin`, allowed: ['hr', 'admin'] },
+  { method: 'POST', path: `/employees/${NIL}/unlock-device`, allowed: ['hr', 'admin'] },
   { method: 'GET', path: '/schedule?week=2026-11-02', allowed: ['manager', 'hr', 'admin'] },
   { method: 'PUT', path: '/schedule', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'POST', path: '/schedule/registrations', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'GET', path: `/day/${NIL}/2026-11-02`, allowed: ['manager', 'hr', 'admin'] },
   { method: 'GET', path: '/inbox', allowed: ['manager', 'hr', 'admin'] },
   { method: 'GET', path: '/timesheet', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'GET', path: '/timesheet/export', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'GET', path: '/payroll', allowed: ['hr', 'admin'] },
+  { method: 'GET', path: '/payroll/export', allowed: ['hr', 'admin'] },
+  { method: 'GET', path: `/payroll/${NIL}`, allowed: ['hr', 'admin'] },
+  { method: 'POST', path: '/payroll/publish?period=2099-01', allowed: ['hr', 'admin'] },
+  { method: 'POST', path: '/adjustments', allowed: ['hr', 'admin'], body: {} },
+  { method: 'DELETE', path: `/adjustments/${NIL}`, allowed: ['hr', 'admin'] },
   { method: 'GET', path: `/timesheet/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
   { method: 'GET', path: '/overview/today', allowed: ['manager', 'hr', 'admin'] },
   { method: 'POST', path: '/approvals', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'POST', path: '/approvals/bulk', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'DELETE', path: `/approvals/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
   { method: 'POST', path: `/requests/${NIL}/decide`, allowed: ['manager', 'hr', 'admin'], body: {} },
 ];
@@ -199,6 +210,12 @@ describe('cách ly công ty', () => {
       body: employeeBody({ positionId: foreign.position }),
     });
     expect(employee.status).toBe(400);
+
+    const bulk = await api('POST', '/employees/bulk', {
+      cookie: cookies.admin,
+      body: { employees: [{ ...employeeBody(), positionId: foreign.position }] },
+    });
+    expect(bulk.status).toBe(400);
 
     const manager = await api('POST', '/employees', {
       cookie: cookies.admin,

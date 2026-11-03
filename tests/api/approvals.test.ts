@@ -215,23 +215,52 @@ describe('DELETE /approvals/:id (US28)', () => {
   });
 });
 
-describe('kỳ đã công bố (C8)', () => {
-  it('chặn duyệt, hoàn duyệt, lịch, ngày lễ', async () => {
+describe('kỳ đã công bố (D10)', () => {
+  it('sửa được, kỳ chuyển sang cần công bố lại', async () => {
     const id = await dayWithTwoIssues();
     const { approval } = (await approve(id, { approveGps: true })).body;
     const [period] =
       await sql`insert into payroll_periods (company_id, period_key, from_date, to_date, published)
       select company_id, ${`LOCK${Date.now()}`}, ${yesterday}, ${yesterday}, true
       from employees where id = ${id} returning id`;
+    const stale = async () =>
+      (await sql`select stale from payroll_periods where id = ${period!.id}`)[0]!.stale;
+    const reset = () => sql`update payroll_periods set stale = false where id = ${period!.id}`;
     try {
-      expect((await approve(id, { otMinutes: 60 })).status).toBe(409);
-      expect((await api('DELETE', `/approvals/${approval.id}`, { cookie: admin })).status).toBe(409);
-      expect((await schedule(id, yesterday, [shifts.SANG.id])).status).toBe(409);
+      expect((await approve(id, { otMinutes: 60 })).status).toBe(201);
+      expect(await stale()).toBe(true);
+
+      await reset();
+      expect((await api('DELETE', `/approvals/${approval.id}`, { cookie: admin })).status).toBe(200);
+      expect(await stale()).toBe(true);
+
+      await reset();
+      expect((await schedule(id, yesterday, [shifts.SANG.id])).status).toBe(200);
+      expect(await stale()).toBe(true);
+
+      await reset();
       const holiday = await api('POST', '/holidays', {
         cookie: admin,
         body: { date: yesterday, name: 'Lễ' },
       });
-      expect(holiday.status).toBe(409);
+      expect(holiday.status).toBe(201);
+      expect(await stale()).toBe(true);
+      await api('DELETE', `/holidays/${holiday.body.holiday.id}`, { cookie: admin });
+    } finally {
+      await sql`delete from payroll_periods where id = ${period!.id}`;
+    }
+  });
+
+  it('tính lại ra cùng số thì không báo cần công bố lại', async () => {
+    const id = await dayWithTwoIssues();
+    const [period] =
+      await sql`insert into payroll_periods (company_id, period_key, from_date, to_date, published)
+      select company_id, ${`SAME${Date.now()}`}, ${yesterday}, ${yesterday}, true
+      from employees where id = ${id} returning id`;
+    try {
+      expect((await schedule(id, yesterday, [shifts.TOI.id])).status).toBe(200);
+      const [row] = await sql`select stale from payroll_periods where id = ${period!.id}`;
+      expect(row!.stale).toBe(false);
     } finally {
       await sql`delete from payroll_periods where id = ${period!.id}`;
     }
@@ -295,5 +324,114 @@ describe('GET /overview/today (US23)', () => {
     expect(after.onShift).toBe(before.onShift + 1);
     expect(after.scheduled).toBe(before.scheduled);
     expect(after.missing).toBeLessThanOrEqual(before.missing);
+  });
+});
+
+describe('duyệt hàng loạt theo đề xuất (INB-08, TS-08)', () => {
+  const period = () => yesterday.slice(0, 7);
+  const asBulk = (items: any[]) =>
+    items.map(({ key, suggestion }) => ({ key, label: suggestion?.label ?? 'x' }));
+  const bulk = (items: object[], cookie = admin) =>
+    api('POST', '/approvals/bulk', { cookie, body: { from: yesterday, to: yesterday, items } });
+  const activeApprovals = (employeeId: string) =>
+    sql`select * from approvals where employee_id = ${employeeId} and revoked_at is null`;
+
+  it('hai việc cùng ca gộp một bản ghi, nhiều người trong một lần, Hộp việc hết việc', async () => {
+    const first = await dayWithTwoIssues();
+    const second = await dayWithTwoIssues();
+    const items = [...(await inboxItems(first)), ...(await inboxItems(second))];
+    expect(items.length).toBeGreaterThanOrEqual(4);
+    const before = await auditCount('approval.create');
+
+    const result = await bulk(asBulk(items));
+    expect(result.status).toBe(201);
+    expect(result.body.result).toEqual({ approved: items.length, skipped: 0 });
+
+    expect(await inboxItems(first)).toHaveLength(0);
+    expect(await inboxItems(second)).toHaveLength(0);
+    expect(await activeApprovals(first)).toHaveLength(1);
+    expect(await auditCount('approval.create')).toBe(before + 2);
+    expect((await record(first)).needs_review).toBe(false);
+  });
+
+  it('số liệu đổi sau khi xem thì bỏ qua và báo lại, không duyệt số chưa ai thấy', async () => {
+    const id = await dayWithTwoIssues();
+    const items = await inboxItems(id);
+    const ot = items.find((item: any) => item.kind === 'ot_cho');
+    const result = await bulk([{ key: ot.key, label: 'Duyệt 1 phút' }]);
+    expect(result.body.result).toEqual({ approved: 0, skipped: 1 });
+    expect(await activeApprovals(id)).toHaveLength(0);
+    expect(await inboxItems(id)).toHaveLength(items.length);
+  });
+
+  it('khoá lạ, việc không có đề xuất và đơn đều bị bỏ qua, phần còn lại vẫn duyệt', async () => {
+    const id = await dayWithTwoIssues();
+    const absent = await newEmployee();
+    await schedule(absent, yesterday, [shifts.TOI.id]);
+    const [vang] = await inboxItems(absent);
+    expect(vang.suggestion).toBeNull();
+
+    const [good] = await inboxItems(id);
+    const result = await bulk([
+      ...asBulk([good]),
+      { key: vang.key, label: 'Duyệt' },
+      { key: 'request|khong-co', label: 'Duyệt' },
+    ]);
+    expect(result.body.result).toEqual({ approved: 1, skipped: 2 });
+    expect(await activeApprovals(absent)).toHaveLength(0);
+  });
+
+  it('Quản lý nhóm không duyệt được người ngoài nhóm, kể cả tự gõ khoá', async () => {
+    const id = await dayWithTwoIssues();
+    const items = await inboxItems(id);
+    const result = await bulk(asBulk(items), manager);
+    expect(result.body.result).toEqual({ approved: 0, skipped: items.length });
+    expect(await activeApprovals(id)).toHaveLength(0);
+  });
+
+  it('hai người bấm cùng lúc vẫn chỉ có một bản ghi hiệu lực', async () => {
+    const id = await dayWithTwoIssues();
+    const items = asBulk(await inboxItems(id));
+    const results = await Promise.all([bulk(items), bulk(items, hr)]);
+    expect(results.every(({ status }) => status < 500)).toBe(true);
+    expect(await activeApprovals(id)).toHaveLength(1);
+  });
+
+  it('Bảng công chọn ô bằng đúng khoá của Hộp việc, ô đã duyệt không còn chọn được', async () => {
+    const id = await dayWithTwoIssues();
+    const read = async () => {
+      const { timesheet } = (await api('GET', `/timesheet?period=${period()}`, { cookie: admin })).body;
+      return timesheet.employees
+        .find((row: any) => row.id === id)
+        .cells.find((c: any) => c.date === yesterday);
+    };
+    const cell = await read();
+    const expected = (await inboxItems(id)).map(({ key }: any) => key).sort();
+    expect(cell.approvable.map(({ key }: any) => key).sort()).toEqual(expected);
+
+    await bulk(cell.approvable);
+    expect((await read()).approvable).toEqual([]);
+  });
+
+  it('duyệt theo khoảng đang xem, việc ngoài khoảng bị bỏ qua', async () => {
+    const id = await dayWithTwoIssues();
+    const items = asBulk(await inboxItems(id));
+    const earlier = addDays(yesterday, -5);
+    const body = { from: earlier, to: earlier, items };
+    const outside = await api('POST', '/approvals/bulk', { cookie: admin, body });
+    expect(outside.body.result).toEqual({ approved: 0, skipped: items.length });
+
+    const wide = { from: earlier, to: yesterday, items };
+    const inside = await api('POST', '/approvals/bulk', { cookie: admin, body: wide });
+    expect(inside.body.result).toEqual({ approved: items.length, skipped: 0 });
+  });
+
+  it('danh sách rỗng hoặc khoảng ngày ngược → 400', async () => {
+    expect((await bulk([])).status).toBe(400);
+    const wrong = await api('POST', '/approvals/bulk', {
+      cookie: admin,
+      body: { from: '2026-02-01', to: '2026-01-01', items: [{ key: 'a', label: 'b' }] },
+    });
+    expect(wrong.status).toBe(400);
   });
 });
