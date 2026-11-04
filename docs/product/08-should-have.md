@@ -87,13 +87,56 @@ Hai tính năng này có thể chặn nhân viên chấm công, nên đều là 
 
 | Mã | Việc | Tính năng | Cỡ | Ghi chú |
 | --- | --- | --- | --- | --- |
-| SH-29 | Chốt công thức với bảng lương của quán, viết ca P19 trở đi trước khi code | POS-03 | S | Làm trước các việc còn lại trong nhóm |
+| SH-29 | Chốt công thức với bảng lương của quán, viết ca P22 trở đi trước khi code (P19–P21 đã dùng cho SH-36) | POS-03 | S | Làm trước các việc còn lại trong nhóm |
 | SH-30 | Bậc lương: danh sách bậc theo vị trí, gán cho nhân viên | POS-03 | L | Thêm bảng bậc; thứ tự ưu tiên: lương riêng → bậc → mức vị trí |
 | SH-31 | Phụ cấp 3 kiểu: theo công, cố định tháng, theo tháng chia công | POS-03 | L | Lưu theo vị trí, ghi đè được theo người |
 | SH-32 | Thưởng cố định hằng tháng | POS-03 | S | Cần SH-31; chỉ cộng ở kỳ tròn tháng |
 | SH-33 | Phạt muộn/sớm theo phút, phạt quên chấm theo lần | POS-03 | M | Phút có đơn SH-19 đã duyệt không bị trừ; xem quyết định về phạt tiền bên dưới |
 | SH-34 | BHXH: lương đóng × tỷ lệ, mặc định 10,5% | POS-03 | M | Chỉ áp ở kỳ tròn tháng; có công tắc tắt |
 | SH-35 | Hiện khoản mới ở sao kê, "Vì sao ra số này", M4, Excel và phiếu in | POS-03, PAY-04 | M | Cần SH-30 đến SH-34, cùng SH-04 và SH-05 nếu đã làm |
+
+## Nhóm 8 — Nhiều vị trí, xếp theo ca, lịch nháp
+
+Yêu cầu thêm ngày 03/11/2026: một người làm được nhiều vị trí (ví dụ Phục vụ và Pha chế), quản lý chọn vị trí cho từng ca khi xếp, xem lịch theo ca, và lịch tuần sau chỉ tới tay nhân viên khi bấm Công bố.
+
+| Mã | Việc | Cỡ | Ghi chú |
+| --- | --- | --- | --- |
+| SH-36 | Vị trí phụ của nhân viên, vị trí của từng ca, lương theo vị trí của ca | L | Bảng `employee_positions`, cột `schedule_cells.positions`; ca P19–P21 |
+| SH-37 | Lịch nháp: lưu từ ngày mai trở đi vào `schedule_drafts`, Công bố và Bỏ nháp theo tuần | L | Nhận đăng ký ca cũng vào nháp |
+| SH-38 | Màn Xếp ca kiểu Theo ca: hàng là ca, ô là người đã xếp và đăng ký chờ nhận | M | Dùng chung ô đang sửa và nút Lưu với kiểu Theo nhân viên |
+
+Quyết định đã chốt:
+
+| Điểm | Quyết định |
+| --- | --- |
+| Vị trí mặc định khi xếp | Vị trí chính của nhân viên (`employees.position_id`); người chỉ có một vị trí thì không phải chọn |
+| Nhân viên đăng ký ca | Như cũ, chỉ chọn ngày × ca, không chọn vị trí |
+| Ca được làm, địa điểm chấm | Gộp mọi vị trí của người đó (Ca riêng, Địa điểm riêng vẫn thắng) |
+| Lương | Ca nào tính theo mức của vị trí đã xếp cho ca đó, chỉ khi vị trí đó trả theo giờ hoặc theo công. Vị trí chính trả theo tháng thì một mức chung. Lương riêng đặt được cho từng vị trí (`employee_positions.pay_amount`), để trống là theo mức của vị trí |
+| % tăng ca | Theo vị trí của ca. Công chuẩn và ngày phép theo vị trí chính |
+| Nháp ảnh hưởng tới ai | Chỉ quản lý thấy. Nhân viên, Bảng công, Lương dùng lịch đã công bố. Sửa ô đã công bố cũng thành nháp, lịch cũ giữ hiệu lực tới khi công bố lại |
+| Phạm vi Công bố | Tuần đang xem, chỉ người mình quản lý. Mỗi người một thông báo gộp |
+| Ô ở kiểu Theo ca | Hiện tên người đã xếp và tên người đăng ký chờ nhận (viền đứt); điện thoại chỉ hiện tên gọi |
+| Hôm nay và ngày đã qua | Có hiệu lực ngay, không qua nháp. Đơn Đổi ca đã duyệt ghi thẳng vào lịch thật và bỏ nháp của ô đó |
+| Nhận đăng ký ca | Vào nháp, đơn vẫn Chờ (nhân viên thấy "Chờ xếp"), Công bố mới chuyển Đã nhận. Bỏ nháp hoặc gỡ ca khỏi nháp thì đơn quay về chờ nhận. Hộp việc ẩn đơn đã nằm trong nháp |
+| Đổi vị trí của ca ngày đã qua | Kỳ lương đã công bố phủ ngày đó chuyển sang "cần công bố lại" |
+
+## Nhóm 9 — Sửa, xoá đơn và giờ mở đăng ký ca
+
+Yêu cầu ngày 04/11/2026. Hằng số ở `lib/domain/request-window.ts`.
+
+| Điểm | Quyết định |
+| --- | --- |
+| Giờ mở đăng ký ca | 07:00 Thứ Năm tới 07:00 Thứ Bảy hằng tuần, cho tuần kế tiếp; cố định cho mọi quán. Ngoài giờ chỉ xem lưới, không gửi được |
+| Sửa, xoá đơn thường | Trong 10 phút từ lúc gửi (sửa không gia hạn), chỉ khi đơn còn Chờ; đã duyệt hoặc từ chối thì khoá ngay. Không đổi được loại đơn |
+| Sửa, xoá đăng ký ca | Trong giờ mở đăng ký: bấm ô Chờ để bỏ, chọn ô khác để gửi thêm. Đơn đã được nhận vào nháp vẫn bỏ được, ca đó được gỡ khỏi nháp |
+| Xoá | Xoá hẳn khỏi danh sách và Hộp việc; `audit_logs` giữ bản đơn đã xoá |
+| Đơn của tôi | Ở tab Tôi |
+| Test | `REGISTRATION_ALWAYS_OPEN=1` (chỉ khi `APP_ENV=local`) cho đợt luôn mở, vì test chạy ở giờ bất kỳ |
+
+## Nhóm 10 — Lịch sử đơn cho quản lý
+
+Màn **Đơn từ** (`/app/don-tu`, Quản lý nhóm trở lên): mọi đơn của kỳ lương đang xem, có ngày nằm trong kỳ, của người mình quản lý. Lọc trạng thái, loại đơn, tên. Chi tiết ghi ai gửi lúc nào, ai duyệt hoặc từ chối lúc nào, lý do từ chối; đơn còn chờ duyệt được ngay trong chi tiết. Đơn nhân viên đã xoá không hiện. Quản lý chưa xoá hay huỷ được đơn.
 
 ## Quyết định đang để mặc định
 

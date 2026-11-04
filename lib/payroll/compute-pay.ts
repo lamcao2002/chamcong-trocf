@@ -13,6 +13,9 @@ export type PayProfile = {
   otRates: OtRates;
 };
 
+/** Mức lương của một vị trí phụ, chỉ trả theo giờ hoặc theo công. */
+export type RoleProfile = PayProfile & { payType: 'hour' | 'unit'; name: string };
+
 export type PayDay = Pick<
   DayRecord,
   | 'date'
@@ -31,6 +34,8 @@ export type PayDay = Pick<
 > & {
   /** Giờ chuẩn của ca trên dòng; NULL thì dùng mặc định. */
   stdHours: number | null;
+  /** Vị trí phụ của ca trên dòng; trống là vị trí chính. */
+  roleId?: string | null;
 };
 
 export type PayAdjustment = { kind: 'bonus' | 'penalty'; amount: number; note: string };
@@ -59,8 +64,8 @@ export function splitPayLines(lines: readonly PayLine[]) {
   const pick = (test: (line: PayLine) => boolean) => sum(lines.filter(test), ({ amount }) => amount);
   const manual = ({ key }: PayLine) => key.startsWith('adjustment_');
   return {
-    base: pick(({ key }) => key === 'base'),
-    paidLeave: pick(({ key }) => key === 'paid_leave'),
+    base: pick(({ key }) => key === 'base' || key.startsWith('base_')),
+    paidLeave: pick(({ key }) => key.startsWith('paid_leave')),
     ot: pick(({ key }) => key.startsWith('ot_')),
     bonus: pick((line) => manual(line) && line.amount > 0),
     penalty: pick((line) => manual(line) && line.amount < 0),
@@ -71,6 +76,11 @@ export type PayInput = {
   profile: PayProfile;
   days: readonly PayDay[];
   adjustments: readonly PayAdjustment[];
+  /**
+   * Vị trí phụ theo mã, cho người làm nhiều vị trí: ca nào tính theo mức của vị trí đã xếp cho ca đó.
+   * Lương tháng luôn một mức chung, nên bỏ qua khi vị trí chính trả theo tháng.
+   */
+  roles?: Readonly<Record<string, RoleProfile>>;
 };
 
 const stdHoursOf = ({ stdHours }: PayDay) => stdHours ?? DEFAULT_STD_HOURS;
@@ -139,12 +149,40 @@ function otPrice(profile: PayProfile, day: PayDay, minutes: number) {
 const dayKindLabel = ({ isHoliday, offDay }: PayDay) =>
   isHoliday ? 'ngày lễ' : offDay ? 'ngày nghỉ' : 'ngày thường';
 
+/** Đổi tên và khoá của dòng lương cơ bản cho một vị trí phụ, để sao kê ghi rõ từng vị trí. */
+function roleLines(lines: PayLine[], roleId: string, name: string): PayLine[] {
+  return lines.map((line) => ({ ...line, key: `${line.key}_${roleId}`, name: `${line.name} · ${name}` }));
+}
+
 /** Tiền lương một kỳ: hàm thuần, mỗi dòng có công thức chữ để giải thích "Vì sao ra số này" (US34). */
-export function computePay({ profile, days, adjustments }: PayInput): PayResult {
+export function computePay({ profile, days, adjustments, roles = {} }: PayInput): PayResult {
+  const roleOf = ({ roleId }: PayDay) =>
+    profile.payType !== 'month' && roleId && roles[roleId] ? roleId : null;
+  const profileOf = (day: PayDay): PayProfile => {
+    const roleId = roleOf(day);
+    return roleId ? roles[roleId]! : profile;
+  };
+  const used = [...new Set(days.map(roleOf).filter((id): id is string => id !== null))];
+  const primaryDays = days.filter((day) => roleOf(day) === null);
+  const base = [
+    // Cả kỳ chỉ làm vị trí phụ thì không in dòng 0đ của vị trí chính
+    ...(primaryDays.length > 0 || used.length === 0 ? baseLines(profile, primaryDays) : []),
+    ...used.flatMap((roleId) =>
+      roleLines(
+        baseLines(
+          roles[roleId]!,
+          days.filter((day) => roleOf(day) === roleId),
+        ),
+        roleId,
+        roles[roleId]!.name,
+      ),
+    ),
+  ];
+
   const otLines = days
     .filter(({ otApproved }) => otApproved > 0)
     .map((day): PayLine => {
-      const { rate, percent, amount } = otPrice(profile, day, day.otApproved);
+      const { rate, percent, amount } = otPrice(profileOf(day), day, day.otApproved);
       return {
         key: `ot_${day.date}`,
         name: 'Tăng ca đã duyệt',
@@ -162,13 +200,13 @@ export function computePay({ profile, days, adjustments }: PayInput): PayResult 
     };
   });
 
-  const lines = [...baseLines(profile, days), ...otLines, ...adjustmentLines];
+  const lines = [...base, ...otLines, ...adjustmentLines];
   const net = sum(lines, ({ amount }) => amount);
 
   const pendingDays = days
     .filter(({ otState }) => otState === 'cho_duyet')
     .map((day) => ({ day, minutes: day.otProposed - day.otApproved }));
-  const pendingAmount = sum(pendingDays, ({ day, minutes }) => otPrice(profile, day, minutes).amount);
+  const pendingAmount = sum(pendingDays, ({ day, minutes }) => otPrice(profileOf(day), day, minutes).amount);
   const otPendingMin = sum(pendingDays, ({ minutes }) => minutes);
 
   return {

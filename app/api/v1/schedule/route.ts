@@ -2,7 +2,8 @@ import { ApiError } from '@/lib/api/errors';
 import { ok, parseBody } from '@/lib/api/server';
 import { withAuth } from '@/lib/auth/guard';
 import { MANAGERS } from '@/lib/auth/roles';
-import { getSchedule, saveSchedule } from '@/lib/services/schedule';
+import { getSchedule } from '@/lib/services/schedule';
+import { saveSchedule } from '@/lib/services/schedule-drafts';
 import { scheduleSaveSchema, weekSchema } from '@/lib/validation/schedule';
 
 export const runtime = 'nodejs';
@@ -15,7 +16,7 @@ export const GET = withAuth({ roles: MANAGERS }, async (ctx, request) => {
   return ok({ schedule: await getSchedule(ctx, week.data) });
 });
 
-/** PUT /api/v1/schedule — lưu danh sách ô thay đổi (US15, US16). */
+/** PUT /api/v1/schedule — lưu danh sách ô thay đổi; từ ngày mai trở đi vào nháp (US15, US16). */
 export const PUT = withAuth({ roles: MANAGERS }, async (ctx, request) => {
   await saveSchedule(ctx, await parseBody(request, scheduleSaveSchema));
   return ok({});

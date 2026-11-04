@@ -15,6 +15,8 @@ const cellSchema = z
     date: isoDate,
     shiftIds: uuidList,
     isOff: z.boolean(),
+    /** Mã ca → vị trí; ca không có ở đây là vị trí chính. */
+    positions: z.record(uuid, uuid).optional(),
   })
   .refine(({ isOff, shiftIds }) => !isOff || shiftIds.length === 0, {
     message: 'Ngày Cho nghỉ không có ca',
@@ -30,3 +32,8 @@ export const scheduleSaveSchema = z
   );
 
 export type ScheduleSaveInput = z.infer<typeof scheduleSaveSchema>;
+
+/** Công bố hoặc bỏ nháp của một tuần. */
+export const scheduleWeekSchema = z.object({ week: weekSchema });
+
+export type ScheduleWeekInput = z.infer<typeof scheduleWeekSchema>;

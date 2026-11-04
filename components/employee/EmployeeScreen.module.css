@@ -511,9 +511,147 @@
   font-size: 12px;
 }
 
+/* Sheet Tạo đơn: bo góc trên, tiêu đề lớn, nút đóng tròn bên phải */
+.sheetRoot :global(.ant-drawer-content) {
+  border-radius: 24px 24px 0 0;
+}
+
+.sheetRoot :global(.ant-drawer-body) {
+  padding: 8px 16px 16px;
+}
+
+.sheetGrip {
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 10px;
+  border-radius: var(--radius-pill);
+  background: var(--border);
+}
+
+.sheetHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sheetHead .muted {
+  margin: 2px 0 0;
+}
+
+.sheetTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
+}
+
+.sheetClose {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.typeTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.typeActive {
+  border: 2px solid var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.typeTile:focus-visible,
+.sheetClose:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.typeIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+}
+
+.tone_warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.tone_ot {
+  background: var(--ot-bg);
+  color: var(--ot-fg);
+}
+
+.tone_info {
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
+
+.tone_danger {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.tone_brand {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.typeActive .typeIcon {
+  background: var(--surface);
+}
+
+.registerHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+  font-size: 15px;
+}
+
+.registerHead .muted {
+  margin: 0;
+  font-size: 13px;
+}
+
 .register {
   width: 100%;
-  margin: 8px 0;
+  margin: 8px 0 10px;
   border-collapse: separate;
   border-spacing: 3px;
   table-layout: fixed;
@@ -521,35 +659,64 @@
 }
 
 .register th {
-  overflow: hidden;
-  font-weight: 600;
+  font-weight: 700;
   text-align: center;
+}
+
+/* Bảng `fixed` lấy độ rộng từ hàng đầu; tên và giờ ca là thứ nhân viên đọc để chọn */
+.register thead th:first-child {
+  width: 64px;
+}
+
+.registerDay {
+  display: block;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.registerSunday,
+.registerSunday .registerDay {
+  color: var(--danger-fg);
+}
+
+.register tbody th {
+  overflow: hidden;
+  text-align: left;
+}
+
+.registerShift {
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Bảng `fixed` lấy độ rộng từ hàng đầu; mã ca là thứ nhân viên đọc để chọn, không được cắt mất */
-.register thead th:first-child {
-  width: 54px;
-}
-
-.register tbody th {
-  text-align: left;
+.registerTime {
+  display: block;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .registerCell {
   display: grid;
   place-items: center;
   width: 100%;
-  aspect-ratio: 1;
-  min-height: 30px;
+  min-height: 36px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
   color: var(--surface);
   font: inherit;
+  font-size: 12px;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.registerCell:disabled {
+  cursor: default;
 }
 
 .registerPicked {
@@ -558,37 +725,102 @@
 }
 
 .register_pending {
-  border: 1px dashed var(--info-fg);
+  border: 1.5px dashed var(--info-fg);
   background: var(--info-bg);
   color: var(--info-fg);
 }
 
 .register_scheduled {
-  border-color: var(--text-muted);
-  background: var(--text-muted);
+  border: 1.5px solid var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .registerLegend {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  margin: 0 0 12px;
+  gap: 4px 14px;
+  margin: 0 0 18px;
   padding: 0;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 13px;
   list-style: none;
 }
 
 .registerLegend li {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .registerMark {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.registerWindow,
+.registerClosed {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.registerWindow {
+  color: var(--text-muted);
+}
+
+.registerClosed {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.requestList {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.requestList li {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.requestRow,
+.requestActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.requestActions {
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.requestButtons {
+  display: flex;
+  gap: 6px;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+@media (min-width: 400px) {
+  .register thead th:first-child {
+    width: 76px;
+  }
+
+  .registerTime {
+    font-size: 11px;
+  }
 }
 
 .headerActions {

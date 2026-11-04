@@ -4,16 +4,24 @@ import { ADMIN_NAV, activeNavKey, initials, navForRole } from './admin';
 describe('navForRole', () => {
   const keys = (role: Parameters<typeof navForRole>[0]) => navForRole(role).map((item) => item.key);
 
-  it('quản trị viên thấy đủ 8 mục', () => {
+  it('quản trị viên thấy đủ 9 mục', () => {
     expect(keys('admin')).toEqual(ADMIN_NAV.map((item) => item.key));
   });
 
   it('nhân sự không thấy Địa điểm và Cài đặt', () => {
-    expect(keys('hr')).toEqual(['inbox', 'timesheet', 'schedule', 'payroll', 'staff', 'positions']);
+    expect(keys('hr')).toEqual([
+      'inbox',
+      'timesheet',
+      'schedule',
+      'payroll',
+      'requests',
+      'staff',
+      'positions',
+    ]);
   });
 
   it('quản lý nhóm không thấy Lương và phần Thiết lập', () => {
-    expect(keys('manager')).toEqual(['inbox', 'timesheet', 'schedule']);
+    expect(keys('manager')).toEqual(['inbox', 'timesheet', 'schedule', 'requests']);
   });
 
   it('nhân viên không có mục quản trị nào', () => {

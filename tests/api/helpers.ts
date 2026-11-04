@@ -1,5 +1,7 @@
 import { config } from 'dotenv';
 import postgres from 'postgres';
+import { vietnamToday } from '../../lib/domain/date';
+import { addDays, weekDay } from '../../lib/engine/time';
 
 config({ path: ['.env.test', '.env.local', '.env'], quiet: true });
 
@@ -118,3 +120,24 @@ export const locationBody = (positionIds: string[] = []) => ({
   radiusM: 60,
   positionIds,
 });
+
+const mondayOfDate = (date: string) => addDays(date, -((weekDay(date) + 6) % 7));
+
+/**
+ * Lưu lịch như quản lý bấm Lưu rồi Công bố: ô từ ngày mai trở đi vào nháp, nên công bố tuần của chúng
+ * để test thấy lịch thật. Lưu lỗi thì trả lỗi đó, không công bố.
+ */
+export async function publishCells(
+  cookie: string,
+  cells: { employeeId: string; date: string; [field: string]: unknown }[],
+) {
+  const saved = await api('PUT', '/schedule', { cookie, body: { cells } });
+  if (saved.status !== 200) return saved;
+  const tomorrow = addDays(vietnamToday(), 1);
+  const weeks = new Set(cells.filter(({ date }) => date >= tomorrow).map(({ date }) => mondayOfDate(date)));
+  for (const week of weeks) {
+    const published = await api('POST', '/schedule/publish', { cookie, body: { week } });
+    if (published.status !== 200) return published;
+  }
+  return saved;
+}

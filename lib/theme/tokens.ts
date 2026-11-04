@@ -110,6 +110,7 @@ export function themeCssVars(brand: string = DEFAULT_BRAND): Record<`--${string}
     '--info-bg': tokens.info.bg,
     '--info-fg': tokens.info.fg,
     '--radius-card': `${tokens.radius.card}px`,
+    '--radius-lg': `${tokens.radius.lg}px`,
     '--radius-md': `${tokens.radius.md}px`,
     '--radius-pill': `${tokens.radius.pill}px`,
     '--shadow-card': tokens.shadowCard,

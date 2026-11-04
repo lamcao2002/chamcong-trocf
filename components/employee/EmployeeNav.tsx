@@ -1,12 +1,18 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { CalendarOutlined, DollarOutlined, EnvironmentOutlined, PlusOutlined } from '@ant-design/icons';
+import {
+  CalendarOutlined,
+  DollarOutlined,
+  EnvironmentOutlined,
+  PlusOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import styles from './EmployeeScreen.module.css';
 
-export type EmployeeTab = 'cham' | 'lich' | 'luong';
+export type EmployeeTab = 'cham' | 'lich' | 'luong' | 'toi';
 
-const TAB_OF_HASH: Record<string, EmployeeTab> = { '#/lich': 'lich', '#/luong': 'luong' };
+const TAB_OF_HASH: Record<string, EmployeeTab> = { '#/lich': 'lich', '#/luong': 'luong', '#/toi': 'toi' };
 
 /** Tab đọc từ hash của URL (`/m#/lich`): chuyển phía client, không tải lại trang. */
 export function useHashTab(): EmployeeTab {
@@ -26,11 +32,12 @@ const ITEMS: { tab: EmployeeTab; label: string; href: string; icon: ReactNode }[
   { tab: 'cham', label: 'Chấm công', href: '#/', icon: <EnvironmentOutlined /> },
   { tab: 'lich', label: 'Lịch & công', href: '#/lich', icon: <CalendarOutlined /> },
   { tab: 'luong', label: 'Lương', href: '#/luong', icon: <DollarOutlined /> },
+  { tab: 'toi', label: 'Tôi', href: '#/toi', icon: <UserOutlined /> },
 ];
 
 type EmployeeNavProps = { tab: EmployeeTab; onCreate: () => void };
 
-/** Thanh dưới app nhân viên, nút "+" giữa mở sheet Tạo đơn. */
+/** Thanh dưới app nhân viên: hai tab mỗi bên để nút "+" mở sheet Tạo đơn nằm đúng giữa. */
 export function EmployeeNav({ tab, onCreate }: EmployeeNavProps) {
   const link = ({ tab: key, label, href, icon }: (typeof ITEMS)[number]) => (
     <a

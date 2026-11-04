@@ -1,103 +1,88 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Button } from 'antd';
-import { useToast } from '@/components/common/useToast';
-import { apiRequest } from '@/lib/api/client';
 import { formatDate, formatDayLabel } from '@/lib/format';
 import type { RegistrationView } from '@/lib/services/registrations';
 import styles from './EmployeeScreen.module.css';
 
-const cellId = (date: string, shiftId: string) => `${date}|${shiftId}`;
+export const registerCellId = (date: string, shiftId: string) => `${date}|${shiftId}`;
 
 const STATE_TEXT = { pending: 'Đã gửi, chờ duyệt', scheduled: 'Đã xếp lịch' };
 
-type RegisterCardProps = { reloadKey: number; onSent: () => void };
+const SUNDAY = 0;
 
-/** Đăng ký ca tuần sau, lưới ca × ngày; chỉ người ca linh hoạt mới thấy (EMP-12). */
-export function RegisterCard({ reloadKey, onSent }: RegisterCardProps) {
-  const toast = useToast();
-  const [view, setView] = useState<RegistrationView | null>(null);
-  const [picked, setPicked] = useState<readonly string[]>([]);
-  const [saving, setSaving] = useState(false);
+type RegisterGridProps = {
+  view: RegistrationView;
+  picked: readonly string[];
+  onToggle: (id: string) => void;
+  /** Bỏ một ô đã gửi, chỉ khi đợt đăng ký còn mở. */
+  onRemove: (requestId: string, label: string) => void;
+};
 
-  const load = useCallback(async () => {
-    const url = '/api/v1/app/shift-registrations';
-    const result = await apiRequest<{ registration: RegistrationView | null }>(url, 'GET');
-    if (result.ok) setView(result.registration);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load, reloadKey]);
-
-  if (!view || view.shifts.length === 0) return null;
-  const stateOf = (date: string, shiftId: string) =>
-    view.cells.find((cell) => cell.date === date && cell.shiftId === shiftId)?.state;
-
-  const toggle = (id: string) =>
-    setPicked((ids) => (ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]));
-
-  const send = async () => {
-    setSaving(true);
-    const items = picked.map((id) => {
-      const [date, shiftId] = id.split('|');
-      return { date, shiftId };
-    });
-    const result = await apiRequest('/api/v1/app/shift-registrations', 'POST', { items });
-    setSaving(false);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success('Đã gửi đăng ký');
-    setPicked([]);
-    void load();
-    onSent();
-  };
-
+/** Lưới đăng ký ca tuần sau trong sheet Tạo đơn: hàng là ca, cột là ngày (EMP-12). */
+export function RegisterGrid({ view, picked, onToggle, onRemove }: RegisterGridProps) {
+  const { open } = view.window;
   return (
-    <div className={`${styles.card} ${styles.followCard}`}>
-      <strong>Đăng ký ca tuần sau</strong>
-      <p className={styles.muted}>
-        {formatDate(view.dates[0]!).slice(0, 5)} – {formatDate(view.dates[6]!)}. Bấm ô để chọn, quản lý nhận
-        thì ca vào lịch.
+    <>
+      <div className={styles.registerHead}>
+        <strong>
+          Tuần sau · {formatDate(view.dates[0]!).slice(0, 5)} – {formatDate(view.dates[6]!).slice(0, 5)}
+        </strong>
+        <span className={styles.muted}>{open ? 'Bấm ô để chọn' : 'Đang đóng'}</span>
+      </div>
+      <p className={open ? styles.registerWindow : styles.registerClosed} role={open ? undefined : 'status'}>
+        {open ? view.window.text : `Chưa tới giờ đăng ký. ${view.window.text}.`}
+        {open ? '. Bấm ô Chờ để bỏ đăng ký.' : ''}
       </p>
       <table className={styles.register}>
         <thead>
           <tr>
             <th scope="col" aria-label="Ca" />
             {view.dates.map((date) => (
-              <th key={date} scope="col">
+              <th
+                key={date}
+                scope="col"
+                className={new Date(`${date}T00:00:00Z`).getUTCDay() === SUNDAY ? styles.registerSunday : ''}
+              >
                 {formatDayLabel(date).split(' ')[0]}
-                <br />
-                {date.slice(8)}
+                <span className={styles.registerDay}>{Number(date.slice(8))}</span>
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {view.shifts.map(({ id, code, name }) => (
+          {view.shifts.map(({ id, name, startTime, endTime }) => (
             <tr key={id}>
-              <th scope="row" title={name}>
-                {code}
+              <th scope="row">
+                <span className={styles.registerShift}>{name}</span>
+                <span className={styles.registerTime}>
+                  {startTime}–{endTime}
+                </span>
               </th>
               {view.dates.map((date) => {
-                const state = stateOf(date, id);
-                const key = cellId(date, id);
+                const cell = view.cells.find((row) => row.date === date && row.shiftId === id);
+                const state = cell?.state;
+                const key = registerCellId(date, id);
                 const chosen = picked.includes(key);
                 const label = `${name}, ${formatDate(date)}`;
+                const removable = open && state === 'pending' && cell?.requestId;
                 return (
                   <td key={date}>
                     <button
                       type="button"
-                      disabled={state !== undefined}
+                      disabled={
+                        state === 'scheduled' || (!open && !state) || (state === 'pending' && !removable)
+                      }
                       aria-pressed={state ? undefined : chosen}
-                      aria-label={state ? `${label}: ${STATE_TEXT[state]}` : label}
+                      aria-label={
+                        state ? `${label}: ${STATE_TEXT[state]}${removable ? '. Bấm để bỏ' : ''}` : label
+                      }
                       className={`${styles.registerCell} ${chosen ? styles.registerPicked : ''} ${state ? styles[`register_${state}`] : ''}`}
-                      onClick={() => toggle(key)}
+                      onClick={() => {
+                        if (removable) onRemove(cell.requestId!, label);
+                        else if (!state) onToggle(key);
+                      }}
                     >
-                      {state === 'scheduled' || chosen ? '✓' : ''}
+                      {state === 'pending' ? 'Chờ' : state === 'scheduled' || chosen ? '✓' : ''}
                     </button>
                   </td>
                 );
@@ -118,15 +103,6 @@ export function RegisterCard({ reloadKey, onSent }: RegisterCardProps) {
           <span className={`${styles.registerMark} ${styles.register_scheduled}`} aria-hidden /> Đã xếp lịch
         </li>
       </ul>
-      <Button
-        block
-        type="primary"
-        disabled={picked.length === 0}
-        loading={saving}
-        onClick={() => void send()}
-      >
-        {picked.length > 0 ? `Gửi đăng ký · ${picked.length} ca` : 'Chưa chọn ca nào'}
-      </Button>
-    </div>
+    </>
   );
 }

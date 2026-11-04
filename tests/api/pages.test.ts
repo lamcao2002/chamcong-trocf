@@ -9,7 +9,7 @@ afterAll(async () => {
 });
 
 describe('chặn trang theo phiên và quyền (US02)', () => {
-  it.each(['/app', '/app/xep-ca', '/app/bang-cong', '/app/nhan-su', '/app/luong'])(
+  it.each(['/app', '/app/xep-ca', '/app/bang-cong', '/app/nhan-su', '/app/luong', '/app/don-tu'])(
     'chưa đăng nhập vào %s thì về trang đăng nhập',
     async (path) => {
       const response = await page(path);
@@ -18,9 +18,9 @@ describe('chặn trang theo phiên và quyền (US02)', () => {
     },
   );
 
-  it('Quản lý nhóm vào được Xếp ca, Bảng công', async () => {
+  it('Quản lý nhóm vào được Xếp ca, Bảng công, Đơn từ', async () => {
     const manager = await login('minh@phonho.vn');
-    for (const path of ['/app/xep-ca', '/app/bang-cong']) {
+    for (const path of ['/app/xep-ca', '/app/bang-cong', '/app/don-tu']) {
       const html = await (await page(path, manager)).text();
       expect(html).not.toContain('NEXT_REDIRECT');
     }

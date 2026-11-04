@@ -21,6 +21,8 @@ export const serverEnvSchema = z.object({
   APP_TIMEZONE: z.string().default('Asia/Ho_Chi_Minh'),
   /** Vercel Cron gửi kèm; bỏ trống thì route cron từ chối mọi lời gọi. */
   CRON_SECRET: z.string().min(16).optional(),
+  /** Chỉ cho test chạy ở giờ bất kỳ: '1' là đợt đăng ký ca luôn mở. Bị bỏ qua ngoài APP_ENV=local. */
+  REGISTRATION_ALWAYS_OPEN: z.enum(['0', '1']).optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

@@ -10,7 +10,6 @@ import { addDays, mondayOf, weekDay } from '@/lib/engine/time';
 import { dayStatusLabel, formatClock, formatDate, formatDayLabel, formatDecimal } from '@/lib/format';
 import type { MyScheduleView, MyTimesheetView } from '@/lib/services/timesheet';
 import { themeCssVars } from '@/lib/theme/tokens';
-import { RegisterCard } from './RegisterCard';
 import styles from './EmployeeScreen.module.css';
 
 const MIN_REASON = 10;
@@ -150,56 +149,10 @@ function WeekList({ week, title }: { week: string; title: string }) {
   );
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Chờ duyệt',
-  approved: 'Đã duyệt',
-  rejected: 'Từ chối',
-};
+type ScheduleTabProps = { brandColor: string | null };
 
-type MyRequest = {
-  id: string;
-  summary: string;
-  fromDate: string;
-  toDate: string;
-  status: string;
-  rejectNote: string | null;
-};
-
-function MyRequests({ reloadKey }: { reloadKey: number }) {
-  const [rows, setRows] = useState<MyRequest[] | null>(null);
-
-  useEffect(() => {
-    void apiRequest<{ requests: MyRequest[] }>('/api/v1/app/requests', 'GET').then((result) => {
-      if (result.ok) setRows(result.requests);
-    });
-  }, [reloadKey]);
-
-  if (!rows || rows.length === 0) return null;
-  return (
-    <div className={`${styles.card} ${styles.followCard}`}>
-      <strong>Đơn của tôi</strong>
-      <ul className={styles.timeline}>
-        {rows.map(({ id, summary, fromDate, toDate, status, rejectNote }) => (
-          <li key={id}>
-            <span>
-              {summary} · {formatDate(fromDate).slice(0, 5)}
-              {toDate === fromDate ? '' : `–${formatDate(toDate).slice(0, 5)}`}
-              {rejectNote ? <span className={styles.timelineSub}> · {rejectNote}</span> : null}
-            </span>
-            <Tag color={status === 'approved' ? 'success' : status === 'rejected' ? 'error' : 'default'}>
-              {STATUS_LABELS[status]}
-            </Tag>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-type ScheduleTabProps = { requestsKey: number; brandColor: string | null; onChanged: () => void };
-
-/** Màn M3: lịch tuần, lịch tháng có chấm màu, chi tiết ngày, giải trình, đơn của tôi (US32, US33). */
-export function ScheduleTab({ requestsKey, brandColor, onChanged }: ScheduleTabProps) {
+/** Màn M3: lịch tuần, lịch tháng có chấm màu, chi tiết ngày, giải trình, đơn của tôi nằm ở tab Tôi (US32, US33). */
+export function ScheduleTab({ brandColor }: ScheduleTabProps) {
   const toast = useToast();
   const [month, setMonth] = useState<string | undefined>();
   const [view, setView] = useState<MyTimesheetView | null>(null);
@@ -277,8 +230,6 @@ export function ScheduleTab({ requestsKey, brandColor, onChanged }: ScheduleTabP
 
       <WeekList week={thisWeek} title="Tuần này" />
       <WeekList week={addDays(thisWeek, 7)} title="Tuần sau" />
-      <RegisterCard reloadKey={requestsKey} onSent={onChanged} />
-      <MyRequests reloadKey={requestsKey} />
 
       <Drawer
         open={selected !== null}

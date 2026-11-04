@@ -1,0 +1,1 @@
+ALTER TABLE "employee_positions" ADD COLUMN "pay_amount" bigint;

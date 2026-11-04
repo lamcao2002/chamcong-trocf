@@ -253,3 +253,101 @@
   color: var(--info-fg);
   font-size: 11px;
 }
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.publishBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--warn-fg);
+  border-radius: var(--radius-card);
+  background: var(--warn-bg);
+  color: var(--text);
+}
+
+/* Ô nháp: viền đứt màu cảnh báo, khác chấm "chưa lưu" và viền đứt xám của ca cố định */
+.draft {
+  border: 1px dashed var(--warn-fg);
+  background: var(--warn-bg);
+}
+
+.slot {
+  justify-content: flex-start;
+  align-items: stretch;
+  padding: 3px;
+}
+
+.slotNames {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.slotName {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--text);
+  font-size: 10px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Đăng ký chờ nhận: viền đứt màu thông tin như chip đăng ký ở kiểu Theo nhân viên */
+.slotPending {
+  padding: 0 2px;
+  border: 1px dashed var(--info-fg);
+  border-radius: 4px;
+  color: var(--info-fg);
+}
+
+.slotEmpty {
+  align-self: center;
+  color: var(--text-muted);
+}
+
+.slotRole {
+  color: var(--text-muted);
+}
+
+.nameFull {
+  display: none;
+}
+
+@media (min-width: 992px) {
+  .slot {
+    padding: 4px 6px;
+    text-align: left;
+  }
+
+  .slotName {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .nameShort {
+    display: none;
+  }
+
+  .nameFull {
+    display: inline;
+  }
+}
+
+.footnote {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}

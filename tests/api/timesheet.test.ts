@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { vietnamToday } from '../../lib/domain/date';
 import { addDays } from '../../lib/engine/time';
-import { COMPANY, api, employeeBody, login, sql } from './helpers';
+import { COMPANY, api, employeeBody, login, sql, publishCells } from './helpers';
 
 let admin: string;
 let manager: string;
@@ -22,7 +22,7 @@ const newEmployee = async (): Promise<Employee> => {
 };
 
 const schedule = (employeeId: string, date: string, shiftIds: string[]) =>
-  api('PUT', '/schedule', { cookie: admin, body: { cells: [{ employeeId, date, shiftIds, isOff: false }] } });
+  publishCells(admin, [{ employeeId, date, shiftIds, isOff: false }]);
 
 const punch = (employeeId: string, date: string, type: 'in' | 'out', clock: string, inZone = true) =>
   sql`insert into attendance_logs (company_id, employee_id, at, type, in_zone)

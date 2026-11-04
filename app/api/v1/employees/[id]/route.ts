@@ -1,8 +1,8 @@
 import { withAuth } from '@/lib/auth/guard';
-import { HR_UP } from '@/lib/auth/roles';
+import { ADMIN_ONLY, HR_UP } from '@/lib/auth/roles';
 import { ok, parseBody, routeId, type IdRoute } from '@/lib/api/server';
-import { getEmployee, updateEmployee } from '@/lib/services/employees';
-import { employeePatchSchema } from '@/lib/validation/employee';
+import { deleteEmployee, getEmployee, updateEmployee } from '@/lib/services/employees';
+import { employeeDeleteSchema, employeePatchSchema } from '@/lib/validation/employee';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,4 +17,14 @@ export const PATCH = withAuth<IdRoute>({ roles: HR_UP }, async (ctx, request, ro
   const id = await routeId(route, 'nhân viên');
   await updateEmployee(ctx, id, await parseBody(request, employeePatchSchema));
   return ok({ employee: await getEmployee(ctx, id) });
+});
+
+/** DELETE /api/v1/employees/:id — xoá hẳn nhân viên và dữ liệu của người đó; chỉ Quản trị viên. */
+export const DELETE = withAuth<IdRoute>({ roles: ADMIN_ONLY }, async (ctx, request, route) => {
+  await deleteEmployee(
+    ctx,
+    await routeId(route, 'nhân viên'),
+    await parseBody(request, employeeDeleteSchema),
+  );
+  return ok({});
 });

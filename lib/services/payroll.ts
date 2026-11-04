@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
+import { and, asc, between, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm';
 import { ApiError, notFound } from '@/lib/api/errors';
 import { writeAudit } from '@/lib/audit';
 import { scopeToCompany, type AuthContext } from '@/lib/auth/policy';
@@ -7,11 +7,13 @@ import { getDb } from '@/lib/db/client';
 import {
   adjustments,
   companies,
+  employeePositions,
   employees,
   payrollPeriods,
   payslips,
   positions,
   requests,
+  scheduleCells,
   shifts,
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
@@ -23,13 +25,16 @@ import {
   type PayLine,
   type PayProfile,
   type PayResult,
+  type RoleProfile,
 } from '@/lib/payroll/compute-pay';
+import { positionOfShift } from '@/lib/domain/shift-positions';
 import type { AdjustmentInput } from '@/lib/validation/payroll';
 import { actorOf } from './actor';
 import { assertCanDecide } from './approvals';
 import { notify } from './notifications';
 import { readDayRecords, staffInScope } from './day';
 import { firstLiveDay, loadEmployeeRules, recomputeDays } from './recompute';
+import { positionsOf } from './staff-positions';
 import { periodFor } from './timesheet';
 
 const DEFAULT_STD_DAYS = 26;
@@ -46,7 +51,10 @@ type PayslipSummary = PayResult['summary'] & {
 
 type Staff = Awaited<ReturnType<typeof staffInScope>>[number];
 
-/** Mức lương của từng người: ghi đè riêng thắng vị trí, người chưa có vị trí là 0đ. */
+/**
+ * Mức lương của từng người: ghi đè riêng thắng vị trí, người chưa có vị trí là 0đ. Vị trí phụ trả
+ * theo giờ hoặc theo công có mức riêng; lương riêng của người đó ở vị trí phụ thắng mức của vị trí.
+ */
 async function loadProfiles(ids: string[]) {
   const db = getDb();
   const [rules, rows] = await Promise.all([
@@ -57,31 +65,70 @@ async function loadProfiles(ids: string[]) {
       .leftJoin(positions, eq(positions.id, employees.positionId))
       .where(inArray(employees.id, ids)),
   ]);
+  const held = await positionsOf(
+    db,
+    rows.map(({ employee }) => employee),
+  );
+  const extraIds = [...new Set([...held.values()].flatMap((list) => list.slice(1)))];
+  const [extras, ownPay] =
+    extraIds.length === 0
+      ? [[], []]
+      : await Promise.all([
+          db.select().from(positions).where(inArray(positions.id, extraIds)),
+          db.select().from(employeePositions).where(inArray(employeePositions.employeeId, ids)),
+        ]);
 
   return new Map(
-    rows.map(({ employee, position }): [string, PayProfile & { fixedShiftId: string | null }] => {
+    rows.map(({ employee, position }): [string, Profile] => {
       const pay = employee.payOverride;
       const rule = rules.get(employee.id)!;
+      const stdDays = pay?.stdDays ?? position?.stdDays ?? DEFAULT_STD_DAYS;
+      const roles: Record<string, RoleProfile> = {};
+      for (const extra of extras) {
+        if (!held.get(employee.id)?.slice(1).includes(extra.id) || extra.payType === 'month') continue;
+        roles[extra.id] = {
+          name: extra.name,
+          payType: extra.payType,
+          payAmount:
+            ownPay.find((row) => row.employeeId === employee.id && row.positionId === extra.id)?.payAmount ??
+            extra.payAmount,
+          stdDays,
+          otRates: {
+            weekday: extra.otWeekday,
+            saturday: extra.otSaturday,
+            offday: extra.otOffday,
+            holiday: extra.otHoliday,
+          },
+        };
+      }
       return [
         employee.id,
         {
           payType: pay?.payType ?? position?.payType ?? 'month',
           payAmount: pay?.payAmount ?? position?.payAmount ?? 0,
-          stdDays: pay?.stdDays ?? position?.stdDays ?? DEFAULT_STD_DAYS,
+          stdDays,
           otRates: rule.otRates,
           fixedShiftId: rule.fixedShiftId,
+          primaryId: employee.positionId,
+          roles,
         },
       ];
     }),
   );
 }
 
+type Profile = PayProfile & {
+  fixedShiftId: string | null;
+  primaryId: string | null;
+  roles: Record<string, RoleProfile>;
+};
+
 /** Tiền lương cả nhóm của một kỳ, tính khi đọc từ cùng nguồn với Hộp việc và Bảng công. */
 async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to: string, key: string) {
   const db = getDb();
   const ids = staff.map(({ id }) => id);
   const today = vietnamToday();
-  const [profiles, records, library, adjustmentRows, pendingRequests] = await Promise.all([
+  const [profiles, records, library, adjustmentRows, pendingRequests, cells] = await Promise.all([
     loadProfiles(ids),
     readDayRecords(db, ctx.company.id, ids, from, to < today ? to : today),
     db
@@ -106,6 +153,14 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
           gte(requests.toDate, from),
         ),
       ),
+    db
+      .select({
+        employeeId: scheduleCells.employeeId,
+        date: scheduleCells.date,
+        positions: scheduleCells.positions,
+      })
+      .from(scheduleCells)
+      .where(and(inArray(scheduleCells.employeeId, ids), between(scheduleCells.date, from, to))),
   ]);
 
   const hoursOf = (shiftId: string | null) => library.find(({ id }) => id === shiftId)?.stdHours ?? null;
@@ -113,15 +168,23 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
   return staff.map((person) => {
     const profile = profiles.get(person.id)!;
     const own = records.filter(({ employeeId }) => employeeId === person.id);
+    const roleOf = ({ date, shiftId }: (typeof own)[number]) => {
+      if (!shiftId) return null;
+      const cell = cells.find((row) => row.employeeId === person.id && row.date === date);
+      const positionId = positionOfShift(cell?.positions, shiftId, profile.primaryId);
+      return positionId && profile.roles[positionId] ? positionId : null;
+    };
     const days: PayDay[] = own.map((record) => ({
       ...record,
       stdHours: hoursOf(record.shiftId) ?? hoursOf(profile.fixedShiftId),
+      roleId: roleOf(record),
     }));
     const manual = adjustmentRows.filter(({ employeeId }) => employeeId === person.id);
     const issues =
       own.filter(({ needsReview }) => needsReview).length +
       pendingRequests.filter(({ employeeId }) => employeeId === person.id).length;
-    return { ...person, profile, manual, issues, pay: computePay({ profile, days, adjustments: manual }) };
+    const pay = computePay({ profile, days, adjustments: manual, roles: profile.roles });
+    return { ...person, profile, manual, issues, pay };
   });
 }
 

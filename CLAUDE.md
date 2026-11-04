@@ -16,7 +16,7 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 |---|---|
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
-| `docs/product/08-should-have.md` | Danh sách việc SH-01…SH-35 sau MVP, thứ tự nhóm, quyết định đang để mặc định |
+| `docs/product/08-should-have.md` | Danh sách việc SH-01…SH-38 sau MVP, thứ tự nhóm, quyết định đang để mặc định |
 | `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, 18 ca P01–P18, kế hoạch production |
 | `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
@@ -125,6 +125,11 @@ Cập nhật bảng này khi xong một việc.
 | SH-19 Đơn Muộn/sớm | Code xong, engine thêm T60–T66; miễn tính muộn, không đổi công |
 | SH-20 Đơn Đổi ca | Code xong: duyệt thì sửa lịch hai ngày; đã có lần chấm thì chặn |
 | SH-27, SH-28 Gắn thiết bị | Code xong `lib/services/device.ts`, mặc định tắt; gắn ở lần chấm đầu, chỉ chặn ở bước chấm; **chưa thử iPhone/Android thật, không bật cho quán trước khi thử** |
+| SH-36 → SH-38 Nhiều vị trí, Theo ca, lịch nháp | Code xong: vị trí phụ, vị trí từng ca, lương theo vị trí của ca (P19–P21), nháp + Công bố/Bỏ nháp theo tuần, kiểu xem Theo ca; đã thử Chrome 375 và 1440 px. lương riêng từng vị trí; **cần áp migration `0005_positions_drafts` và `0006_extra_position_pay` trước khi deploy** |
+| App nhân viên: tab Tôi, sheet Tạo đơn mới | Code xong: thanh dưới 4 tab + nút giữa, tab Tôi để trống; Đăng ký ca chọn trong sheet Tạo đơn (có ghi chú), bỏ thẻ ở tab Lịch; đã thử Chrome 320 và 375 px, **chưa thử điện thoại thật** |
+| Sửa, xoá đơn; giờ mở đăng ký ca | Code xong: sửa/xoá đơn còn Chờ trong 10 phút, đăng ký ca chỉ gửi/bỏ trong 07:00 T5 – 07:00 T7; Đơn của tôi ở tab Tôi; **chưa thử điện thoại thật** |
+| Đơn từ (lịch sử đơn cho quản lý) | Code xong `/app/don-tu`, `GET /requests`, `lib/services/request-history.ts`; đã thử Chrome 375 và 1440 px |
+| Xoá nhân viên (ngoài danh sách SH) | Code xong `DELETE /employees/:id`, chỉ Quản trị viên, gõ lại email; xoá dữ liệu của người đó, giữ quyết định họ đã đưa cho người khác và bỏ tên |
 
 ## Lệnh
 
@@ -133,7 +138,7 @@ npm install && cp .env.example .env.local
 npm run db:up        # Postgres docker
 npm run dev
 npm run check        # lint + typecheck + format + test — chạy trước khi commit
-npm run test:api     # test API qua HTTP: cần app đang chạy, DATABASE_URL phải là localhost
+npm run test:api     # test API qua HTTP: cần app đang chạy với REGISTRATION_ALWAYS_OPEN=1, DATABASE_URL phải là localhost
 npm run test:e2e     # Playwright trên app đang chạy; PW_CHANNEL=chrome để dùng Chrome của máy
 npm run db:generate  # sau khi sửa lib/db/schema.ts, commit cả thư mục drizzle/
 npm run db:migrate
@@ -158,9 +163,13 @@ npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn V�
 - Excel và phiếu in lấy số qua `getPayrollDocument`; modal hiện PIN phải `destroyOnHidden`, nếu không PIN nằm lại trong DOM
 - Duyệt hàng loạt không nhận quyết định từ client: chỉ nhận khoá việc và nhãn đã thấy, đề xuất lấy lại qua `getInbox`
 - Kỳ lệch và Tự chọn chỉ là khoảng xem của Bảng công; Lương, Hộp việc và phiếu luôn theo `companies.cutoff_day`
-- Thông báo ghi bằng `notify` trong cùng transaction với việc gây ra nó; đổi ô lịch đi qua `writeCells`
+- Thông báo ghi bằng `notify` trong cùng transaction với việc gây ra nó; đổi ô lịch đã công bố đi qua `writeCells`
+- Lưu lịch từ ngày mai trở đi vào `schedule_drafts` (`lib/services/schedule-drafts.ts`); nhân viên, Bảng công, Lương chỉ đọc `schedule_cells`. Công bố/Bỏ nháp ở `schedule-publish.ts`
+- Vị trí của nhân viên đọc qua `positionsOf` (`lib/services/staff-positions.ts`, vị trí chính đứng đầu); vị trí của ca qua `positionOfShift`, ca chưa ghi là vị trí chính
 - Gắn thiết bị dùng cookie httpOnly `cc_device`, không dùng localStorage, không xoá khi đăng xuất; `device_hash` không bao giờ ra API hay `audit_logs`
+- Thêm bảng có `employee_id` thì thêm vào `deleteEmployee` (`lib/services/employees.ts`) và `TABLES` của `tests/api/employee-delete.test.ts`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
+- Hạn sửa đơn và giờ mở đăng ký ca tính bằng `editableUntil`, `registrationWindow` (`lib/domain/request-window.ts`); service đọc đợt qua `currentRegistrationWindow`. Test API cần `REGISTRATION_ALWAYS_OPEN=1`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)
 - Migration chỉ thêm (expand); không sửa migration đã merge

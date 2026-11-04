@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { vietnamToday } from '../../lib/domain/date';
 import { addDays } from '../../lib/engine/time';
-import { COMPANY, api, auditCount, employeeBody, login, sql } from './helpers';
+import { COMPANY, api, auditCount, employeeBody, login, sql, publishCells } from './helpers';
 
 let admin: string;
 let manager: string;
@@ -21,7 +21,7 @@ const newEmployee = async (overrides: object = {}, position = 'Phục vụ'): Pr
 };
 
 const schedule = (employeeId: string, date: string, shiftIds: string[]) =>
-  api('PUT', '/schedule', { cookie: admin, body: { cells: [{ employeeId, date, shiftIds, isOff: false }] } });
+  publishCells(admin, [{ employeeId, date, shiftIds, isOff: false }]);
 
 const send = (session: string, body: object) => api('POST', '/app/requests', { cookie: session, body });
 const decide = (id: string, body: object, cookie = admin) =>
@@ -303,6 +303,155 @@ describe('quyết định đơn (US33)', () => {
     expect((await decide('abc', { decision: 'approve' })).status).toBe(404);
     expect((await decide('00000000-0000-0000-0000-000000000000', { decision: 'approve' })).status).toBe(404);
     expect((await decide('00000000-0000-0000-0000-000000000000', { decision: 'x' })).status).toBe(400);
+  });
+});
+
+describe('nhân viên sửa, xoá đơn của mình', () => {
+  const edit = (session: string, id: string, body: object) =>
+    api('PATCH', `/app/requests/${id}`, { cookie: session, body });
+  const remove = (session: string, id: string) => api('DELETE', `/app/requests/${id}`, { cookie: session });
+  const mine = async (session: string) =>
+    (await api('GET', '/app/requests', { cookie: session })).body.requests;
+  const scheduled = async () => {
+    const person = await newEmployee();
+    await schedule(person.id, tomorrow, [shifts.SANG.id]);
+    await schedule(person.id, addDays(tomorrow, 1), [shifts.SANG.id]);
+    return person;
+  };
+
+  it('trong 10 phút: sửa được, không tính trùng với chính nó, ghi nhật ký', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    const usedBefore = (await balance(person.session)).used;
+    const [row] = await mine(person.session);
+    expect(row.editableUntil).not.toBeNull();
+    expect(row.payload).toMatchObject({ leaveType: 'annual' });
+
+    const before = await auditCount('request.update');
+    const result = await edit(person.session, sent.body.request.id, {
+      ...leave(tomorrow, addDays(tomorrow, 1)),
+      reason: 'Về quê hai ngày',
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.request).toMatchObject({ toDate: addDays(tomorrow, 1), reason: 'Về quê hai ngày' });
+    expect(await auditCount('request.update')).toBe(before + 1);
+    // Ca sáng là ca ghép: 0,5 ngày mỗi ngày, hai ngày là 1 ngày phép (gấp đôi lúc trước khi sửa)
+    expect((await balance(person.session)).used).toBe(2 * usedBefore);
+  });
+
+  it('không đổi được loại đơn', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    const other = {
+      type: 'overtime',
+      date: tomorrow,
+      when: 'after',
+      from: '12:00',
+      to: '13:00',
+      reason: 'Kiểm kho',
+    };
+    expect((await edit(person.session, sent.body.request.id, other)).status).toBe(400);
+  });
+
+  it('xoá hẳn đơn, nhật ký giữ bản đã xoá', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    const before = await auditCount('request.delete');
+    expect((await remove(person.session, sent.body.request.id)).status).toBe(200);
+    expect(await sql`select 1 from requests where id = ${sent.body.request.id}`).toHaveLength(0);
+    expect(await auditCount('request.delete')).toBe(before + 1);
+    expect(await mine(person.session)).toHaveLength(0);
+  });
+
+  it('quá 10 phút thì khoá', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    await sql`update requests set created_at = now() - interval '11 minutes' where id = ${sent.body.request.id}`;
+    expect((await mine(person.session))[0].editableUntil).toBeNull();
+    expect((await edit(person.session, sent.body.request.id, leave(tomorrow))).status).toBe(409);
+    expect((await remove(person.session, sent.body.request.id)).status).toBe(409);
+  });
+
+  it('đã được duyệt hoặc từ chối thì khoá dù chưa hết 10 phút', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    await decide(sent.body.request.id, { decision: 'reject', note: 'Thiếu người' });
+    expect((await mine(person.session))[0].editableUntil).toBeNull();
+    expect((await remove(person.session, sent.body.request.id)).status).toBe(409);
+  });
+
+  it('không đụng được đơn của người khác; cần phiên app', async () => {
+    const owner = await scheduled();
+    const other = await newEmployee();
+    const sent = await send(owner.session, leave(tomorrow));
+    expect((await remove(other.session, sent.body.request.id)).status).toBe(404);
+    expect((await edit(other.session, sent.body.request.id, leave(tomorrow))).status).toBe(404);
+    expect((await api('DELETE', `/app/requests/${sent.body.request.id}`)).status).toBe(401);
+    expect((await api('DELETE', `/app/requests/${sent.body.request.id}`, { cookie: admin })).status).toBe(
+      401,
+    );
+    expect((await remove(owner.session, 'khong-phai-id')).status).toBe(404);
+  });
+});
+
+describe('lịch sử đơn cho quản lý', () => {
+  const history = async (cookie = admin, period?: string) =>
+    (await api('GET', `/requests${period ? `?period=${period}` : ''}`, { cookie })).body.history;
+
+  it('mọi trạng thái, có người duyệt và lúc duyệt; đơn đã xoá không còn', async () => {
+    const person = await newEmployee();
+    await schedule(person.id, tomorrow, [shifts.SANG.id]);
+    const approved = (await send(person.session, leave(tomorrow))).body.request.id;
+    await decide(approved, { decision: 'approve' });
+    const other = {
+      type: 'overtime',
+      date: tomorrow,
+      when: 'after',
+      from: '12:00',
+      to: '13:00',
+      reason: 'Kiểm kho',
+    };
+    const rejected = (await send(person.session, other)).body.request.id;
+    await decide(rejected, { decision: 'reject', note: 'Không cần làm thêm' });
+    const lateBody = {
+      type: 'late_early',
+      kind: 'late',
+      date: tomorrow,
+      minutes: 10,
+      shiftId: '',
+      reason: 'Kẹt xe',
+    };
+    const pending = (await send(person.session, lateBody)).body.request.id;
+    const removed = (await send(person.session, { ...lateBody, kind: 'early' })).body.request.id;
+    await api('DELETE', `/app/requests/${removed}`, { cookie: person.session });
+
+    const view = await history(admin, tomorrow.slice(0, 7));
+    const mine = view.requests.filter((row: any) => row.employeeId === person.id);
+    expect(mine.map(({ id }: any) => id).sort()).toEqual([approved, rejected, pending].sort());
+    const byId = (id: string) => mine.find((row: any) => row.id === id);
+    expect(byId(approved)).toMatchObject({
+      status: 'approved',
+      deciderName: expect.any(String),
+      decidable: false,
+    });
+    expect(byId(approved).decidedAt).not.toBeNull();
+    expect(byId(rejected)).toMatchObject({ status: 'rejected', rejectNote: 'Không cần làm thêm' });
+    expect(byId(pending)).toMatchObject({ status: 'pending', decidable: true, decidedAt: null });
+    expect(byId(pending).summary).toContain('10 phút');
+  });
+
+  it('Quản lý nhóm chỉ thấy đơn của người mình quản lý', async () => {
+    const view = await history(manager);
+    const managed = await sql`select id from employees where manager_id = (
+      select id from employees where email = 'minh@phonho.vn')`;
+    const ids = new Set(managed.map(({ id }) => id));
+    expect(view.requests.every((row: any) => ids.has(row.employeeId))).toBe(true);
+  });
+
+  it('kỳ sai thì về kỳ hiện tại; cần phiên quản trị', async () => {
+    expect((await api('GET', '/requests?period=abc', { cookie: admin })).status).toBe(200);
+    const person = await newEmployee();
+    expect((await api('GET', '/requests', { cookie: person.session })).status).toBe(401);
   });
 });
 

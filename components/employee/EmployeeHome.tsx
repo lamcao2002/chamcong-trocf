@@ -6,10 +6,12 @@ import { LogoutOutlined } from '@ant-design/icons';
 import { useLogout } from '@/components/common/useLogout';
 import { ROLE_LABELS, type Role } from '@/lib/auth/roles';
 import type { AppHome } from '@/lib/services/attendance';
+import type { MyRequestView } from '@/lib/services/requests';
 import { buildAntdTheme } from '@/lib/theme/tokens';
 import { EmployeeNav, useHashTab } from './EmployeeNav';
 import { NotificationBell } from './NotificationBell';
 import { PayslipTab } from './PayslipTab';
+import { ProfileTab } from './ProfileTab';
 import { PunchScreen } from './PunchScreen';
 import { RequestSheet } from './RequestSheet';
 import { ScheduleTab } from './ScheduleTab';
@@ -29,6 +31,7 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
   const tab = useHashTab();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [requestsKey, setRequestsKey] = useState(0);
+  const [editing, setEditing] = useState<MyRequestView | null>(null);
 
   return (
     <>
@@ -52,18 +55,30 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
         <div hidden={tab !== 'cham'}>
           <PunchScreen home={home} />
         </div>
-        {tab === 'lich' ? (
-          <ScheduleTab
-            requestsKey={requestsKey}
-            brandColor={brandColor}
+        {tab === 'lich' ? <ScheduleTab brandColor={brandColor} /> : null}
+        {tab === 'luong' ? <PayslipTab brandColor={brandColor} /> : null}
+        {tab === 'toi' ? (
+          <ProfileTab
+            reloadKey={requestsKey}
+            onEdit={(request) => {
+              setEditing(request);
+              setSheetOpen(true);
+            }}
             onChanged={() => setRequestsKey((key) => key + 1)}
           />
         ) : null}
-        {tab === 'luong' ? <PayslipTab brandColor={brandColor} /> : null}
-        <EmployeeNav tab={tab} onCreate={() => setSheetOpen(true)} />
+        <EmployeeNav
+          tab={tab}
+          onCreate={() => {
+            setEditing(null);
+            setSheetOpen(true);
+          }}
+        />
         <RequestSheet
           open={sheetOpen}
           choices={home.choices}
+          brandColor={brandColor}
+          editing={editing}
           onClose={() => setSheetOpen(false)}
           onSent={() => setRequestsKey((key) => key + 1)}
         />

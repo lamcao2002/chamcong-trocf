@@ -11,6 +11,7 @@ import { addDays, atMinute, minuteOfDay } from '@/lib/engine/time';
 import type { Suggestion } from '@/lib/engine/types';
 import { canDecideOwn } from './approvals';
 import { readDayRecords, staffInScope, type DayView } from './day';
+import { draftedRegistrationIds } from './schedule-drafts';
 
 /** Quá mốc này sau giờ vào ca mà chưa chấm thì tính là Chưa chấm công (US23). */
 const MISSING_AFTER_MINUTES = 15;
@@ -133,13 +134,14 @@ export type InboxView = Awaited<ReturnType<typeof getInbox>>;
 export async function inboxBetween(ctx: AuthContext, from: string, to: string, now: Date = new Date()) {
   const db = getDb();
   const today = vietnamToday(now);
-  const [allStaff, library, ownAllowed] = await Promise.all([
+  const [allStaff, library, ownAllowed, drafted] = await Promise.all([
     staffInScope(ctx, from),
     db
       .select({ id: shifts.id, name: shifts.name, startTime: shifts.startTime, endTime: shifts.endTime })
       .from(shifts)
       .where(scopeToCompany(ctx, shifts.companyId)),
     canDecideOwn(db, ctx),
+    draftedRegistrationIds(db, ctx.company.id),
   ]);
   const staff = ownAllowed ? allStaff : allStaff.filter(({ id }) => id !== ctx.employee.id);
   const ids = staff.map(({ id }) => id);
@@ -166,7 +168,8 @@ export async function inboxBetween(ctx: AuthContext, from: string, to: string, n
   const shiftName = (id: unknown) => library.find((shift) => shift.id === id)?.name ?? null;
   const requestItems = pending.flatMap((request): InboxItem[] => {
     const employee = staff.find(({ id }) => id === request.employeeId);
-    if (!employee) return [];
+    // Đăng ký đã nhận vào nháp chờ Công bố ở màn Xếp ca, không mời nhận lại
+    if (!employee || drafted.has(request.id)) return [];
     const kind: InboxKind = request.type === 'shift_register' ? 'dang_ky' : 'don';
     return [
       {

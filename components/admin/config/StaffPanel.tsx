@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Alert,
@@ -21,6 +21,7 @@ import {
   Typography,
 } from 'antd';
 import {
+  DeleteOutlined,
   KeyOutlined,
   MobileOutlined,
   PlusOutlined,
@@ -46,6 +47,7 @@ import type { ShiftView } from '@/lib/services/shifts';
 import { tokens } from '@/lib/theme/tokens';
 import { employeeCreateSchema } from '@/lib/validation/employee';
 import { BulkAddModal } from './BulkAddModal';
+import { DeleteEmployeeModal } from './DeleteEmployeeModal';
 import { InviteModal } from './InviteModal';
 import { MoneyInput } from './MoneyInput';
 import { PAY_UNITS } from './PositionsPanel';
@@ -74,8 +76,11 @@ type StaffForm = {
   role: Role;
   managerId: string | null;
   positionId: string | null;
+  extraPositionIds?: string[];
   payOn: boolean;
   payAmount?: number;
+  /** Mức riêng ở từng vị trí phụ, theo mã vị trí. */
+  extraPay?: Record<string, number | null | undefined>;
   shiftsOn: boolean;
   shiftIds?: string[];
   locationsOn: boolean;
@@ -111,8 +116,23 @@ export function StaffPanel({
   const [pinNotice, setPinNotice] = useState<{ name: string; email: string; pin: string }>();
   const [resetting, setResetting] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
+  const closeDelete = useCallback(() => setDeleting(null), []);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+
+  /** Chỉ bật Lương riêng cho vị trí phụ thì vị trí chính vẫn theo vị trí, không lưu ghi đè rỗng. */
+  const ownPay = (editingId: string | null | undefined, payAmount: number | undefined) => {
+    const override = { ...employees.find(({ id }) => id === editingId)?.payOverride, payAmount };
+    return Object.values(override).some((value) => value !== undefined) ? override : null;
+  };
+  const extraPayOf = (values: StaffForm) =>
+    Object.fromEntries(
+      (values.positionId ? (values.extraPositionIds ?? []) : []).flatMap((id) => {
+        const amount = values.extraPay?.[id];
+        return typeof amount === 'number' ? [[id, amount]] : [];
+      }),
+    );
 
   const drawer = useCrudDrawer<StaffForm>({
     baseUrl: '/api/v1/employees',
@@ -126,9 +146,11 @@ export function StaffPanel({
       role: values.role,
       managerId: values.managerId ?? null,
       positionId: values.positionId ?? null,
-      payOverride: values.payOn
-        ? { ...employees.find(({ id }) => id === editingId)?.payOverride, payAmount: values.payAmount }
-        : null,
+      extraPositionIds: values.positionId
+        ? (values.extraPositionIds ?? []).filter((id) => id !== values.positionId)
+        : [],
+      payOverride: values.payOn ? ownPay(editingId, values.payAmount) : null,
+      extraPayAmounts: values.payOn ? extraPayOf(values) : {},
       shiftIds: values.shiftsOn ? (values.shiftIds ?? []) : null,
       locationIds: values.locationsOn ? (values.locationIds ?? []) : null,
       ...(values.status ? { status: values.status } : {}),
@@ -143,11 +165,13 @@ export function StaffPanel({
 
   const positionId = Form.useWatch('positionId', drawer.form);
   const payOn = Form.useWatch('payOn', drawer.form);
+  const extraIds = Form.useWatch('extraPositionIds', drawer.form) as string[] | undefined;
   const shiftsOn = Form.useWatch('shiftsOn', drawer.form);
   const locationsOn = Form.useWatch('locationsOn', drawer.form);
   const editing = employees.find((employee) => employee.id === drawer.editingId);
   const readOnly = editing ? !canEditEmployee(viewer, editing) : false;
   const inherited = positions.find((position) => position.id === positionId);
+  const extras = positions.filter(({ id }) => id !== positionId && (extraIds ?? []).includes(id));
   const isSelf = editing?.id === viewer.id;
 
   const shiftCode = (id: string) => shifts.find((shift) => shift.id === id)?.code ?? '?';
@@ -174,6 +198,7 @@ export function StaffPanel({
       role: 'app',
       managerId: null,
       positionId: null,
+      extraPositionIds: [],
       payOn: false,
       shiftsOn: false,
       locationsOn: false,
@@ -190,8 +215,10 @@ export function StaffPanel({
         role: employee.role,
         managerId: employee.managerId,
         positionId: employee.positionId,
-        payOn: Boolean(employee.payOverride),
+        extraPositionIds: employee.extraPositionIds,
+        payOn: Boolean(employee.payOverride) || Object.keys(employee.extraPayAmounts).length > 0,
         payAmount: employee.payOverride?.payAmount,
+        extraPay: employee.extraPayAmounts,
         shiftsOn: Boolean(employee.shiftIds),
         shiftIds: employee.shiftIds ?? undefined,
         locationsOn: Boolean(employee.locationIds),
@@ -305,8 +332,12 @@ export function StaffPanel({
                     {employee.deviceBoundAt ? <Tag>Đã gắn máy</Tag> : null}
                   </span>
                   <span className={styles.muted}>
-                    {position?.name ?? 'Chưa gắn vị trí'} · {CONTRACT_LABELS[employee.contract]} ·{' '}
-                    {employee.email}
+                    {position
+                      ? [position, ...positions.filter(({ id }) => employee.extraPositionIds.includes(id))]
+                          .map(({ name }) => name)
+                          .join(' + ')
+                      : 'Chưa gắn vị trí'}{' '}
+                    · {CONTRACT_LABELS[employee.contract]} · {employee.email}
                   </span>
                 </span>
                 <RightOutlined aria-hidden />
@@ -319,6 +350,15 @@ export function StaffPanel({
         </div>
       </Card>
 
+      <DeleteEmployeeModal
+        employee={deleting}
+        onClose={closeDelete}
+        onDeleted={() => {
+          setDeleting(null);
+          drawer.close();
+          router.refresh();
+        }}
+      />
       <BulkAddModal
         open={bulkOpen}
         companyCode={companyCode}
@@ -348,6 +388,15 @@ export function StaffPanel({
               <Button icon={<KeyOutlined />} loading={resetting} onClick={() => void resetPin()}>
                 Đặt lại PIN
               </Button>
+              {viewer.role === 'admin' && !isSelf ? (
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => setDeleting({ id: editing.id, name: editing.name })}
+                >
+                  Xoá
+                </Button>
+              ) : null}
               {editing.deviceBoundAt ? (
                 <Button icon={<MobileOutlined />} loading={unlocking} onClick={() => void unlockDevice()}>
                   Mở khoá máy
@@ -427,13 +476,32 @@ export function StaffPanel({
           <Divider plain orientation="left">
             Vị trí
           </Divider>
-          <Form.Item label="Vị trí" name="positionId">
+          <Form.Item label="Vị trí" name="positionId" extra="Vị trí chính: mặc định khi xếp ca.">
             <Select
               allowClear
               placeholder="Chọn vị trí"
               options={positions.map(({ id, name }) => ({ value: id, label: name }))}
             />
           </Form.Item>
+          {positionId ? (
+            <Form.Item
+              label="Vị trí khác"
+              name="extraPositionIds"
+              extra="Làm được thêm các vị trí này. Ca xếp ở vị trí nào thì tính lương theo vị trí đó (vị trí trả theo giờ hoặc theo công)."
+            >
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="Không có"
+                options={positions
+                  .filter(({ id }) => id !== positionId)
+                  .map(({ id, name, payType, payAmount }) => ({
+                    value: id,
+                    label: `${name} · ${formatMoney(payAmount)}${PAY_UNITS[payType]}`,
+                  }))}
+              />
+            </Form.Item>
+          ) : null}
 
           {inherited ? (
             <Alert
@@ -462,13 +530,42 @@ export function StaffPanel({
           </Form.Item>
           {payOn ? (
             <Form.Item
-              label={`Mức riêng${inherited ? ` (${PAY_UNITS[inherited.payType]})` : ''}`}
+              label={`Mức riêng${extras.length > 0 && inherited ? ` · ${inherited.name}` : ''}${inherited ? ` (${PAY_UNITS[inherited.payType]})` : ''}`}
               name="payAmount"
-              extra={inherited ? `Vị trí: ${formatMoney(inherited.payAmount)}` : undefined}
+              extra={
+                inherited
+                  ? `Vị trí: ${formatMoney(inherited.payAmount)}. Để trống là theo vị trí.`
+                  : undefined
+              }
             >
               <MoneyInput />
             </Form.Item>
           ) : null}
+          {payOn && inherited?.payType === 'month' && extras.length > 0 ? (
+            <Alert
+              style={{ marginBottom: 16 }}
+              type="info"
+              message="Vị trí chính trả theo tháng: mọi ca tính một mức chung, không tách theo vị trí phụ."
+            />
+          ) : null}
+          {payOn && inherited?.payType !== 'month'
+            ? extras.map((extra) =>
+                extra.payType === 'month' ? (
+                  <Typography.Paragraph key={extra.id} type="secondary">
+                    {extra.name} trả theo tháng: ca ở vị trí này tính theo mức của vị trí chính.
+                  </Typography.Paragraph>
+                ) : (
+                  <Form.Item
+                    key={extra.id}
+                    label={`Mức riêng · ${extra.name} (${PAY_UNITS[extra.payType]})`}
+                    name={['extraPay', extra.id]}
+                    extra={`Vị trí: ${formatMoney(extra.payAmount)}. Để trống là theo vị trí.`}
+                  >
+                    <MoneyInput />
+                  </Form.Item>
+                ),
+              )
+            : null}
 
           <Form.Item label="Ca riêng" name="shiftsOn" valuePropName="checked">
             <Switch />

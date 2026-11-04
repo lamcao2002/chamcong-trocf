@@ -7,7 +7,7 @@ import { registrationDecisionSchema } from '@/lib/validation/request';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** POST /api/v1/schedule/registrations — nhận hoặc từ chối nhiều đăng ký; nhận là ghi vào lịch (SCH-12). */
+/** POST /api/v1/schedule/registrations — nhận hoặc từ chối nhiều đăng ký; nhận từ ngày mai trở đi là vào nháp (SCH-12). */
 export const POST = withAuth({ roles: MANAGERS }, async (ctx, request) =>
   ok({ result: await decideRegistrations(ctx, await parseBody(request, registrationDecisionSchema)) }),
 );

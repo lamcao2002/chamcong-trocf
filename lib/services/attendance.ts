@@ -25,13 +25,17 @@ import { actorOf } from './actor';
 import { bindDevice, type DeviceCheck } from './device';
 import { loadEmployeeRules, recomputeDays } from './recompute';
 import { allowedShiftIds } from './schedule';
+import { positionsOf } from './staff-positions';
 
 /** Lần vào không có lần ra quá mốc này thì coi là quên RA CA, nút quay lại VÀO CA. */
 const OPEN_PUNCH_MS = 18 * 60 * 60 * 1000;
 
 type Reader = Pick<Tx, 'select'>;
 
-/** Địa điểm được chấm: ghi đè Địa điểm riêng thắng địa điểm của vị trí; `anyLocation` là ở đâu cũng được. */
+/**
+ * Địa điểm được chấm: ghi đè Địa điểm riêng thắng địa điểm của vị trí; `anyLocation` là ở đâu cũng
+ * được. Người làm nhiều vị trí chấm được ở mọi địa điểm của các vị trí đó.
+ */
 async function allowedLocations(db: Reader, employeeId: string, positionId: string | null) {
   const columns = {
     id: locations.id,
@@ -46,18 +50,19 @@ async function allowedLocations(db: Reader, employeeId: string, positionId: stri
     .innerJoin(locations, eq(locations.id, employeeLocations.locationId))
     .where(eq(employeeLocations.employeeId, employeeId));
   if (own.length > 0) return { anyLocation: false, locations: own };
-  if (!positionId) return { anyLocation: false, locations: [] };
+  const held = (await positionsOf(db, [{ id: employeeId, positionId }])).get(employeeId) ?? [];
+  if (held.length === 0) return { anyLocation: false, locations: [] };
 
-  const [position] = await db
-    .select({ anyLocation: positions.anyLocation })
-    .from(positions)
-    .where(eq(positions.id, positionId));
-  const inherited = await db
-    .select(columns)
-    .from(positionLocations)
-    .innerJoin(locations, eq(locations.id, positionLocations.locationId))
-    .where(eq(positionLocations.positionId, positionId));
-  return { anyLocation: position?.anyLocation ?? false, locations: inherited };
+  const [flags, inherited] = await Promise.all([
+    db.select({ anyLocation: positions.anyLocation }).from(positions).where(inArray(positions.id, held)),
+    db
+      .select(columns)
+      .from(positionLocations)
+      .innerJoin(locations, eq(locations.id, positionLocations.locationId))
+      .where(inArray(positionLocations.positionId, held)),
+  ]);
+  const unique = inherited.filter((row, index) => inherited.findIndex(({ id }) => id === row.id) === index);
+  return { anyLocation: flags.some(({ anyLocation }) => anyLocation), locations: unique };
 }
 
 /** Dữ liệu màn Chấm công: ca hôm nay, ca được chọn, địa điểm, dòng thời gian (US17, US20). */

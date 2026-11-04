@@ -113,6 +113,8 @@ export const registrationSchema = z.object({
     .array(z.object({ date: isoDate, shiftId: uuid }))
     .min(1)
     .max(MAX_REGISTER_CELLS),
+  /** Ghi chú cho quản lý, vd "Thứ Tư em chỉ làm được ca chiều"; lưu vào lý do của từng ô. */
+  note: z.string().trim().max(500).optional(),
 });
 
 export type RegistrationInput = z.infer<typeof registrationSchema>;
@@ -121,6 +123,8 @@ export const registrationDecisionSchema = z.object({
   ids: z.array(uuid).min(1).max(500),
   decision: z.enum(['approve', 'reject']),
   note: z.string().trim().max(500).nullable().optional(),
+  /** Vị trí cho ca được nhận; bỏ trống là vị trí chính của từng người. */
+  positionId: uuid.nullable().optional(),
 });
 
 export type RegistrationDecisionInput = z.infer<typeof registrationDecisionSchema>;
