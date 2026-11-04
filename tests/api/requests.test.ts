@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { vietnamToday } from '../../lib/domain/date';
 import { addDays } from '../../lib/engine/time';
-import { COMPANY, api, auditCount, employeeBody, login, sql } from './helpers';
+import { COMPANY, api, auditCount, employeeBody, login, sql, publishCells } from './helpers';
 
 let admin: string;
 let manager: string;
@@ -21,7 +21,7 @@ const newEmployee = async (overrides: object = {}, position = 'Phục vụ'): Pr
 };
 
 const schedule = (employeeId: string, date: string, shiftIds: string[]) =>
-  api('PUT', '/schedule', { cookie: admin, body: { cells: [{ employeeId, date, shiftIds, isOff: false }] } });
+  publishCells(admin, [{ employeeId, date, shiftIds, isOff: false }]);
 
 const send = (session: string, body: object) => api('POST', '/app/requests', { cookie: session, body });
 const decide = (id: string, body: object, cookie = admin) =>

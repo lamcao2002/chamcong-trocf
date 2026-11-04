@@ -5,6 +5,7 @@ import { computePay, type PayDay, type PayProfile, type PayResult } from './comp
 
 const RATES = { weekday: 150, saturday: null, offday: 200, holiday: 300 };
 const WEDNESDAY = '2026-10-07';
+const PV = 'phuc-vu';
 const SATURDAY = '2026-10-10';
 
 const day = (fields: Partial<PayDay> = {}): PayDay => ({
@@ -219,11 +220,67 @@ const CASES: Case[] = [
     title: 'lương giờ: thiếu giờ được duyệt 1 công vẫn có tiền',
     check: () => expect(pay(hour(25_000), [day({ cong: 1, missing: 1, stdHours: 5 })]).net).toBe(125_000),
   },
+  {
+    id: 'P19',
+    title: 'nhiều vị trí: mỗi ca theo mức của vị trí đã xếp',
+    check: () => {
+      const result = computePay({
+        profile: hour(25_000),
+        days: [day({ cong: 1, workedMin: 600 }), day({ cong: 1, workedMin: 300, roleId: PV })],
+        adjustments: [],
+        roles: { [PV]: { ...hour(22_000), payType: 'hour', name: 'Phục vụ' } },
+      });
+      expect(result.lines.map(({ key, amount }) => [key, amount])).toEqual([
+        ['base', 250_000],
+        [`base_${PV}`, 110_000],
+      ]);
+      expect(result.lines[1]!.name).toBe('Lương theo giờ · Phục vụ');
+      expect(result.net).toBe(360_000);
+    },
+  },
+  {
+    id: 'P20',
+    title: 'nhiều vị trí: OT của ca vị trí phụ theo đơn giá và % của vị trí đó',
+    check: () => {
+      const ot = day({
+        cong: 1,
+        workedMin: 300,
+        otProposed: 60,
+        otApproved: 60,
+        otState: 'da_duyet',
+        roleId: PV,
+      });
+      const result = computePay({
+        profile: hour(25_000),
+        days: [ot],
+        adjustments: [],
+        roles: {
+          [PV]: { ...hour(20_000), payType: 'hour', name: 'Phục vụ', otRates: { ...RATES, weekday: 200 } },
+        },
+      });
+      expect(result.lines.map(({ key }) => key)).toEqual([`base_${PV}`, `ot_${WEDNESDAY}`]);
+      expect(result.lines[1]!.amount).toBe(40_000);
+    },
+  },
+  {
+    id: 'P21',
+    title: 'nhiều vị trí: vị trí chính lương tháng thì một mức chung',
+    check: () => {
+      const result = computePay({
+        profile: month(10_400_000),
+        days: [worked(1), day({ cong: 1, roleId: PV })],
+        adjustments: [],
+        roles: { [PV]: { ...hour(22_000), payType: 'hour', name: 'Phục vụ' } },
+      });
+      expect(result.lines).toHaveLength(1);
+      expect(result.net).toBe(800_000);
+    },
+  },
 ];
 
 describe('bộ ca kiểm thử lương', () => {
-  it('có đủ P01–P18', () => {
-    const expected = Array.from({ length: 18 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`);
+  it('có đủ P01–P21', () => {
+    const expected = Array.from({ length: 21 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`);
     expect(CASES.map(({ id }) => id)).toEqual(expected);
   });
 

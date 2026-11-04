@@ -107,16 +107,15 @@ describe('GET /schedule (US14)', () => {
 describe('PUT /schedule (US15, US16)', () => {
   it('lưu nhiều ca một ngày, ghi audit, ô trống là xoá', async () => {
     const id = await newEmployee();
-    const date = addDays(vietnamToday(), 3);
     const before = await auditCount('schedule.update');
 
-    const result = await save(admin, [cell(id, date, [shifts.SANG.id, shifts.CHIEU.id])]);
+    const result = await save(admin, [cell(id, vietnamToday(), [shifts.SANG.id, shifts.CHIEU.id])]);
     expect(result.status).toBe(200);
     expect(await auditCount('schedule.update')).toBe(before + 1);
     const [row] = await sql`select shift_ids from schedule_cells where employee_id = ${id}`;
     expect(row!.shift_ids.sort()).toEqual([shifts.SANG.id, shifts.CHIEU.id].sort());
 
-    await save(admin, [cell(id, date)]);
+    await save(admin, [cell(id, vietnamToday())]);
     expect(await sql`select 1 from schedule_cells where employee_id = ${id}`).toHaveLength(0);
   });
 
@@ -149,6 +148,126 @@ describe('PUT /schedule (US15, US16)', () => {
       await sql`select 1 from schedule_cells where employee_id = ${other!.id} and date = ${date}`,
     ).toHaveLength(0);
     expect((await save(manager, [cell(mine!.id, date, [])])).status).toBe(200);
+  });
+});
+
+describe('nháp và công bố', () => {
+  const drafts = (id: string) =>
+    sql`select date::text, shift_ids, is_off, positions from schedule_drafts where employee_id = ${id} order by date`;
+  const published = (id: string) =>
+    sql`select date::text, shift_ids, positions from schedule_cells where employee_id = ${id} order by date`;
+  const publish = (week: string, cookie = admin) =>
+    api('POST', '/schedule/publish', { cookie, body: { week } });
+
+  it('từ ngày mai trở đi vào nháp; công bố chép sang lịch thật, báo một lần', async () => {
+    const id = await newEmployee();
+    const date = addDays(vietnamToday(), 1);
+    const week = mondayOf(date);
+
+    const before = await auditCount('schedule.draft');
+    expect((await save(admin, [cell(id, date, [shifts.SANG.id])])).status).toBe(200);
+    expect(await auditCount('schedule.draft')).toBe(before + 1);
+    expect(await published(id)).toHaveLength(0);
+    expect(await drafts(id)).toMatchObject([{ date, shift_ids: [shifts.SANG.id] }]);
+
+    const grid = (await api('GET', `/schedule?week=${week}`, { cookie: admin })).body.schedule;
+    const row = grid.employees.find((employee: any) => employee.id === id);
+    expect(row.cells.find((entry: any) => entry.date === date)).toMatchObject({
+      shiftIds: [],
+      draft: { shiftIds: [shifts.SANG.id], isOff: false },
+    });
+    expect(grid.draftCount).toBeGreaterThanOrEqual(1);
+    expect(grid.firstDraftDate).toBe(date);
+
+    const result = await publish(week);
+    expect(result.status).toBe(200);
+    expect(result.body.result.cells).toBeGreaterThanOrEqual(1);
+    expect(await published(id)).toMatchObject([
+      { date, shift_ids: [shifts.SANG.id], positions: { [shifts.SANG.id]: positions['Phục vụ'] } },
+    ]);
+    expect(await drafts(id)).toHaveLength(0);
+    const notes = await sql`select title from notifications where employee_id = ${id}`;
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.title).toMatch(/^Lịch tuần .* đã công bố$/);
+  });
+
+  it('nháp giống lịch đã công bố thì tự xoá; bỏ nháp giữ nguyên lịch thật', async () => {
+    const id = await newEmployee();
+    const date = addDays(vietnamToday(), 2);
+    const week = mondayOf(date);
+    await save(admin, [cell(id, date, [shifts.SANG.id])]);
+    await publish(week);
+
+    await save(admin, [cell(id, date, [shifts.CHIEU.id])]);
+    await save(admin, [cell(id, date, [shifts.SANG.id])]);
+    expect(await drafts(id)).toHaveLength(0);
+
+    await save(admin, [cell(id, date, [], true)]);
+    const discarded = await api('POST', '/schedule/discard', { cookie: admin, body: { week } });
+    expect(discarded.status).toBe(200);
+    expect(await drafts(id)).toHaveLength(0);
+    expect(await published(id)).toMatchObject([{ shift_ids: [shifts.SANG.id] }]);
+  });
+
+  it('hôm nay có hiệu lực ngay, không qua nháp', async () => {
+    const id = await newEmployee();
+    await save(admin, [cell(id, vietnamToday(), [shifts.SANG.id])]);
+    expect(await drafts(id)).toHaveLength(0);
+    expect(await published(id)).toHaveLength(1);
+  });
+
+  it('Quản lý nhóm chỉ công bố nháp của người mình quản lý', async () => {
+    const [mine] = await sql`select id from employees where email = 'tuan@phonho.vn'`;
+    const other = await newEmployee();
+    const date = addDays(vietnamToday(), 5);
+    const week = mondayOf(date);
+    await save(admin, [cell(other, date, [shifts.SANG.id])]);
+    await save(manager, [cell(mine!.id, date, [shifts.SANG.id])]);
+
+    expect((await publish(week, manager)).status).toBe(200);
+    expect(await drafts(other)).toHaveLength(1);
+    expect(await drafts(mine!.id)).toHaveLength(0);
+    await publish(week);
+    await save(admin, [cell(mine!.id, date)]);
+    await publish(week);
+  });
+
+  it('tuần không có nháp: công bố không đổi gì; tuần sai → 400', async () => {
+    const empty = await publish('2020-01-06');
+    expect(empty.body.result).toEqual({ cells: 0, people: 0, registrations: 0 });
+    expect((await publish('2020-01-07')).status).toBe(400);
+  });
+
+  it('vị trí của ca: chỉ vị trí người đó làm được, ca chưa chọn là vị trí chính', async () => {
+    const id = await newEmployee('Phục vụ', { extraPositionIds: [positions['Pha chế']] });
+    const date = addDays(vietnamToday(), 1);
+    const both = [shifts.SANG.id, shifts.TOI.id];
+    const bad = await save(admin, [
+      { ...cell(id, date, both), positions: { [shifts.SANG.id]: positions['Thu ngân'] } },
+    ]);
+    expect(bad.status).toBe(400);
+
+    await save(admin, [{ ...cell(id, date, both), positions: { [shifts.TOI.id]: positions['Pha chế'] } }]);
+    expect((await drafts(id))[0]!.positions).toEqual({
+      [shifts.SANG.id]: positions['Phục vụ'],
+      [shifts.TOI.id]: positions['Pha chế'],
+    });
+    const grid = (await api('GET', `/schedule?week=${mondayOf(date)}`, { cookie: admin })).body.schedule;
+    expect(grid.employees.find((employee: any) => employee.id === id).positionIds).toEqual([
+      positions['Phục vụ'],
+      positions['Pha chế'],
+    ]);
+    await publish(mondayOf(date));
+    expect((await published(id))[0]!.positions[shifts.TOI.id]).toBe(positions['Pha chế']);
+  });
+
+  it('người làm nhiều vị trí được xếp ca của mọi vị trí', async () => {
+    const plain = await newEmployee('Tạp vụ');
+    const multi = await newEmployee('Tạp vụ', { extraPositionIds: [positions['Phục vụ']] });
+    const date = addDays(vietnamToday(), 1);
+    expect((await save(admin, [cell(plain, date, [shifts.SANG.id])])).status).toBe(400);
+    expect((await save(admin, [cell(multi, date, [shifts.SANG.id])])).status).toBe(200);
+    await save(admin, [cell(multi, date)]);
   });
 });
 

@@ -25,9 +25,10 @@ import type { DecisionInput, ExplanationInput, RequestInput } from '@/lib/valida
 import { actorOf } from './actor';
 import { assertCanDecide } from './approvals';
 import { notify } from './notifications';
-import { loadEmployeeRules, recomputeDays } from './recompute';
+import { loadEmployeeRules, lockEmployees, recomputeDays } from './recompute';
 import { assertOwned } from './references';
-import { allowedShiftIds, expectedShiftIds, writeCells } from './schedule';
+import { allowedShiftIds, expectedShiftIds, firstDraftDate, writeCells } from './schedule';
+import { acceptIntoDraft, dropFromDrafts } from './schedule-drafts';
 
 type Reader = Pick<Tx, 'select'>;
 
@@ -388,6 +389,7 @@ export async function applyDecision(
   if (approve && request.type === 'forgot') await addSyntheticPunches(tx, request);
   if (approve && request.type === 'shift_swap') await applySwap(tx, ctx, request);
   if (approve && request.type === 'shift_register') await applyRegistration(tx, ctx, request);
+  if (!approve && request.type === 'shift_register') await dropFromDrafts(tx, request.id);
 
   await writeAudit(tx, actorOf(ctx), {
     action: 'request.decide',
@@ -417,6 +419,12 @@ export async function decideRequest(ctx: AuthContext, id: string, { decision, no
 
     const { employeeId, fromDate, toDate } = request;
     await assertCanDecide(tx, ctx, employeeId);
+    // Nhận ca từ ngày mai trở đi chỉ vào nháp như ở màn Xếp ca; Công bố mới báo cho nhân viên
+    if (request.type === 'shift_register' && decision === 'approve' && fromDate >= firstDraftDate()) {
+      await lockEmployees(tx, [employeeId]);
+      await acceptIntoDraft(tx, ctx, request, null);
+      return;
+    }
     await applyDecision(tx, ctx, request, decision, note ?? null);
 
     const library = await tx

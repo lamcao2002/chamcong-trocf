@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { vietnamToday } from '../../lib/domain/date';
 import { addDays } from '../../lib/engine/time';
-import { COMPANY, api, auditCount, employeeBody, login, sql } from './helpers';
+import { COMPANY, api, auditCount, employeeBody, login, sql, publishCells } from './helpers';
 
 let admin: string;
 let hr: string;
@@ -28,7 +28,7 @@ const newEmployee = async (position = 'Phục vụ', overrides: object = {}): Pr
 };
 
 const schedule = (employeeId: string, date: string, shiftIds: string[]) =>
-  api('PUT', '/schedule', { cookie: admin, body: { cells: [{ employeeId, date, shiftIds, isOff: false }] } });
+  publishCells(admin, [{ employeeId, date, shiftIds, isOff: false }]);
 
 const punch = (employeeId: string, date: string, type: 'in' | 'out', clock: string) =>
   sql`insert into attendance_logs (company_id, employee_id, at, type, in_zone)
@@ -68,6 +68,56 @@ beforeAll(async () => {
 afterAll(async () => {
   await unpublish();
   await sql.end();
+});
+
+describe('nhiều vị trí (SH-36)', () => {
+  it('ca xếp ở vị trí phụ tính theo mức của vị trí đó; lương riêng từng vị trí thắng', async () => {
+    const pc = positions['Pha chế'].id;
+    const { id } = await newEmployee('Phục vụ', {
+      extraPositionIds: [pc],
+      extraPayAmounts: { [pc]: 30_000 },
+    });
+    await punch(id, yesterday, 'in', '17:00');
+    await punch(id, yesterday, 'out', '22:00');
+    await publishCells(admin, [
+      {
+        employeeId: id,
+        date: yesterday,
+        shiftIds: [shifts.TOI.id],
+        isOff: false,
+        positions: { [shifts.TOI.id]: pc },
+      },
+    ]);
+
+    const body = await statement(id);
+    expect(body.lines[0]).toMatchObject({
+      key: `base_${pc}`,
+      name: 'Lương theo giờ · Pha chế',
+      amount: 150_000,
+      how: '5 giờ × 30.000đ',
+    });
+    const { employee } = (await api('GET', `/employees/${id}`, { cookie: admin })).body;
+    expect(employee.extraPayAmounts).toEqual({ [pc]: 30_000 });
+
+    // Tắt lương riêng: về mức của vị trí Pha chế
+    await api('PATCH', `/employees/${id}`, { cookie: admin, body: { extraPayAmounts: {} } });
+    expect((await statement(id)).lines[0]).toMatchObject({ amount: 140_000, how: '5 giờ × 28.000đ' });
+    expect((await api('GET', `/employees/${id}`, { cookie: admin })).body.employee.extraPositionIds).toEqual([
+      pc,
+    ]);
+  });
+
+  it('mức riêng từng vị trí không lộ cho Quản lý nhóm', async () => {
+    const pc = positions['Pha chế'].id;
+    const { id } = await newEmployee('Phục vụ', {
+      extraPositionIds: [pc],
+      extraPayAmounts: { [pc]: 31_000 },
+      managerId: (await sql`select id from employees where email = 'minh@phonho.vn'`)[0]!.id,
+    });
+    const seen = await api('GET', `/employees/${id}`, { cookie: manager });
+    if (seen.status === 200) expect(seen.body.employee.extraPayAmounts).toEqual({});
+    expect(JSON.stringify(seen.body)).not.toContain('31000');
+  });
 });
 
 describe('sao kê (US34)', () => {

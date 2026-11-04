@@ -36,6 +36,20 @@
       "when": 1793674888290,
       "tag": "0004_nullable_deciders",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793696274584,
+      "tag": "0005_positions_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793758042202,
+      "tag": "0006_extra_position_pay",
+      "breakpoints": true
     }
   ]
 }

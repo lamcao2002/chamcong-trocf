@@ -33,6 +33,14 @@ const employeeFields = {
   role: z.enum(['app', 'manager', 'hr', 'admin']),
   managerId: uuid.nullable(),
   positionId: uuid.nullable(),
+  /** Vị trí phụ: xếp ca được chọn một trong các vị trí này, mặc định là vị trí chính. */
+  extraPositionIds: z
+    .array(uuid)
+    .max(20)
+    .transform((ids) => [...new Set(ids)])
+    .optional(),
+  /** Lương riêng ở từng vị trí phụ, theo đơn vị của vị trí đó; vị trí không có ở đây là theo vị trí. */
+  extraPayAmounts: z.record(uuid, z.number().int().min(1).max(10_000_000_000)).optional(),
   /** null = theo vị trí; có giá trị = công tắc riêng đang bật (US12). */
   payOverride: payOverrideSchema.nullable(),
   shiftIds: overrideIds,

@@ -4,7 +4,15 @@ import { ApiError, notFound } from '@/lib/api/errors';
 import { writeAudit, type Tx } from '@/lib/audit';
 import { scopeToCompany, type AuthContext } from '@/lib/auth/policy';
 import { getDb } from '@/lib/db/client';
-import { employees, locations, positionLocations, positions, positionShifts, shifts } from '@/lib/db/schema';
+import {
+  employeePositions,
+  employees,
+  locations,
+  positionLocations,
+  positions,
+  positionShifts,
+  shifts,
+} from '@/lib/db/schema';
 import type { PositionInput } from '@/lib/validation/position';
 import { actorOf } from './actor';
 import { recomputeOpenPeriod, rulesChanged } from './recompute';
@@ -141,6 +149,12 @@ export async function deletePosition(ctx: AuthContext, id: string) {
       .where(eq(employees.positionId, id))
       .limit(1);
     if (holder) throw new ApiError(409, 'Vị trí đang có nhân viên nên không xoá được');
+    const [extra] = await tx
+      .select({ id: employeePositions.employeeId })
+      .from(employeePositions)
+      .where(eq(employeePositions.positionId, id))
+      .limit(1);
+    if (extra) throw new ApiError(409, 'Vị trí đang là vị trí phụ của nhân viên nên không xoá được');
 
     await tx.delete(positions).where(findPosition(ctx, id));
     await writeAudit(tx, actorOf(ctx), {

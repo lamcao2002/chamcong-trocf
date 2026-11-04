@@ -1,5 +1,5 @@
 /**
- * Lược đồ CSDL (Drizzle) — 21 bảng theo PRD MVP.
+ * Lược đồ CSDL (Drizzle) — 21 bảng theo PRD MVP, thêm `notifications`, `employee_positions`, `schedule_drafts`.
  *
  * Quy ước:
  * - Mọi bảng có `company_id`, trừ `companies` và 4 bảng nối thuần (lọc qua bảng cha).
@@ -75,6 +75,9 @@ export const otStateEnum = pgEnum('ot_state', ['none', 'cho_duyet', 'da_duyet'])
 export const adjustmentKindEnum = pgEnum('adjustment_kind', ['bonus', 'penalty']);
 
 /** Phần lương ghi đè riêng của nhân viên; trường bỏ trống thì theo vị trí. */
+/** Mã ca → mã vị trí. */
+export type ShiftPositions = Record<string, string>;
+
 export type PayOverride = {
   payType?: (typeof payTypeEnum.enumValues)[number];
   payAmount?: number;
@@ -259,6 +262,22 @@ export const employees = pgTable(
   ],
 ).enableRLS();
 
+/** Vị trí phụ: `employees.position_id` vẫn là vị trí chính, dòng ở đây là những việc làm thêm được. */
+export const employeePositions = pgTable(
+  'employee_positions',
+  {
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'cascade' }),
+    positionId: uuid('position_id')
+      .notNull()
+      .references(() => positions.id),
+    /** Lương riêng của người này ở vị trí phụ, cùng đơn vị với vị trí (giờ hoặc công); NULL = theo vị trí. */
+    payAmount: money('pay_amount'),
+  },
+  (t) => [primaryKey({ columns: [t.employeeId, t.positionId] })],
+).enableRLS();
+
 export const employeeShifts = pgTable(
   'employee_shifts',
   {
@@ -324,10 +343,42 @@ export const scheduleCells = pgTable(
       .notNull()
       .default(sql`'{}'::uuid[]`),
     isOff: boolean('is_off').notNull().default(false),
+    /** Vị trí của từng ca trong ô; ca không có trong đây là vị trí chính của nhân viên. */
+    positions: jsonb('positions').$type<ShiftPositions>().notNull().default({}),
   },
   (t) => [
     unique('schedule_cells_employee_date_unique').on(t.employeeId, t.date),
     index('schedule_cells_company_date_idx').on(t.companyId, t.date),
+  ],
+).enableRLS();
+
+/**
+ * Lịch đã lưu nhưng chưa công bố: mỗi dòng là cả ô như sẽ công bố. Nhân viên, Bảng công và Lương chỉ
+ * đọc `schedule_cells`; Công bố chép dòng ở đây sang rồi xoá.
+ */
+export const scheduleDrafts = pgTable(
+  'schedule_drafts',
+  {
+    id: id(),
+    companyId: companyId(),
+    employeeId: employeeId(),
+    date: date('date').notNull(),
+    shiftIds: uuid('shift_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    isOff: boolean('is_off').notNull().default(false),
+    positions: jsonb('positions').$type<ShiftPositions>().notNull().default({}),
+    /** Đơn đăng ký đã nhận vào nháp; Công bố mới chuyển chúng sang Đã nhận. */
+    registrationIds: uuid('registration_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    updatedAt: timestamptz('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('schedule_drafts_employee_date_unique').on(t.employeeId, t.date),
+    index('schedule_drafts_company_date_idx').on(t.companyId, t.date),
   ],
 ).enableRLS();
 

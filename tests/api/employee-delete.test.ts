@@ -47,10 +47,12 @@ const TABLES = [
   'adjustments',
   'payslips',
   'schedule_cells',
+  'schedule_drafts',
   'notifications',
   'sessions',
   'employee_shifts',
   'employee_locations',
+  'employee_positions',
 ];
 
 const leftovers = async (id: string) => {

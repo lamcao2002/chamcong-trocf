@@ -14,7 +14,8 @@ import { assertCanDecide } from './approvals';
 import { notify } from './notifications';
 import { loadEmployeeRules, lockEmployees, recomputeDays } from './recompute';
 import { applyDecision } from './requests';
-import { allowedShiftIds, expectedShiftIds } from './schedule';
+import { allowedShiftIds, expectedShiftIds, firstDraftDate } from './schedule';
+import { acceptIntoDraft } from './schedule-drafts';
 
 const WEEK_DAYS = 7;
 
@@ -144,12 +145,16 @@ export async function saveRegistration(ctx: AuthContext, { items }: Registration
   });
 }
 
-/** Nhận hoặc từ chối nhiều ô; ô đã có người xử lý được bỏ qua. Mỗi người chỉ nhận một thông báo gộp. */
+/**
+ * Nhận hoặc từ chối nhiều ô; ô đã có người xử lý được bỏ qua. Nhận ca từ ngày mai trở đi chỉ vào nháp,
+ * Công bố mới báo cho nhân viên; còn lại mỗi người nhận một thông báo gộp.
+ */
 export async function decideRegistrations(
   ctx: AuthContext,
-  { ids, decision, note }: RegistrationDecisionInput,
+  { ids, decision, note, positionId }: RegistrationDecisionInput,
 ) {
   const companyId = ctx.company.id;
+  const firstDraft = firstDraftDate();
   return getDb().transaction(async (tx) => {
     const rows = await tx
       .select()
@@ -168,11 +173,15 @@ export async function decideRegistrations(
     const employeeIds = [...new Set(rows.map(({ employeeId }) => employeeId))];
     await lockEmployees(tx, employeeIds);
     for (const employeeId of employeeIds) await assertCanDecide(tx, ctx, employeeId);
-    for (const request of rows) await applyDecision(tx, ctx, request, decision, note ?? null);
 
     const approve = decision === 'approve';
-    for (const employeeId of employeeIds) {
-      const dates = rows.filter((row) => row.employeeId === employeeId).map(({ fromDate }) => fromDate);
+    const toDraft = approve ? rows.filter(({ fromDate }) => fromDate >= firstDraft) : [];
+    const decided = rows.filter((row) => !toDraft.includes(row));
+    for (const request of toDraft) await acceptIntoDraft(tx, ctx, request, positionId ?? null);
+    for (const request of decided) await applyDecision(tx, ctx, request, decision, note ?? null);
+
+    for (const employeeId of new Set(decided.map((row) => row.employeeId))) {
+      const dates = decided.filter((row) => row.employeeId === employeeId).map(({ fromDate }) => fromDate);
       if (approve) {
         await recomputeDays(tx, {
           companyId,
@@ -195,6 +204,6 @@ export async function decideRegistrations(
         },
       ]);
     }
-    return { decided: rows.length, skipped: ids.length - rows.length };
+    return { decided: decided.length, drafted: toDraft.length, skipped: ids.length - rows.length };
   });
 }

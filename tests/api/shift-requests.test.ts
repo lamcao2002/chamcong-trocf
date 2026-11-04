@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { vietnamToday } from '../../lib/domain/date';
 import { addDays, mondayOf } from '../../lib/engine/time';
-import { COMPANY, api, auditCount, employeeBody, login, sql } from './helpers';
+import { COMPANY, api, auditCount, employeeBody, login, sql, publishCells } from './helpers';
 
 let admin: string;
 let manager: string;
@@ -13,8 +13,12 @@ let nextMonday: string;
 
 type Person = { id: string; session: string };
 
-const newPerson = async (position = 'Phục vụ'): Promise<Person> => {
-  const body = employeeBody({ positionId: positions[position].id, onboardDate: '2026-01-01' });
+const newPerson = async (position = 'Phục vụ', extra: string[] = []): Promise<Person> => {
+  const body = employeeBody({
+    positionId: positions[position].id,
+    extraPositionIds: extra.map((name) => positions[name].id),
+    onboardDate: '2026-01-01',
+  });
   const created = await api('POST', '/employees', { cookie: admin, body });
   expect(created.status).toBe(201);
   const { id, pin } = created.body.employee;
@@ -22,7 +26,7 @@ const newPerson = async (position = 'Phục vụ'): Promise<Person> => {
 };
 
 const schedule = (employeeId: string, date: string, shiftIds: string[], isOff = false) =>
-  api('PUT', '/schedule', { cookie: admin, body: { cells: [{ employeeId, date, shiftIds, isOff }] } });
+  publishCells(admin, [{ employeeId, date, shiftIds, isOff }]);
 
 const punch = (employeeId: string, date: string, type: 'in' | 'out', clock: string) =>
   sql`insert into attendance_logs (company_id, employee_id, at, type, in_zone)
@@ -297,10 +301,17 @@ describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
     api('POST', '/app/shift-registrations', { cookie: person.session, body: { items } });
   const week = async (date: string, cookie = admin) =>
     (await api('GET', `/schedule?week=${date}`, { cookie })).body.schedule;
-  const decideMany = (ids: string[], decision: string, cookie = admin) =>
-    api('POST', '/schedule/registrations', { cookie, body: { ids, decision } });
+  const decideMany = (ids: string[], decision: string, cookie = admin, positionId?: string) =>
+    api('POST', '/schedule/registrations', { cookie, body: { ids, decision, positionId } });
+  const publish = (week: string, cookie = admin) =>
+    api('POST', '/schedule/publish', { cookie, body: { week } });
+  const draftOf = async (employeeId: string, date: string) =>
+    (
+      await sql`select shift_ids, positions, registration_ids from schedule_drafts
+        where employee_id = ${employeeId} and date = ${date}`
+    )[0];
 
-  it('gửi rồi nhận: ca vào lịch, app thấy Đã xếp lịch, chỉ một thông báo gộp', async () => {
+  it('gửi rồi nhận: vào nháp, công bố mới vào lịch, chỉ một thông báo gộp', async () => {
     const person = await newPerson();
     const items = [
       { date: nextMonday, shiftId: shifts.TOI.id },
@@ -318,11 +329,84 @@ describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
       rows.map(({ id }: any) => id),
       'approve',
     );
-    expect(decided.body.result).toEqual({ decided: 2, skipped: 0 });
+    expect(decided.body.result).toEqual({ decided: 0, drafted: 2, skipped: 0 });
+    expect(await cell(person.id, nextMonday)).toBeUndefined();
+    expect(await draftOf(person.id, nextMonday)).toMatchObject({ shift_ids: [shifts.TOI.id] });
+    expect(await status(rows[0].id)).toBe('pending');
+    expect((await mine(person)).cells.map(({ state }: any) => state)).toEqual(['pending', 'pending']);
+    expect((await feed(person)).notifications).toHaveLength(0);
+    const drafted = (await week(nextMonday)).registrations.filter(
+      ({ employeeId }: any) => employeeId === person.id,
+    );
+    expect(drafted.every(({ inDraft }: any) => inDraft)).toBe(true);
+
+    expect((await publish(nextMonday)).status).toBe(200);
     expect(await cell(person.id, nextMonday)).toMatchObject({ shift_ids: [shifts.TOI.id] });
+    expect(await draftOf(person.id, nextMonday)).toBeUndefined();
+    expect(await status(rows[0].id)).toBe('approved');
     expect((await mine(person)).cells.map(({ state }: any) => state)).toEqual(['scheduled', 'scheduled']);
-    const notes = (await feed(person)).notifications.filter(({ title }: any) => title.startsWith('Đăng ký'));
+    const notes = (await feed(person)).notifications;
     expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ title: expect.stringMatching(/^Lịch tuần .* đã công bố$/) });
+    expect(notes[0].body).toContain('Nhận 2 ca đăng ký');
+  });
+
+  it('bỏ nháp thì đăng ký quay về chờ nhận; gỡ ca khỏi nháp cũng vậy', async () => {
+    const person = await newPerson();
+    await register(person, [
+      { date: nextMonday, shiftId: shifts.TOI.id },
+      { date: addDays(nextMonday, 1), shiftId: shifts.TOI.id },
+    ]);
+    const ids = (await week(nextMonday)).registrations
+      .filter(({ employeeId }: any) => employeeId === person.id)
+      .map(({ id }: any) => id);
+    await decideMany(ids, 'approve');
+
+    // Gỡ ca của ngày thứ hai khỏi nháp: đơn đó không còn gắn với nháp
+    await api('PUT', '/schedule', {
+      cookie: admin,
+      body: { cells: [{ employeeId: person.id, date: addDays(nextMonday, 1), shiftIds: [], isOff: false }] },
+    });
+    const view = (await week(nextMonday)).registrations.filter(
+      ({ employeeId }: any) => employeeId === person.id,
+    );
+    expect(view.map(({ inDraft }: any) => inDraft)).toEqual([true, false]);
+
+    expect(
+      (await api('POST', '/schedule/discard', { cookie: admin, body: { week: nextMonday } })).status,
+    ).toBe(200);
+    expect(await draftOf(person.id, nextMonday)).toBeUndefined();
+    const after = (await week(nextMonday)).registrations.filter(
+      ({ employeeId }: any) => employeeId === person.id,
+    );
+    expect(after.map(({ inDraft }: any) => inDraft)).toEqual([false, false]);
+    expect(await status(ids[0])).toBe('pending');
+  });
+
+  it('nhận người làm nhiều vị trí: chọn vị trí phụ, mặc định là vị trí chính', async () => {
+    const person = await newPerson('Phục vụ', ['Pha chế']);
+    await register(person, [
+      { date: nextMonday, shiftId: shifts.TOI.id },
+      { date: addDays(nextMonday, 1), shiftId: shifts.TOI.id },
+    ]);
+    const [first, second] = (await week(nextMonday)).registrations
+      .filter(({ employeeId }: any) => employeeId === person.id)
+      .map(({ id }: any) => id);
+    const thuNgan = positions['Thu ngân'].id;
+    expect((await decideMany([first], 'approve', admin, thuNgan)).status).toBe(400);
+    await decideMany([first], 'approve', admin, positions['Pha chế'].id);
+    await decideMany([second], 'approve');
+    expect((await draftOf(person.id, nextMonday))!.positions).toEqual({
+      [shifts.TOI.id]: positions['Pha chế'].id,
+    });
+    expect((await draftOf(person.id, addDays(nextMonday, 1)))!.positions).toEqual({
+      [shifts.TOI.id]: positions['Phục vụ'].id,
+    });
+
+    await publish(nextMonday);
+    const [row] =
+      await sql`select positions from schedule_cells where employee_id = ${person.id} and date = ${nextMonday}`;
+    expect(row!.positions).toEqual({ [shifts.TOI.id]: positions['Pha chế'].id });
   });
 
   it('gửi lại ô đã gửi hoặc đã có trong lịch thì bỏ qua, không tạo trùng', async () => {
@@ -358,7 +442,7 @@ describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
     expect((await mine(person)).cells).toHaveLength(0);
   });
 
-  it('Hộp việc có loại riêng; duyệt ở đó cũng ghi lịch; không giữ người đó ở chưa sẵn sàng', async () => {
+  it('Hộp việc có loại riêng; duyệt ở đó cũng vào nháp; không giữ người đó ở chưa sẵn sàng', async () => {
     const person = await newPerson();
     const date = addDays(today, 8);
     const within = mondayOf(date) === nextMonday ? date : nextMonday;
@@ -372,7 +456,13 @@ describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
     expect(payroll.employees.find((row: any) => row.id === person.id).issues).toBe(0);
 
     await decide(item.requestId, 'approve');
+    expect(await cell(person.id, within)).toBeUndefined();
+    const again = (await api('GET', `/inbox?period=${period}`, { cookie: admin })).body.inbox;
+    expect(again.items.some((row: any) => row.requestId === item.requestId)).toBe(false);
+
+    await publish(mondayOf(within));
     expect(await cell(person.id, within)).toMatchObject({ shift_ids: [shifts.TOI.id] });
+    expect(await status(item.requestId)).toBe('approved');
   });
 
   it('Quản lý nhóm không nhận được đăng ký của người ngoài nhóm', async () => {
@@ -383,7 +473,7 @@ describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
       .filter(({ employeeId }: any) => employeeId === person.id)
       .map(({ id }: any) => id);
     const result = await decideMany(ids, 'approve', manager);
-    expect(result.body.result).toEqual({ decided: 0, skipped: 1 });
+    expect(result.body.result).toEqual({ decided: 0, drafted: 0, skipped: 1 });
     expect(await cell(person.id, nextMonday)).toBeUndefined();
   });
 
