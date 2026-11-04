@@ -394,6 +394,67 @@ describe('nhân viên sửa, xoá đơn của mình', () => {
   });
 });
 
+describe('lịch sử đơn cho quản lý', () => {
+  const history = async (cookie = admin, period?: string) =>
+    (await api('GET', `/requests${period ? `?period=${period}` : ''}`, { cookie })).body.history;
+
+  it('mọi trạng thái, có người duyệt và lúc duyệt; đơn đã xoá không còn', async () => {
+    const person = await newEmployee();
+    await schedule(person.id, tomorrow, [shifts.SANG.id]);
+    const approved = (await send(person.session, leave(tomorrow))).body.request.id;
+    await decide(approved, { decision: 'approve' });
+    const other = {
+      type: 'overtime',
+      date: tomorrow,
+      when: 'after',
+      from: '12:00',
+      to: '13:00',
+      reason: 'Kiểm kho',
+    };
+    const rejected = (await send(person.session, other)).body.request.id;
+    await decide(rejected, { decision: 'reject', note: 'Không cần làm thêm' });
+    const lateBody = {
+      type: 'late_early',
+      kind: 'late',
+      date: tomorrow,
+      minutes: 10,
+      shiftId: '',
+      reason: 'Kẹt xe',
+    };
+    const pending = (await send(person.session, lateBody)).body.request.id;
+    const removed = (await send(person.session, { ...lateBody, kind: 'early' })).body.request.id;
+    await api('DELETE', `/app/requests/${removed}`, { cookie: person.session });
+
+    const view = await history(admin, tomorrow.slice(0, 7));
+    const mine = view.requests.filter((row: any) => row.employeeId === person.id);
+    expect(mine.map(({ id }: any) => id).sort()).toEqual([approved, rejected, pending].sort());
+    const byId = (id: string) => mine.find((row: any) => row.id === id);
+    expect(byId(approved)).toMatchObject({
+      status: 'approved',
+      deciderName: expect.any(String),
+      decidable: false,
+    });
+    expect(byId(approved).decidedAt).not.toBeNull();
+    expect(byId(rejected)).toMatchObject({ status: 'rejected', rejectNote: 'Không cần làm thêm' });
+    expect(byId(pending)).toMatchObject({ status: 'pending', decidable: true, decidedAt: null });
+    expect(byId(pending).summary).toContain('10 phút');
+  });
+
+  it('Quản lý nhóm chỉ thấy đơn của người mình quản lý', async () => {
+    const view = await history(manager);
+    const managed = await sql`select id from employees where manager_id = (
+      select id from employees where email = 'minh@phonho.vn')`;
+    const ids = new Set(managed.map(({ id }) => id));
+    expect(view.requests.every((row: any) => ids.has(row.employeeId))).toBe(true);
+  });
+
+  it('kỳ sai thì về kỳ hiện tại; cần phiên quản trị', async () => {
+    expect((await api('GET', '/requests?period=abc', { cookie: admin })).status).toBe(200);
+    const person = await newEmployee();
+    expect((await api('GET', '/requests', { cookie: person.session })).status).toBe(401);
+  });
+});
+
 describe('giải trình (US32)', () => {
   const explain = (session: string, body: object) =>
     api('POST', '/app/explanations', { cookie: session, body });

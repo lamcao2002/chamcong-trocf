@@ -1,7 +1,15 @@
 import { ADMIN_ONLY, HR_UP, MANAGERS, type Role } from '@/lib/auth/roles';
 
 export type AdminNavKey =
-  'inbox' | 'timesheet' | 'schedule' | 'payroll' | 'staff' | 'positions' | 'locations' | 'settings';
+  | 'inbox'
+  | 'timesheet'
+  | 'schedule'
+  | 'payroll'
+  | 'requests'
+  | 'staff'
+  | 'positions'
+  | 'locations'
+  | 'settings';
 
 export type AdminNavItem = {
   key: AdminNavKey;
@@ -17,6 +25,7 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
   { key: 'timesheet', label: 'Bảng công', href: '/app/bang-cong', group: 'main', roles: MANAGERS },
   { key: 'schedule', label: 'Xếp ca', href: '/app/xep-ca', group: 'main', roles: MANAGERS },
   { key: 'payroll', label: 'Lương', href: '/app/luong', group: 'main', roles: HR_UP },
+  { key: 'requests', label: 'Đơn từ', href: '/app/don-tu', group: 'main', roles: MANAGERS },
   { key: 'staff', label: 'Nhân sự', href: '/app/nhan-su', group: 'setup', roles: HR_UP },
   { key: 'positions', label: 'Vị trí & ca', href: '/app/vi-tri', group: 'setup', roles: HR_UP },
   { key: 'locations', label: 'Địa điểm', href: '/app/dia-diem', group: 'setup', roles: ADMIN_ONLY },

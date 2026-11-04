@@ -128,6 +128,7 @@ Cập nhật bảng này khi xong một việc.
 | SH-36 → SH-38 Nhiều vị trí, Theo ca, lịch nháp | Code xong: vị trí phụ, vị trí từng ca, lương theo vị trí của ca (P19–P21), nháp + Công bố/Bỏ nháp theo tuần, kiểu xem Theo ca; đã thử Chrome 375 và 1440 px. lương riêng từng vị trí; **cần áp migration `0005_positions_drafts` và `0006_extra_position_pay` trước khi deploy** |
 | App nhân viên: tab Tôi, sheet Tạo đơn mới | Code xong: thanh dưới 4 tab + nút giữa, tab Tôi để trống; Đăng ký ca chọn trong sheet Tạo đơn (có ghi chú), bỏ thẻ ở tab Lịch; đã thử Chrome 320 và 375 px, **chưa thử điện thoại thật** |
 | Sửa, xoá đơn; giờ mở đăng ký ca | Code xong: sửa/xoá đơn còn Chờ trong 10 phút, đăng ký ca chỉ gửi/bỏ trong 07:00 T5 – 07:00 T7; Đơn của tôi ở tab Tôi; **chưa thử điện thoại thật** |
+| Đơn từ (lịch sử đơn cho quản lý) | Code xong `/app/don-tu`, `GET /requests`, `lib/services/request-history.ts`; đã thử Chrome 375 và 1440 px |
 | Xoá nhân viên (ngoài danh sách SH) | Code xong `DELETE /employees/:id`, chỉ Quản trị viên, gõ lại email; xoá dữ liệu của người đó, giữ quyết định họ đã đưa cho người khác và bỏ tên |
 
 ## Lệnh

@@ -38,6 +38,7 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'GET', path: '/schedule?week=2026-11-02', allowed: ['manager', 'hr', 'admin'] },
   { method: 'PUT', path: '/schedule', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'POST', path: '/schedule/registrations', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'GET', path: '/requests', allowed: ['manager', 'hr', 'admin'] },
   { method: 'POST', path: '/schedule/publish', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'POST', path: '/schedule/discard', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'GET', path: `/day/${NIL}/2026-11-02`, allowed: ['manager', 'hr', 'admin'] },

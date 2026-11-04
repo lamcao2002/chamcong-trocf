@@ -361,3 +361,34 @@ test('nhân viên sửa rồi xoá đơn ở tab Tôi trong 10 phút đầu', as
   await expect(phone.getByText('Đã xoá đơn')).toBeVisible();
   await expect(phone.getByText('Bạn chưa gửi đơn nào.')).toBeVisible();
 });
+
+test('quản lý xem lại lịch sử đơn ở Đơn từ, duyệt ngay trong chi tiết', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  const phone = await staffPage(browser, staff);
+  const sent = await phone.context().request.post('/api/v1/app/requests', {
+    data: {
+      type: 'late_early',
+      kind: 'late',
+      date: today(),
+      minutes: 25,
+      shiftId: '',
+      reason: 'Đưa con đi học',
+    },
+  });
+  expect(sent.status()).toBe(201);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/don-tu');
+  await admin.getByLabel('Tìm tên').fill(staff.name);
+  await admin.getByRole('button', { name: new RegExp(`^${staff.name}, Muộn / sớm`) }).click();
+  const drawer = admin.getByRole('dialog');
+  await expect(drawer.getByText('Đưa con đi học')).toBeVisible();
+  await drawer.getByRole('button', { name: /Duyệt$/ }).click();
+  await expect(admin.getByText('Đã duyệt đơn')).toBeVisible();
+
+  await admin.getByText(/^Đã duyệt \(\d+\)$/).click();
+  const row = admin.getByRole('button', { name: new RegExp(`^${staff.name}, Muộn / sớm.*Đã duyệt$`) });
+  await expect(row).toBeVisible();
+  await expect(row.getByText(/Duyệt bởi Nguyễn Thu Hà lúc/)).toBeVisible();
+});

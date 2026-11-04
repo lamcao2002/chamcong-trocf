@@ -134,6 +134,10 @@ Yêu cầu ngày 04/11/2026. Hằng số ở `lib/domain/request-window.ts`.
 | Đơn của tôi | Ở tab Tôi |
 | Test | `REGISTRATION_ALWAYS_OPEN=1` (chỉ khi `APP_ENV=local`) cho đợt luôn mở, vì test chạy ở giờ bất kỳ |
 
+## Nhóm 10 — Lịch sử đơn cho quản lý
+
+Màn **Đơn từ** (`/app/don-tu`, Quản lý nhóm trở lên): mọi đơn của kỳ lương đang xem, có ngày nằm trong kỳ, của người mình quản lý. Lọc trạng thái, loại đơn, tên. Chi tiết ghi ai gửi lúc nào, ai duyệt hoặc từ chối lúc nào, lý do từ chối; đơn còn chờ duyệt được ngay trong chi tiết. Đơn nhân viên đã xoá không hiện. Quản lý chưa xoá hay huỷ được đơn.
+
 ## Quyết định đang để mặc định
 
 Các điểm dưới đây chưa chốt. Việc liên quan sẽ làm theo mặc định, trừ khi bạn đổi lại.
