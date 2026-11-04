@@ -107,6 +107,8 @@ jobs:
         env:
           API_BASE_URL: http://localhost:3000
           CRON_SECRET: ci-cron-secret-for-tests
+          # Test chạy ở giờ bất kỳ: đợt đăng ký ca (07:00 T5 – 07:00 T7) luôn mở, chỉ có tác dụng ở APP_ENV=local
+          REGISTRATION_ALWAYS_OPEN: '1'
         run: |
           npm run build
           npm run start &

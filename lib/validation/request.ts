@@ -113,6 +113,8 @@ export const registrationSchema = z.object({
     .array(z.object({ date: isoDate, shiftId: uuid }))
     .min(1)
     .max(MAX_REGISTER_CELLS),
+  /** Ghi chú cho quản lý, vd "Thứ Tư em chỉ làm được ca chiều"; lưu vào lý do của từng ô. */
+  note: z.string().trim().max(500).optional(),
 });
 
 export type RegistrationInput = z.infer<typeof registrationSchema>;

@@ -297,8 +297,8 @@ describe('đơn Đổi ca (EMP-13)', () => {
 describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
   const mine = async (person: Person) =>
     (await api('GET', '/app/shift-registrations', { cookie: person.session })).body.registration;
-  const register = (person: Person, items: object[]) =>
-    api('POST', '/app/shift-registrations', { cookie: person.session, body: { items } });
+  const register = (person: Person, items: object[], note?: string) =>
+    api('POST', '/app/shift-registrations', { cookie: person.session, body: { items, note } });
   const week = async (date: string, cookie = admin) =>
     (await api('GET', `/schedule?week=${date}`, { cookie })).body.schedule;
   const decideMany = (ids: string[], decision: string, cookie = admin, positionId?: string) =>
@@ -475,6 +475,40 @@ describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
     const result = await decideMany(ids, 'approve', manager);
     expect(result.body.result).toEqual({ decided: 0, drafted: 0, skipped: 1 });
     expect(await cell(person.id, nextMonday)).toBeUndefined();
+  });
+
+  it('trong giờ mở: xoá đăng ký đã vào nháp thì gỡ luôn ca khỏi nháp', async () => {
+    const person = await newPerson();
+    expect((await mine(person)).window).toMatchObject({ open: true });
+    await register(person, [{ date: nextMonday, shiftId: shifts.TOI.id }], 'Thứ Hai em làm được');
+    const cell = (await mine(person)).cells[0];
+    expect(cell).toMatchObject({ state: 'pending', requestId: expect.any(String) });
+    expect((await sql`select reason from requests where id = ${cell.requestId}`)[0]!.reason).toBe(
+      'Thứ Hai em làm được',
+    );
+    await decideMany([cell.requestId], 'approve');
+    expect(await draftOf(person.id, nextMonday)).toMatchObject({ shift_ids: [shifts.TOI.id] });
+
+    const removed = await api('DELETE', `/app/requests/${cell.requestId}`, { cookie: person.session });
+    expect(removed.status).toBe(200);
+    expect(await draftOf(person.id, nextMonday)).toBeUndefined();
+    expect((await mine(person)).cells).toHaveLength(0);
+  });
+
+  it('đăng ký ca không sửa qua form, chỉ bỏ ô rồi chọn lại', async () => {
+    const person = await newPerson();
+    await register(person, [{ date: nextMonday, shiftId: shifts.TOI.id }]);
+    const { requestId } = (await mine(person)).cells[0];
+    const body = {
+      type: 'leave',
+      leaveType: 'annual',
+      fromDate: nextMonday,
+      toDate: nextMonday,
+      reason: 'x',
+    };
+    expect((await api('PATCH', `/app/requests/${requestId}`, { cookie: person.session, body })).status).toBe(
+      400,
+    );
   });
 
   it('ca cố định không đăng ký được', async () => {

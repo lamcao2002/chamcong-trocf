@@ -79,7 +79,7 @@ test('nhân viên gửi đơn quên chấm, quản lý duyệt, app thấy trạ
   await admin.getByRole('button', { name: 'Duyệt đơn' }).click();
   await expect(admin.getByText('Đã duyệt đơn')).toBeVisible();
 
-  await phone.goto('/m#/lich');
+  await phone.goto('/m#/toi');
   await expect(phone.getByText('Đơn của tôi')).toBeVisible();
   await expect(phone.getByText('Đã duyệt', { exact: true })).toBeVisible();
 });
@@ -217,13 +217,17 @@ test('nhân viên đăng ký ca tuần sau, quản lý nhận ở kiểu Theo ca
   const staff = await newStaff(api);
 
   const phone = await staffPage(browser, staff);
-  await phone.goto('/m#/lich');
-  await expect(phone.getByText('Đăng ký ca tuần sau')).toBeVisible();
-  await phone
+  await phone.goto('/m');
+  await phone.getByRole('button', { name: 'Tạo đơn' }).click();
+  const sheet = phone.getByRole('dialog');
+  await sheet.getByRole('button', { name: 'Đăng ký ca' }).click();
+  await expect(sheet.getByText('Bấm ô để chọn')).toBeVisible();
+  await sheet
     .getByRole('button', { name: new RegExp(`^Ca ${staff.tag}`) })
     .first()
     .click();
-  await phone.getByRole('button', { name: /Gửi đăng ký · 1 ca/ }).click();
+  await sheet.getByLabel('Ghi chú (không bắt buộc)').fill('Thứ Hai em làm được cả ngày');
+  await sheet.getByRole('button', { name: /Gửi đăng ký · 1 ca/ }).click();
   await expect(phone.getByText('Đã gửi đăng ký')).toBeVisible();
 
   const admin = await adminPage(browser);
@@ -323,4 +327,37 @@ test('Quản trị viên xoá nhân viên sau khi gõ lại email', async ({ bro
 
   await expect(admin.getByText(`Đã xoá ${staff.name}`)).toBeVisible();
   await expect(admin.getByRole('button', { name: new RegExp(staff.name) })).toHaveCount(0);
+});
+
+test('nhân viên sửa rồi xoá đơn ở tab Tôi trong 10 phút đầu', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  const phone = await staffPage(browser, staff);
+  const sent = await phone.context().request.post('/api/v1/app/requests', {
+    data: {
+      type: 'late_early',
+      kind: 'late',
+      date: today(),
+      minutes: 15,
+      shiftId: '',
+      reason: 'Xe hỏng giữa đường',
+    },
+  });
+  expect(sent.status()).toBe(201);
+
+  await phone.goto('/m#/toi');
+  await expect(phone.getByText(/Sửa, xoá được trong \d+ phút nữa/)).toBeVisible();
+  await phone.getByRole('button', { name: /Sửa$/ }).click();
+  const sheet = phone.getByRole('dialog');
+  await expect(sheet.getByText('Sửa đơn')).toBeVisible();
+  await expect(sheet.getByLabel('Số phút')).toHaveValue('15');
+  await sheet.getByLabel('Số phút').fill('20');
+  await sheet.getByRole('button', { name: /Lưu đơn/ }).click();
+  await expect(phone.getByText('Đã sửa đơn')).toBeVisible();
+  await expect(phone.getByText(/Xin đi trễ 20 phút/)).toBeVisible();
+
+  await phone.getByRole('button', { name: /Xoá$/ }).click();
+  await phone.locator('.ant-modal-confirm').getByRole('button', { name: 'Xoá đơn' }).click();
+  await expect(phone.getByText('Đã xoá đơn')).toBeVisible();
+  await expect(phone.getByText('Bạn chưa gửi đơn nào.')).toBeVisible();
 });

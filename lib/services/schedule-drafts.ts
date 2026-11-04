@@ -171,6 +171,36 @@ export async function dropFromDrafts(tx: Tx, requestId: string) {
     .where(sql`${requestId}::uuid = any(${scheduleDrafts.registrationIds})`);
 }
 
+/** Nhân viên xoá đăng ký đã được nhận vào nháp: gỡ ca đó khỏi ô nháp; chưa vào nháp thì thôi. */
+export async function removeRegistrationFromDraft(
+  tx: Tx,
+  ctx: AuthContext,
+  request: typeof requests.$inferSelect,
+) {
+  const shiftId = shiftOf(request.payload);
+  const [draft] = await tx
+    .select()
+    .from(scheduleDrafts)
+    .where(
+      and(
+        eq(scheduleDrafts.employeeId, request.employeeId),
+        eq(scheduleDrafts.date, request.fromDate),
+        sql`${request.id}::uuid = any(${scheduleDrafts.registrationIds})`,
+      ),
+    );
+  if (!draft) return;
+  const { [shiftId]: _removed, ...positions } = draft.positions;
+  await writeDrafts(tx, ctx, [
+    {
+      employeeId: draft.employeeId,
+      date: draft.date,
+      shiftIds: draft.shiftIds.filter((id) => id !== shiftId),
+      isOff: draft.isOff,
+      positions,
+    },
+  ]);
+}
+
 /** Mã đơn đăng ký đang nằm trong nháp, để Hộp việc không mời nhận lại lần nữa. */
 export async function draftedRegistrationIds(db: Pick<Tx, 'select'>, companyId: string) {
   const rows = await db

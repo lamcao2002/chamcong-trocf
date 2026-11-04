@@ -306,6 +306,94 @@ describe('quyết định đơn (US33)', () => {
   });
 });
 
+describe('nhân viên sửa, xoá đơn của mình', () => {
+  const edit = (session: string, id: string, body: object) =>
+    api('PATCH', `/app/requests/${id}`, { cookie: session, body });
+  const remove = (session: string, id: string) => api('DELETE', `/app/requests/${id}`, { cookie: session });
+  const mine = async (session: string) =>
+    (await api('GET', '/app/requests', { cookie: session })).body.requests;
+  const scheduled = async () => {
+    const person = await newEmployee();
+    await schedule(person.id, tomorrow, [shifts.SANG.id]);
+    await schedule(person.id, addDays(tomorrow, 1), [shifts.SANG.id]);
+    return person;
+  };
+
+  it('trong 10 phút: sửa được, không tính trùng với chính nó, ghi nhật ký', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    const usedBefore = (await balance(person.session)).used;
+    const [row] = await mine(person.session);
+    expect(row.editableUntil).not.toBeNull();
+    expect(row.payload).toMatchObject({ leaveType: 'annual' });
+
+    const before = await auditCount('request.update');
+    const result = await edit(person.session, sent.body.request.id, {
+      ...leave(tomorrow, addDays(tomorrow, 1)),
+      reason: 'Về quê hai ngày',
+    });
+    expect(result.status).toBe(200);
+    expect(result.body.request).toMatchObject({ toDate: addDays(tomorrow, 1), reason: 'Về quê hai ngày' });
+    expect(await auditCount('request.update')).toBe(before + 1);
+    // Ca sáng là ca ghép: 0,5 ngày mỗi ngày, hai ngày là 1 ngày phép (gấp đôi lúc trước khi sửa)
+    expect((await balance(person.session)).used).toBe(2 * usedBefore);
+  });
+
+  it('không đổi được loại đơn', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    const other = {
+      type: 'overtime',
+      date: tomorrow,
+      when: 'after',
+      from: '12:00',
+      to: '13:00',
+      reason: 'Kiểm kho',
+    };
+    expect((await edit(person.session, sent.body.request.id, other)).status).toBe(400);
+  });
+
+  it('xoá hẳn đơn, nhật ký giữ bản đã xoá', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    const before = await auditCount('request.delete');
+    expect((await remove(person.session, sent.body.request.id)).status).toBe(200);
+    expect(await sql`select 1 from requests where id = ${sent.body.request.id}`).toHaveLength(0);
+    expect(await auditCount('request.delete')).toBe(before + 1);
+    expect(await mine(person.session)).toHaveLength(0);
+  });
+
+  it('quá 10 phút thì khoá', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    await sql`update requests set created_at = now() - interval '11 minutes' where id = ${sent.body.request.id}`;
+    expect((await mine(person.session))[0].editableUntil).toBeNull();
+    expect((await edit(person.session, sent.body.request.id, leave(tomorrow))).status).toBe(409);
+    expect((await remove(person.session, sent.body.request.id)).status).toBe(409);
+  });
+
+  it('đã được duyệt hoặc từ chối thì khoá dù chưa hết 10 phút', async () => {
+    const person = await scheduled();
+    const sent = await send(person.session, leave(tomorrow));
+    await decide(sent.body.request.id, { decision: 'reject', note: 'Thiếu người' });
+    expect((await mine(person.session))[0].editableUntil).toBeNull();
+    expect((await remove(person.session, sent.body.request.id)).status).toBe(409);
+  });
+
+  it('không đụng được đơn của người khác; cần phiên app', async () => {
+    const owner = await scheduled();
+    const other = await newEmployee();
+    const sent = await send(owner.session, leave(tomorrow));
+    expect((await remove(other.session, sent.body.request.id)).status).toBe(404);
+    expect((await edit(other.session, sent.body.request.id, leave(tomorrow))).status).toBe(404);
+    expect((await api('DELETE', `/app/requests/${sent.body.request.id}`)).status).toBe(401);
+    expect((await api('DELETE', `/app/requests/${sent.body.request.id}`, { cookie: admin })).status).toBe(
+      401,
+    );
+    expect((await remove(owner.session, 'khong-phai-id')).status).toBe(404);
+  });
+});
+
 describe('giải trình (US32)', () => {
   const explain = (session: string, body: object) =>
     api('POST', '/app/explanations', { cookie: session, body });

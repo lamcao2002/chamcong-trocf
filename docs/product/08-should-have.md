@@ -121,6 +121,19 @@ Quyết định đã chốt:
 | Nhận đăng ký ca | Vào nháp, đơn vẫn Chờ (nhân viên thấy "Chờ xếp"), Công bố mới chuyển Đã nhận. Bỏ nháp hoặc gỡ ca khỏi nháp thì đơn quay về chờ nhận. Hộp việc ẩn đơn đã nằm trong nháp |
 | Đổi vị trí của ca ngày đã qua | Kỳ lương đã công bố phủ ngày đó chuyển sang "cần công bố lại" |
 
+## Nhóm 9 — Sửa, xoá đơn và giờ mở đăng ký ca
+
+Yêu cầu ngày 04/11/2026. Hằng số ở `lib/domain/request-window.ts`.
+
+| Điểm | Quyết định |
+| --- | --- |
+| Giờ mở đăng ký ca | 07:00 Thứ Năm tới 07:00 Thứ Bảy hằng tuần, cho tuần kế tiếp; cố định cho mọi quán. Ngoài giờ chỉ xem lưới, không gửi được |
+| Sửa, xoá đơn thường | Trong 10 phút từ lúc gửi (sửa không gia hạn), chỉ khi đơn còn Chờ; đã duyệt hoặc từ chối thì khoá ngay. Không đổi được loại đơn |
+| Sửa, xoá đăng ký ca | Trong giờ mở đăng ký: bấm ô Chờ để bỏ, chọn ô khác để gửi thêm. Đơn đã được nhận vào nháp vẫn bỏ được, ca đó được gỡ khỏi nháp |
+| Xoá | Xoá hẳn khỏi danh sách và Hộp việc; `audit_logs` giữ bản đơn đã xoá |
+| Đơn của tôi | Ở tab Tôi |
+| Test | `REGISTRATION_ALWAYS_OPEN=1` (chỉ khi `APP_ENV=local`) cho đợt luôn mở, vì test chạy ở giờ bất kỳ |
+
 ## Quyết định đang để mặc định
 
 Các điểm dưới đây chưa chốt. Việc liên quan sẽ làm theo mặc định, trừ khi bạn đổi lại.

@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, between, desc, eq, gte, inArray, lt, lte } from 'drizzle-orm';
+import { and, between, desc, eq, gte, inArray, lt, lte, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { ApiError, notFound } from '@/lib/api/errors';
 import { writeAudit, type Tx } from '@/lib/audit';
@@ -16,6 +16,7 @@ import {
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import { requestSummary } from '@/lib/domain/request-text';
+import { editableUntil, REQUEST_EDIT_MINUTES } from '@/lib/domain/request-window';
 import { toMinutes } from '@/lib/domain/shift';
 import { expectedShifts } from '@/lib/engine/expected-shifts';
 import { addDays, atMinute } from '@/lib/engine/time';
@@ -28,7 +29,8 @@ import { notify } from './notifications';
 import { loadEmployeeRules, lockEmployees, recomputeDays } from './recompute';
 import { assertOwned } from './references';
 import { allowedShiftIds, expectedShiftIds, firstDraftDate, writeCells } from './schedule';
-import { acceptIntoDraft, dropFromDrafts } from './schedule-drafts';
+import { acceptIntoDraft, dropFromDrafts, removeRegistrationFromDraft } from './schedule-drafts';
+import { currentRegistrationWindow } from './registration-window';
 
 type Reader = Pick<Tx, 'select'>;
 
@@ -49,7 +51,7 @@ const registerPayload = z.object({ shiftId: z.string() });
 const STATUS_TEXT = { approve: 'đã được duyệt', reject: 'bị từ chối' };
 
 /** Phép năm còn lại: đơn đang chờ cũng giữ chỗ, để không gửi được hai đơn vượt phép cùng lúc. */
-export async function leaveBalance(db: Reader, employeeId: string, year: string) {
+export async function leaveBalance(db: Reader, employeeId: string, year: string, excludeId?: string) {
   const [employee] = await db
     .select({ payOverride: employees.payOverride, leaveDays: positions.leaveDays })
     .from(employees)
@@ -64,6 +66,7 @@ export async function leaveBalance(db: Reader, employeeId: string, year: string)
         eq(requests.type, 'leave'),
         inArray(requests.status, ['pending', 'approved']),
         between(requests.fromDate, `${year}-01-01`, `${year}-12-31`),
+        excludeId ? ne(requests.id, excludeId) : undefined,
       ),
     );
 
@@ -101,7 +104,13 @@ async function leaveDaysBetween(tx: Tx, ctx: AuthContext, from: string, to: stri
   return days;
 }
 
-async function leavePayload(tx: Tx, ctx: AuthContext, input: Extract<RequestInput, { type: 'leave' }>) {
+/** `excludeId`: đơn đang được sửa, không tính là trùng với chính nó. */
+async function leavePayload(
+  tx: Tx,
+  ctx: AuthContext,
+  input: Extract<RequestInput, { type: 'leave' }>,
+  excludeId?: string,
+) {
   const { fromDate, toDate, leaveType } = input;
   const [overlap] = await tx
     .select({ id: requests.id })
@@ -113,6 +122,7 @@ async function leavePayload(tx: Tx, ctx: AuthContext, input: Extract<RequestInpu
         inArray(requests.status, ['pending', 'approved']),
         lte(requests.fromDate, toDate),
         gte(requests.toDate, fromDate),
+        excludeId ? ne(requests.id, excludeId) : undefined,
       ),
     )
     .limit(1);
@@ -124,7 +134,7 @@ async function leavePayload(tx: Tx, ctx: AuthContext, input: Extract<RequestInpu
     throw new ApiError(400, message, { fromDate: message });
   }
   if (leaveType === 'annual') {
-    const { remaining } = await leaveBalance(tx, ctx.employee.id, fromDate.slice(0, 4));
+    const { remaining } = await leaveBalance(tx, ctx.employee.id, fromDate.slice(0, 4), excludeId);
     if (days > remaining) {
       const message = `Vượt phép còn lại (còn ${formatDecimal(remaining)} ngày, xin ${formatDecimal(days)} ngày)`;
       throw new ApiError(400, message, { toDate: message });
@@ -154,6 +164,7 @@ async function lateEarlyPayload(
   tx: Tx,
   ctx: AuthContext,
   input: Extract<RequestInput, { type: 'late_early' }>,
+  excludeId?: string,
 ) {
   if (input.shiftId) await assertAllowedShift(tx, ctx, input.shiftId, 'shiftId');
   const sameDay = await tx
@@ -165,6 +176,7 @@ async function lateEarlyPayload(
         eq(requests.type, 'late_early'),
         eq(requests.fromDate, input.date),
         inArray(requests.status, ['pending', 'approved']),
+        excludeId ? ne(requests.id, excludeId) : undefined,
       ),
     );
   if (sameDay.some(({ payload }) => (payload as { kind?: string }).kind === input.kind)) {
@@ -196,6 +208,21 @@ async function swapPayloadOf(tx: Tx, ctx: AuthContext, input: Extract<RequestInp
   return { offDate, offShiftId, workDate, workShiftId };
 }
 
+/** Chi tiết từng loại đơn, kiểm tra theo cùng quy tắc khi gửi và khi sửa. */
+async function payloadOf(tx: Tx, ctx: AuthContext, input: RequestInput, excludeId?: string): Promise<object> {
+  if (input.type === 'leave') return leavePayload(tx, ctx, input, excludeId);
+  if (input.type === 'forgot') {
+    if (input.date > vietnamToday()) {
+      throw new ApiError(400, 'Chưa tới ngày này', { date: 'Chưa tới ngày này' });
+    }
+    await assertAllowedShift(tx, ctx, input.shiftId, 'shiftId');
+    return { shiftId: input.shiftId, inTime: input.inTime, outTime: input.outTime };
+  }
+  if (input.type === 'late_early') return lateEarlyPayload(tx, ctx, input, excludeId);
+  if (input.type === 'shift_swap') return swapPayloadOf(tx, ctx, input);
+  return { when: input.when, from: input.from, to: input.to };
+}
+
 /** Nhân viên gửi đơn (US29–US31); khoảng ngày lưu ở cột, chi tiết từng loại lưu trong `payload`. */
 export async function createRequest(ctx: AuthContext, input: RequestInput) {
   const companyId = ctx.company.id;
@@ -203,23 +230,7 @@ export async function createRequest(ctx: AuthContext, input: RequestInput) {
   const [fromDate, toDate] = dateRangeOf(input);
 
   return getDb().transaction(async (tx) => {
-    let payload: object;
-    if (input.type === 'leave') {
-      payload = await leavePayload(tx, ctx, input);
-    } else if (input.type === 'forgot') {
-      if (input.date > vietnamToday()) {
-        throw new ApiError(400, 'Chưa tới ngày này', { date: 'Chưa tới ngày này' });
-      }
-      await assertAllowedShift(tx, ctx, input.shiftId, 'shiftId');
-      payload = { shiftId: input.shiftId, inTime: input.inTime, outTime: input.outTime };
-    } else if (input.type === 'late_early') {
-      payload = await lateEarlyPayload(tx, ctx, input);
-    } else if (input.type === 'shift_swap') {
-      payload = await swapPayloadOf(tx, ctx, input);
-    } else {
-      payload = { when: input.when, from: input.from, to: input.to };
-    }
-
+    const payload = await payloadOf(tx, ctx, input);
     const [request] = await tx
       .insert(requests)
       .values({ companyId, employeeId, type: input.type, payload, fromDate, toDate, reason: input.reason })
@@ -231,6 +242,68 @@ export async function createRequest(ctx: AuthContext, input: RequestInput) {
       after: request,
     });
     return request!;
+  });
+}
+
+/** Đơn của chính mình, khoá dòng; quá hạn sửa hoặc đã được quyết định thì từ chối. */
+async function lockOwnEditable(tx: Tx, ctx: AuthContext, id: string) {
+  const [request] = await tx
+    .select()
+    .from(requests)
+    .where(and(eq(requests.id, id), eq(requests.employeeId, ctx.employee.id)))
+    .for('update');
+  if (!request) throw notFound('đơn');
+  if (request.status !== 'pending') throw new ApiError(409, 'Đơn đã được xử lý, không sửa hay xoá được nữa');
+  if (!editableUntil(request, new Date(), currentRegistrationWindow())) {
+    throw new ApiError(
+      409,
+      request.type === 'shift_register'
+        ? 'Đã hết giờ đăng ký ca, không sửa hay xoá được nữa'
+        : `Đã quá ${REQUEST_EDIT_MINUTES} phút từ lúc gửi, không sửa hay xoá được nữa`,
+    );
+  }
+  return request;
+}
+
+/** Sửa đơn trong 10 phút đầu khi còn chờ; giữ loại đơn, hạn sửa vẫn tính từ lúc gửi lần đầu. */
+export async function updateMyRequest(ctx: AuthContext, id: string, input: RequestInput) {
+  return getDb().transaction(async (tx) => {
+    const before = await lockOwnEditable(tx, ctx, id);
+    if (before.type === 'shift_register') {
+      throw new ApiError(400, 'Đăng ký ca sửa trên lưới đăng ký: bỏ ô cũ rồi chọn ô mới');
+    }
+    if (input.type !== before.type)
+      throw new ApiError(400, 'Không đổi được loại đơn, hãy xoá rồi gửi đơn mới');
+
+    const [fromDate, toDate] = dateRangeOf(input);
+    const payload = await payloadOf(tx, ctx, input, id);
+    const [after] = await tx
+      .update(requests)
+      .set({ payload, fromDate, toDate, reason: input.reason })
+      .where(eq(requests.id, id))
+      .returning();
+    await writeAudit(tx, actorOf(ctx), {
+      action: 'request.update',
+      entity: 'request',
+      entityId: id,
+      before,
+      after,
+    });
+    return after!;
+  });
+}
+
+/**
+ * Xoá hẳn đơn còn chờ trong hạn sửa. Đăng ký ca đã được nhận vào nháp thì gỡ luôn ca đó khỏi nháp,
+ * để quản lý thấy ô đổi trước khi Công bố. Nhật ký giữ bản đơn đã xoá.
+ */
+export async function deleteMyRequest(ctx: AuthContext, id: string) {
+  await getDb().transaction(async (tx) => {
+    await lockEmployees(tx, [ctx.employee.id]);
+    const before = await lockOwnEditable(tx, ctx, id);
+    if (before.type === 'shift_register') await removeRegistrationFromDraft(tx, ctx, before);
+    await tx.delete(requests).where(eq(requests.id, id));
+    await writeAudit(tx, actorOf(ctx), { action: 'request.delete', entity: 'request', entityId: id, before });
   });
 }
 
@@ -265,14 +338,21 @@ export async function listMyRequests(ctx: AuthContext) {
       .orderBy(desc(requests.createdAt)),
   ]);
   const shiftName = (id: unknown) => library.find((shift) => shift.id === id)?.name ?? null;
+  const now = new Date();
+  const window = currentRegistrationWindow(now);
   return {
     balance,
     requests: rows.map(({ payload, ...row }) => ({
       ...row,
+      /** Chi tiết để mở lại form khi sửa. */
+      payload: payload as Record<string, unknown>,
       summary: requestSummary(row.type, payload as Record<string, unknown>, shiftName),
+      editableUntil: editableUntil(row, now, window)?.toISOString() ?? null,
     })),
   };
 }
+
+export type MyRequestView = Awaited<ReturnType<typeof listMyRequests>>['requests'][number];
 
 /** Đơn quên chấm thành lần chấm tổng hợp; giờ ra nhỏ hơn giờ vào là qua đêm. */
 async function addSyntheticPunches(tx: Tx, request: typeof requests.$inferSelect) {
