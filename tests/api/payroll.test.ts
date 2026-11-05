@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { vietnamToday } from '../../lib/domain/date';
 import { addDays } from '../../lib/engine/time';
-import { COMPANY, api, auditCount, employeeBody, login, sql, publishCells } from './helpers';
+import { BASE_URL, COMPANY, api, auditCount, employeeBody, login, sql, publishCells } from './helpers';
 
 let admin: string;
 let hr: string;
@@ -600,5 +600,22 @@ describe('công bố từng người', () => {
       body: { employeeIds: [a.id] },
     });
     expect(denied.status).toBe(403);
+  });
+});
+
+describe('phiếu in', () => {
+  it('có thực lĩnh, thưởng/phạt và bảng ngày công; không có các dòng "Vì sao ra số này"', async () => {
+    const { id } = await newEmployee();
+    await workedDay(id);
+    await adjust(id, 'bonus', 50_000, 'Doanh số tốt');
+    const html = await (
+      await fetch(`${BASE_URL}/app/in-phieu?period=${period}&nv=${id}`, { headers: { cookie: admin } })
+    ).text();
+    expect(html).toContain('Thực lĩnh');
+    expect(html).toContain('Doanh số tốt');
+    // React chèn chú thích giữa chữ và số khi render phía server
+    expect(html).toMatch(/Chi tiết (<!-- -->)?1(<!-- -->)? ngày công/);
+    expect(html).toContain('Tiền ca');
+    expect(html).not.toContain('Lương theo giờ');
   });
 });

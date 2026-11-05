@@ -2,21 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Tag } from 'antd';
+import { App, Button, Tag } from 'antd';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
-import { nearestZone } from '@/lib/domain/geo';
+import { nearestZone, type GeoSample } from '@/lib/domain/geo';
 import { formatClock } from '@/lib/format';
 import type { AppHome, PunchResult } from '@/lib/services/attendance';
-import { useGeoWatch, type GeoState } from './useGeoWatch';
+import { locateOnce, useGeoWatch, type GeoState } from './useGeoWatch';
 import styles from './EmployeeScreen.module.css';
 
 const CLOCK_TICK_MS = 1000;
 
-function GpsGuide() {
+function GpsSteps() {
   return (
-    <div className={styles.guide}>
-      <strong>Chưa được phép dùng vị trí</strong>
+    <>
       <p>
         <b>iPhone:</b> Cài đặt → Quyền riêng tư &amp; Bảo mật → Dịch vụ định vị → bật, rồi chọn Safari hoặc
         app Chấm công → Khi dùng app.
@@ -24,7 +23,16 @@ function GpsGuide() {
       <p>
         <b>Android:</b> Cài đặt → Ứng dụng → Chrome → Quyền → Vị trí → Cho phép khi đang dùng ứng dụng.
       </p>
-      <p>Bật xong, mở lại trang này để chấm công.</p>
+      <p>Bật xong, mở lại trang này rồi bấm chấm công.</p>
+    </>
+  );
+}
+
+function GpsGuide() {
+  return (
+    <div className={styles.guide}>
+      <strong>Chưa được phép dùng vị trí</strong>
+      <GpsSteps />
     </div>
   );
 }
@@ -33,6 +41,9 @@ type GpsStatusProps = { geo: GeoState; home: AppHome; onRetry: () => void };
 
 function GpsStatus({ geo, home, onRetry }: GpsStatusProps) {
   if (geo.kind === 'denied') return <GpsGuide />;
+  if (geo.kind === 'idle') {
+    return <p className={styles.gps}>Bấm chấm công, app sẽ xin quyền dùng vị trí</p>;
+  }
   if (geo.kind === 'locating') return <p className={styles.gps}>Đang lấy vị trí…</p>;
   if (geo.kind === 'unavailable') {
     return (
@@ -75,6 +86,7 @@ function resultLines({ type, inZone, distanceM, record }: PunchResult): string[]
 export function PunchScreen({ home }: { home: AppHome }) {
   const router = useRouter();
   const toast = useToast();
+  const { modal } = App.useApp();
   const [attempt, setAttempt] = useState(0);
   const geo = useGeoWatch(attempt);
   const [clock, setClock] = useState(() => formatClock(home.now));
@@ -82,6 +94,7 @@ export function PunchScreen({ home }: { home: AppHome }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [result, setResult] = useState<PunchResult | null>(null);
   const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
   const sending = useRef(false);
 
   useEffect(() => {
@@ -95,13 +108,48 @@ export function PunchScreen({ home }: { home: AppHome }) {
   const chooses = flexible && action === 'in';
   const selected = picked ?? scheduledIds.find((id) => home.choices.some((shift) => shift.id === id)) ?? null;
   const offSchedule = selected !== null && !scheduledIds.includes(selected);
-  const ready = geo.kind === 'ready' && (!chooses || selected !== null);
+
+  /** Chưa có vị trí thì lấy ngay lúc bấm: chưa có quyền thì trình duyệt hỏi, bị chặn thì chỉ cách bật. */
+  const positionNow = async (): Promise<GeoSample | null> => {
+    if (geo.kind === 'ready') return geo.position;
+    setLocating(true);
+    const found = await locateOnce();
+    setLocating(false);
+    // Đã có quyền thì bật lại theo dõi để thấy trong/ngoài vùng
+    if (found.kind === 'ready') {
+      setAttempt((value) => value + 1);
+      return found.position;
+    }
+    modal.warning({
+      title: found.kind === 'denied' ? 'Cần bật định vị để chấm công' : 'Không lấy được vị trí',
+      content:
+        found.kind === 'denied' ? (
+          <div className={styles.guideModal}>
+            <GpsSteps />
+          </div>
+        ) : (
+          'Kiểm tra đã bật Định vị (GPS) trên điện thoại, ra chỗ thoáng rồi bấm chấm công lại.'
+        ),
+      okText: 'Đã hiểu',
+    });
+    if (found.kind === 'unavailable') setAttempt((value) => value + 1);
+    return null;
+  };
 
   const submit = async () => {
-    if (geo.kind !== 'ready' || sending.current) return;
+    if (sending.current) return;
+    if (chooses && selected === null) {
+      toast.error('Chọn ca trước khi vào');
+      return;
+    }
     sending.current = true;
+    const position = await positionNow();
+    if (!position) {
+      sending.current = false;
+      return;
+    }
     setSaving(true);
-    const { lat, lng, accuracy } = geo.position;
+    const { lat, lng, accuracy } = position;
     const response = await apiRequest<{ result: PunchResult }>('/api/v1/app/punch', 'POST', {
       type: action,
       lat,
@@ -149,10 +197,11 @@ export function PunchScreen({ home }: { home: AppHome }) {
           <button
             type="button"
             className={`${styles.punch} ${action === 'out' ? styles.punchOut : ''}`}
-            disabled={!ready || saving}
+            // Luôn bấm được: thiếu vị trí thì xin quyền lúc bấm, thiếu ca thì nhắc chọn
+            disabled={saving || locating}
             onClick={() => void submit()}
           >
-            {saving ? 'Đang gửi…' : action === 'in' ? 'VÀO CA' : 'RA CA'}
+            {locating ? 'Đang lấy vị trí…' : saving ? 'Đang gửi…' : action === 'in' ? 'VÀO CA' : 'RA CA'}
           </button>
         </div>
       </div>

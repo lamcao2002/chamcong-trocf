@@ -243,3 +243,22 @@ Quyết định đã chốt (05/11/2026):
 - API: `POST`, `DELETE /payroll/publish?period=` nhận body `{ employeeIds }` (tối đa 500); không gửi body là cả kỳ. Người ngoài phạm vi trả 404, danh sách rỗng 400, huỷ người chưa có phiếu 409.
 
 Code: `publishPayroll(ctx, key, employeeIds)`, `unpublishPayroll(ctx, key, employeeIds)`, `slipStateOf`, `PayrollView.employees[].slip`, `PublishDialog`/`UnpublishButton` prop `picked`.
+
+## Nhóm 18 — Phiếu in và phiếu nhân viên không có "Vì sao ra số này"
+
+Quyết định đã chốt (05/11/2026):
+
+- Phiếu in của quản lý (`/app/in-phieu`) và phiếu ở app nhân viên **không còn các dòng "Vì sao ra số này"** (Lương theo giờ, Tăng ca, Ca hệ số...). Sao kê ở màn Lương của quản lý vẫn giữ.
+- Thay vào đó: **Thực lĩnh**, các khoản **thưởng/phạt nhập tay** (nếu có, kèm lý do) và **bảng chi tiết ngày công** cùng cột với phiếu nhân viên (Nhóm 15). Trên giấy bảng co theo khổ, chữ nhỏ lại, không ngắt giữa một dòng.
+- Phiếu công bố trước khi có bảng ngày công thì vẫn in và hiện đủ các dòng như cũ, để con số còn có giải thích; công bố lại là có bảng.
+
+## Nhóm 19 — Nút chấm công luôn bấm được, xin quyền vị trí lúc bấm
+
+Quyết định đã chốt (05/11/2026):
+
+- Nút **VÀO CA / RA CA** luôn bấm được, không còn bị mờ khi chưa có vị trí. Chỉ khoá trong lúc đang lấy vị trí hoặc đang gửi.
+- Bấm mà chưa có vị trí: app lấy vị trí ngay (`locateOnce`), trình duyệt hiện hộp xin quyền nếu chưa hỏi. Được phép thì chấm luôn trong cùng lần bấm.
+- Bị chặn quyền: hộp "Cần bật định vị để chấm công" kèm cách bật trên iPhone và Android. Không lấy được vị trí (GPS tắt, mất tín hiệu): hộp "Không lấy được vị trí". Cả hai trường hợp **không ghi lần chấm**.
+- Mở trang: quyền đã cấp thì theo dõi vị trí ngay như cũ (thấy Trong/Ngoài vùng trước khi bấm); chưa hỏi thì không hỏi ngay, ghi "Bấm chấm công, app sẽ xin quyền dùng vị trí". Trình duyệt không có Permissions API thì theo dõi ngay như cũ.
+- Linh hoạt mà chưa chọn ca: bấm thì báo "Chọn ca trước khi vào".
+- Ngoài vùng vẫn chấm được, chờ quản lý duyệt như cũ.
