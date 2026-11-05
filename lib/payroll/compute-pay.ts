@@ -26,6 +26,7 @@ export type PayDay = Pick<
   | 'otProposed'
   | 'otApproved'
   | 'otState'
+  | 'payFactor'
   | 'lateMin'
   | 'waivedLate'
   | 'earlyMin'
@@ -46,6 +47,8 @@ export type PayResult = {
   lines: PayLine[];
   /** Tổng các dòng đã làm tròn, nên sao kê, quỹ lương và phiếu luôn khớp (D1). */
   net: number;
+  /** Tiền từng ca theo thứ tự `days` (giờ ca và OT đã duyệt); NULL với ca không trả theo giờ. */
+  dayAmounts: (number | null)[];
   pendingOt: { minutes: number; amount: number; days: { date: string; minutes: number }[] };
   projectedNet: number;
   summary: {
@@ -111,39 +114,55 @@ function baseLines(profile: PayProfile, days: readonly PayDay[]): PayLine[] {
     return [{ key: 'base', name: 'Lương theo công', amount: Math.round(payAmount * cong), how }];
   }
 
-  // Ngày nghỉ tuần chỉ trả qua OT đã duyệt, cộng vào đây là trả hai lần (D5)
-  const workedMin = sum(
-    days.filter(({ offDay }) => !offDay),
-    (day) => day.workedMin,
-  );
-  const hours = round2(workedMin / 60);
-  const lines: PayLine[] = [
-    {
-      key: 'base',
-      name: 'Lương theo giờ',
-      amount: Math.round((workedMin / 60) * payAmount),
-      how: `${formatDecimal(hours)} giờ × ${formatMoney(payAmount)}`,
-    },
+  // Ca hệ số 1 gộp một dòng; ca có hệ số khác ghi dòng riêng để sao kê thấy rõ từng ca
+  const plain = days.filter((day) => day.payFactor === 1 && shiftHours(day) > 0);
+  const factored = days.filter((day) => day.payFactor !== 1 && shiftHours(day) > 0);
+  return [
+    ...(plain.length > 0 || factored.length === 0
+      ? [
+          {
+            key: 'base',
+            name: 'Lương theo giờ',
+            amount: sum(plain, (day) => shiftBase(profile, day)),
+            how: `${plain.length} ca · ${formatDecimal(round2(sum(plain, shiftHours)))} giờ × ${formatMoney(payAmount)}`,
+          },
+        ]
+      : []),
+    ...factored.map((day, index): PayLine => ({
+      key: `base_factor_${day.date}_${index}`,
+      name: `Ca hệ số ${formatDecimal(day.payFactor)}`,
+      amount: shiftBase(profile, day),
+      how: `${shortDate(day.date)}: ${formatDecimal(round2(shiftHours(day)))} giờ × ${formatMoney(payAmount)} × ${formatDecimal(day.payFactor)}`,
+    })),
   ];
-
-  // Ngày có công mà không có phút làm: phép năm, lễ, thiếu giờ được duyệt (Q3)
-  const paidDays = days.filter(({ workedMin: minutes, cong: value }) => minutes === 0 && value > 0);
-  if (paidDays.length > 0) {
-    const paidHours = sum(paidDays, (day) => day.cong * stdHoursOf(day));
-    lines.push({
-      key: 'paid_leave',
-      name: 'Nghỉ có lương, công được duyệt',
-      amount: Math.round(paidHours * payAmount),
-      how: `${formatDecimal(round2(paidHours))} giờ × ${formatMoney(payAmount)}`,
-    });
-  }
-  return lines;
 }
 
+/**
+ * Giờ được trả của một ca lương giờ: giờ chuẩn của ca × công, không theo phút chấm, nên phép, lễ và
+ * thiếu giờ được duyệt cũng có tiền (Q3). Ngày nghỉ tuần chỉ trả qua OT đã duyệt, tránh trả hai lần (D5).
+ */
+function shiftHours(day: PayDay): number {
+  return day.offDay ? 0 : stdHoursOf(day) * day.cong;
+}
+
+/** Lương giờ × giờ ca × hệ số, làm tròn từng ca để tổng các dòng khớp tiền từng ngày trên sao kê. */
+function shiftBase({ payAmount }: PayProfile, day: PayDay): number {
+  return Math.round(payAmount * shiftHours(day) * day.payFactor);
+}
+
+/** Lương giờ: OT cùng đơn giá và hệ số của ca, không nhân %; lương tháng và công nhân % theo loại ngày. */
 function otPrice(profile: PayProfile, day: PayDay, minutes: number) {
   const rate = hourlyRate(profile, stdHoursOf(day));
+  const price = `${minutes}p × ${formatMoney(Math.round(rate))}/giờ`;
+  if (profile.payType === 'hour') {
+    const factor = day.payFactor === 1 ? '' : ` × hệ số ${formatDecimal(day.payFactor)}`;
+    return { amount: Math.round((minutes / 60) * rate * day.payFactor), how: `${price}${factor}` };
+  }
   const percent = otRateOf(day, profile.otRates);
-  return { rate, percent, amount: Math.round((minutes / 60) * rate * (percent / 100)) };
+  return {
+    amount: Math.round((minutes / 60) * rate * (percent / 100)),
+    how: `${price} × ${percent}% (${dayKindLabel(day)})`,
+  };
 }
 
 const dayKindLabel = ({ isHoliday, offDay }: PayDay) =>
@@ -182,12 +201,12 @@ export function computePay({ profile, days, adjustments, roles = {} }: PayInput)
   const otLines = days
     .filter(({ otApproved }) => otApproved > 0)
     .map((day): PayLine => {
-      const { rate, percent, amount } = otPrice(profileOf(day), day, day.otApproved);
+      const { amount, how } = otPrice(profileOf(day), day, day.otApproved);
       return {
         key: `ot_${day.date}`,
         name: 'Tăng ca đã duyệt',
         amount,
-        how: `${shortDate(day.date)}: ${day.otApproved}p × ${formatMoney(Math.round(rate))}/giờ × ${percent}% (${dayKindLabel(day)})`,
+        how: `${shortDate(day.date)}: ${how}`,
       };
     });
   const adjustmentLines = adjustments.map(({ kind, amount, note }, index): PayLine => {
@@ -209,9 +228,17 @@ export function computePay({ profile, days, adjustments, roles = {} }: PayInput)
   const pendingAmount = sum(pendingDays, ({ day, minutes }) => otPrice(profileOf(day), day, minutes).amount);
   const otPendingMin = sum(pendingDays, ({ minutes }) => minutes);
 
+  const dayAmounts = days.map((day) => {
+    const dayProfile = profileOf(day);
+    if (dayProfile.payType !== 'hour') return null;
+    const ot = day.otApproved > 0 ? otPrice(dayProfile, day, day.otApproved).amount : 0;
+    return shiftBase(dayProfile, day) + ot;
+  });
+
   return {
     lines,
     net,
+    dayAmounts,
     pendingOt: {
       minutes: otPendingMin,
       amount: pendingAmount,

@@ -123,6 +123,7 @@ const approval = (fields: Partial<EngineApproval>): EngineApproval => ({
   waiveEarly: false,
   confirmShiftId: null,
   approveGps: false,
+  payFactor: null,
   ...fields,
 });
 
@@ -760,6 +761,16 @@ describe('ngoài bộ ca kiểm thử', () => {
       AFTER_WINDOW,
     )[0];
     expect(record).toMatchObject({ cong: 1, needsReview: false, suggestions: [] });
+  });
+
+  it('hệ số lương đi theo bản ghi duyệt, không đóng việc cần duyệt', () => {
+    const plain = computeDay(T17, AFTER_WINDOW)[0];
+    const record = computeDay(
+      { ...T17, approvals: [approval({ shiftId: SANG.id, payFactor: 1.5 })] },
+      AFTER_WINDOW,
+    )[0];
+    expect(plain!.payFactor).toBe(1);
+    expect(record).toMatchObject({ payFactor: 1.5, cong: 0, needsReview: true });
   });
 
   it('xác nhận ca đã làm ngày Cho nghỉ thì có công', () => {

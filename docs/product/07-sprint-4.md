@@ -61,14 +61,21 @@ Quan sát từ bản gốc trong `docs/website-analysis/04-feature-specification
 | Khoản | Công thức | Ví dụ |
 | --- | --- | --- |
 | Lương tháng | mức ÷ công chuẩn × công | 11.000.000 ÷ 26 × 26 = 11.000.000đ |
-| Lương giờ | phút làm ÷ 60 × đơn giá giờ | 79,35 giờ × 25.000 = 1.983.750đ |
+| Lương giờ, mỗi ca | đơn giá giờ × (giờ chuẩn ca × công + giờ OT đã duyệt) × hệ số ca | 25.000 × (5 × 1 + 1) × 1,5 = 225.000đ |
 | Lương công | đơn giá × công | 60.000 × 27 = 1.620.000đ |
-| Ngày có công không có phút làm của lương giờ (phép, lễ, thiếu giờ được duyệt) | công của ngày × giờ chuẩn ca × đơn giá giờ | 1 × 7,5 × 25.000 = 187.500đ |
 | Đơn giá giờ của lương tháng | mức ÷ công chuẩn ÷ giờ chuẩn ca | 10.000.000 ÷ 26 ÷ 7,5 = 51.282đ |
-| OT | phút ÷ 60 × đơn giá giờ × hệ số | 90 phút × 51.282 × 150% = 115.385đ |
+| OT của lương tháng, lương công | phút ÷ 60 × đơn giá giờ × % OT | 90 phút × 51.282 × 150% = 115.385đ |
 | Thực lĩnh | lương + OT đã duyệt + thưởng − phạt | 10.000.000 + 115.385 = 10.115.385đ |
 
-Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_records` không lưu hệ số; ghi đè trong `pay_override` thắng vị trí, như engine đang làm.
+% OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_records` không lưu %; ghi đè trong `pay_override` thắng vị trí, như engine đang làm.
+
+**Lương giờ tính theo ca (chốt 04/11/2026, thay công thức theo phút làm):**
+
+- Giờ ca là giờ chuẩn của ca × công, không theo phút chấm: đi muộn vài phút không bị trừ tiền; phép, lễ, thiếu giờ được duyệt có tiền vì đã có công (Q3). Ngày nghỉ tuần không có giờ ca, chỉ trả qua OT (D5).
+- OT của lương giờ dùng cùng đơn giá, **không nhân %** theo loại ngày; muốn trả cao hơn thì đặt hệ số.
+- Hệ số ca đặt ở Điều chỉnh khác khi duyệt công (`approvals.pay_factor`, chép sang `day_records.pay_factor`), mặc định 1, từ 0 tới 10. Hệ số tách riêng với công: đổi hệ số không đổi số công trên Bảng công, cũng không đóng việc cần duyệt.
+- Hệ số chỉ áp cho ca trả theo giờ; lương tháng, lương công giữ công thức và % OT như cũ.
+- Sao kê gộp ca hệ số 1 vào dòng "Lương theo giờ", mỗi ca có hệ số khác một dòng riêng; bảng Từng ngày có cột Hệ số và Tiền ca, tiền làm tròn từng ca nên tổng khớp sao kê.
 
 **Bộ ca kiểm thử lương (S4-02):**
 
@@ -77,14 +84,14 @@ Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_
 | P01 | Tháng | 11.000.000, chuẩn 26, 26 công | 11.000.000đ | Gốc |
 | P02 | Tháng + OT | 10.000.000, 26 công, OT 90 phút ngày thường, ca 7,5 giờ | 10.115.385đ | Gốc |
 | P03 | OT chờ | P02 + 294 phút chờ (98, 100, 96) | Thực lĩnh giữ 10.115.385đ; dự phóng 10.492.308đ, +376.923đ | Gốc |
-| P04 | Giờ | 25.000đ/giờ, 4.761 phút | 1.983.750đ | Gốc |
+| P04 | Giờ | 25.000đ/giờ, 2 ca 7,5 giờ, 1 công mỗi ca, chấm 431 và 452 phút | 375.000đ, theo giờ chuẩn ca | Đề xuất (04/11) |
 | P05 | Công | 60.000đ, 27 công | 1.620.000đ | Gốc |
 | P06 | Thưởng, phạt | P01, thưởng 500.000, phạt 200.000 | 11.300.000đ | Đề xuất |
 | P07 | Thiếu công | 7.000.000, chuẩn 26, 25,5 công | 6.865.385đ | Đề xuất |
-| P08 | Ngày nghỉ tuần, lương giờ | 25.000đ/giờ, `off_day` 240 phút, OT duyệt 240 ở 200% | 200.000đ, không có lương giờ cho 240 phút | D5 |
+| P08 | Ngày nghỉ tuần, lương giờ | 25.000đ/giờ, `off_day` 240 phút, OT duyệt 240 | 100.000đ, không nhân %, không có lương ca cho 240 phút | D5 |
 | P09 | Ngày lễ | 10.000.000, chuẩn 26, ca 7,5 giờ, 1 công, OT 450 phút ở 300% | 384.615đ + 1.153.846đ | D6 |
-| P10 | Thứ Bảy nghỉ để trống hệ số | OT 60 phút, hệ số ngày thường 150% | Tính 150% | Gốc |
-| P11 | Ghi đè lương | Vị trí 25.000đ, `pay_override` 27.000đ/giờ, 60 phút | 27.000đ | Gốc |
+| P10 | Thứ Bảy nghỉ để trống % | Lương tháng, OT 60 phút, % ngày thường 150% | Tính 150% | Gốc |
+| P11 | Ghi đè lương | Vị trí 25.000đ, `pay_override` 27.000đ/giờ, ca 7,5 giờ, 1 công | 202.500đ | Gốc |
 | P12 | Thực lĩnh âm | 60.000đ, 1 công, phạt 100.000đ | −40.000đ, có cảnh báo | D9 |
 | P13 | Không có ngày công | Vị trí tháng, 0 công | 0đ, vẫn có phiếu | Đề xuất |
 | P14 | Làm tròn | Ba dòng có phần lẻ | Thực lĩnh bằng đúng tổng ba dòng đã làm tròn | D1 |
@@ -92,6 +99,11 @@ Hệ số OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_
 | P16 | Ngày lễ không đi làm, lương giờ | 25.000đ/giờ, ca 8 giờ, trạng thái `le`, 1 công | 200.000đ | Q3 |
 | P17 | Vượt công chuẩn | 10.000.000, chuẩn 26, 28 công | 10.769.231đ | Q4 |
 | P18 | Thiếu giờ được duyệt, lương giờ | 25.000đ/giờ, ca 5 giờ, 1 công, 0 phút làm | 125.000đ | Q3 |
+| P22 | Hệ số ca, lương giờ | 25.000đ/giờ, ca 4 giờ hệ số 1 và ca 4 giờ hệ số 1,5 có OT 60 phút | 100.000đ + 150.000đ + 37.500đ OT | Đề xuất (04/11) |
+| P23 | OT ngày lễ, lương giờ | 25.000đ/giờ, ca 8 giờ, OT 120 phút ngày lễ | 250.000đ, không nhân 300% | Đề xuất (04/11) |
+| P24 | Hệ số với lương tháng, công | Lương tháng 26 công hệ số 2 | 11.000.000đ, bỏ qua hệ số | Đề xuất (04/11) |
+
+P19–P21 (nhiều vị trí) ở `08-should-have.md`; P19, P20 đã đổi số theo công thức theo ca.
 
 ## Danh sách việc
 

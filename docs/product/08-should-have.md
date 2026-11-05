@@ -138,6 +138,20 @@ Yêu cầu ngày 04/11/2026. Hằng số ở `lib/domain/request-window.ts`.
 
 Màn **Đơn từ** (`/app/don-tu`, Quản lý nhóm trở lên): mọi đơn của kỳ lương đang xem, có ngày nằm trong kỳ, của người mình quản lý. Lọc trạng thái, loại đơn, tên. Chi tiết ghi ai gửi lúc nào, ai duyệt hoặc từ chối lúc nào, lý do từ chối; đơn còn chờ duyệt được ngay trong chi tiết. Đơn nhân viên đã xoá không hiện. Quản lý chưa xoá hay huỷ được đơn.
 
+## Nhóm 11 — Pass ca
+
+Thay form Đổi ca (đơn `shift_swap` cũ vẫn giữ trong lịch sử). Loại đơn `shift_pass`, người nhận ở `requests.target_employee_id`; logic ở `lib/services/shift-pass.ts`.
+
+| Điểm | Quyết định |
+| --- | --- |
+| Ca pass được | Ca của mình trong lịch đã công bố (cả ca cố định), 14 ngày tới, chưa bắt đầu; mỗi ca một đơn đang chờ |
+| Người nhận được | Nhân viên đang làm, không phải mình, giờ đó không có ca trùng (kể cả ca đêm hôm trước), làm được vị trí của ca: vị trí chính, vị trí phụ, hoặc vị trí họ "làm thay được" (Vị trí & ca, bảng `position_covers`). Không xét ca được làm của người nhận |
+| Duyệt | Người nhận đồng ý là lịch đổi ngay, quản lý không duyệt; giờ người gửi và quản lý của hai người nhận thông báo |
+| Vị trí, lương | Ca giữ vị trí cũ; người nhận được trả theo mức của vị trí đó (lương riêng ở vị trí phụ nếu có), trừ khi vị trí chính của họ trả theo tháng |
+| Hết hạn | Tới giờ vào ca mà chưa trả lời thì đơn hết hạn (tính lúc đọc), ca vẫn của người gửi |
+| Sửa, xoá | Không sửa; xoá trong 10 phút khi còn chờ |
+| Sửa ô sau đó | Ca và vị trí đã có sẵn trong ô được giữ khi quản lý sửa ô ở Xếp ca, dù người đó vốn không được xếp ca hay vị trí ấy |
+
 ## Quyết định đang để mặc định
 
 Các điểm dưới đây chưa chốt. Việc liên quan sẽ làm theo mặc định, trừ khi bạn đổi lại.
@@ -158,3 +172,49 @@ Các điểm dưới đây chưa chốt. Việc liên quan sẽ làm theo mặc 
 - Sửa `schema.ts` thì chạy `npm run db:generate`; migration chỉ thêm.
 - Đổi engine hay lương thì thêm ca kiểm thử trước khi code.
 - Xong mỗi việc chạy `npm run check`, test API trên build thật, và đánh dấu tiến độ vào `CLAUDE.md`.
+
+## Nhóm 12 — Duyệt loạt ở Bảng công Theo tuần, gồm ca Vắng
+
+Quyết định đã chốt:
+
+- Nút **Duyệt loạt** ở kiểu xem Theo tuần chỉ dành cho **Quản trị viên**; Nhân sự và Quản lý nhóm không thấy nút, gửi ca Vắng qua API bị 403.
+- Theo tuần duyệt được mọi việc có đề xuất như Lưới cả kỳ, **thêm ca Vắng**. Lưới cả kỳ giữ như cũ, không duyệt loạt ca Vắng.
+- Khi lô có ca Vắng, hộp xác nhận hỏi một lựa chọn áp cho mọi ca Vắng đã chọn:
+  - **Xác nhận vắng, 0 công**: ô vẫn là Vắng, hết cần duyệt.
+  - **Cho đủ công**: 1 công mỗi ca, như ca đi làm đủ, kể cả ca ghép (T24). Không dùng công kỳ vọng 0,5 của ca ghép: số đó chỉ dành cho phép và lễ.
+- Không gửi lựa chọn thì ca Vắng trong lô bị bỏ qua (`skipped`). Duyệt nhầm thì hoàn duyệt ở từng ngày.
+
+Code: `absenceDecision` (`lib/domain/approval.ts`), `approvableItems(row, { absence })`, `bulkApprovalSchema.absence`, `TimesheetView.canBulk`.
+
+## Nhóm 13 — Giao diện Lương mới, Huỷ công bố
+
+Quyết định đã chốt:
+
+- Màn Lương chỉ có kỳ **Tháng** (theo ngày chốt). Không có Kỳ lệch, Tự chọn: Lương, phiếu và công bố luôn theo `companies.cutoff_day`.
+- Thanh kỳ (‹ Tháng MM/YYYY ›, Kỳ này), In phiếu cả kỳ và Xuất Excel nằm trên dải header.
+- Thẻ kỳ lương ghi giờ và người công bố. Đã công bố thì nút **Công bố lại** luôn hiện; chỉ tô đậm khi số liệu đã đổi.
+- **Huỷ công bố** chỉ dành cho Quản trị viên: xoá bản chụp phiếu của kỳ, kỳ về Chưa công bố, nhân viên hết thấy phiếu và nhận thông báo "Phiếu lương đã thu hồi". `audit_logs` (`payroll.unpublish`) giữ số các phiếu vừa xoá. Công bố sau đó là lần công bố mới.
+- Danh sách: tìm theo tên hoặc email, lọc vị trí và kiểu lương, sắp xếp theo tên, thực lĩnh, cần xử lý.
+- Sao kê có bảng **Từng ngày**. Tắt "Hiện đủ từng ngày" thì chỉ còn ngày có việc: muộn/sớm, OT, cần duyệt, hoặc khác Đủ công, Lễ.
+
+Code: `PayrollBar`, `unpublishPayroll` (`lib/services/payroll.ts`), `getPayStatement().days`.
+
+## Nhóm 14 — Lương giờ tính theo ca, hệ số ca
+
+Quyết định đã chốt (04/11/2026):
+
+- Lương giờ của một ca = **đơn giá giờ × (giờ chuẩn ca × công + giờ OT đã duyệt) × hệ số**. Thực lĩnh = tổng các ca + thưởng − phạt.
+- Giờ ca theo giờ chuẩn của ca, không theo phút chấm. OT của lương giờ không nhân % theo loại ngày.
+- Hệ số đặt ở **Điều chỉnh khác** khi duyệt công, mặc định 1, từ 0 tới 10, tối đa 2 chữ số thập phân. Hệ số tách riêng với công, không đóng việc cần duyệt.
+- Chỉ áp cho ca trả theo giờ; lương tháng, lương công giữ như cũ.
+- Ca P04, P08, P10, P11, P15, P19, P20 đổi theo; thêm P22–P24 (`07-sprint-4.md`).
+
+Code: `shiftHours`, `shiftBase`, `PayResult.dayAmounts` (`lib/payroll/compute-pay.ts`), `approvals.pay_factor`, `day_records.pay_factor`, migration `0008_pay_factor`.
+
+## Nhóm 15 — Chi tiết ngày công trên phiếu nhân viên
+
+- Phiếu lương ở app nhân viên có nút **Xem chi tiết N ngày công**: mở bảng giống bảng Từng ngày của sao kê quản trị, mỗi ca một dòng, **bỏ cột Công và Sau ca**: Ngày, Ca, Vào, Ra, Trong ca, Muộn / sớm, Hệ số, Tiền ca (chỉ khi lương giờ), Ghi nhận. Trên điện thoại bảng cuộn ngang trong khung.
+- Số liệu là **bản chụp lúc công bố** (`payslips.summary.days`), không tính lại, nên khớp tổng phiếu. Phiếu công bố trước khi có tính năng này không có chi tiết, nút ẩn; công bố lại kỳ đó thì có.
+- N là số ngày có dòng ngày công trong kỳ, gồm cả ngày Vắng.
+
+Code: `statementDays` (`lib/services/payroll.ts`), `DayTable` dùng chung (`components/admin/payroll/DayTable.tsx`, `compact` cho phiếu), `SlipDays` (`components/employee/PayslipTab.tsx`).

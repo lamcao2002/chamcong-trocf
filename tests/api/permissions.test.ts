@@ -49,6 +49,7 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'GET', path: '/payroll/export', allowed: ['hr', 'admin'] },
   { method: 'GET', path: `/payroll/${NIL}`, allowed: ['hr', 'admin'] },
   { method: 'POST', path: '/payroll/publish?period=2099-01', allowed: ['hr', 'admin'] },
+  { method: 'DELETE', path: '/payroll/publish?period=2099-01', allowed: ['admin'] },
   { method: 'POST', path: '/adjustments', allowed: ['hr', 'admin'], body: {} },
   { method: 'DELETE', path: `/adjustments/${NIL}`, allowed: ['hr', 'admin'] },
   { method: 'GET', path: `/timesheet/${NIL}`, allowed: ['manager', 'hr', 'admin'] },

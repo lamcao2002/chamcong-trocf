@@ -5,6 +5,7 @@ import { Flex, Form, Input, InputNumber, Segmented, Skeleton, Switch, Typography
 import { FormDrawer } from '@/components/common/FormDrawer';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
+import { MAX_PAY_FACTOR } from '@/lib/domain/approval';
 import { dayStatusLabel } from '@/lib/format';
 import type { DayDetail } from '@/lib/services/day';
 
@@ -19,6 +20,8 @@ export type AdjustTarget = {
 type Values = {
   cong: string;
   otMinutes: number | null;
+  /** NULL = mặc định 1. */
+  payFactor: number | null;
   approveMissing: boolean;
   waiveLate: boolean;
   waiveEarly: boolean;
@@ -34,6 +37,7 @@ const CONG_OPTIONS = [
 const EMPTY: Values = {
   cong: 'system',
   otMinutes: null,
+  payFactor: null,
   approveMissing: false,
   waiveLate: false,
   waiveEarly: false,
@@ -45,6 +49,7 @@ function initialValues(detail: DayDetail, shiftId: string | null): Values {
   return {
     cong: approval.congOverride === null ? 'system' : String(approval.congOverride),
     otMinutes: approval.otMinutes,
+    payFactor: approval.payFactor,
     approveMissing: approval.approveMissing,
     waiveLate: approval.waiveLate,
     waiveEarly: approval.waiveEarly,
@@ -58,6 +63,7 @@ function changes(before: Values, after: Values) {
       ? {}
       : { congOverride: after.cong === 'system' ? null : Number(after.cong) }),
     ...(after.otMinutes === before.otMinutes ? {} : { otMinutes: after.otMinutes }),
+    ...(after.payFactor === before.payFactor ? {} : { payFactor: after.payFactor }),
     ...(after.approveMissing === before.approveMissing ? {} : { approveMissing: after.approveMissing }),
     ...(after.waiveLate === before.waiveLate ? {} : { waiveLate: after.waiveLate }),
     ...(after.waiveEarly === before.waiveEarly ? {} : { waiveEarly: after.waiveEarly }),
@@ -66,7 +72,7 @@ function changes(before: Values, after: Values) {
 
 type AdjustDrawerProps = { target: AdjustTarget | null; onClose: () => void };
 
-/** Điều chỉnh khác: số công, phút OT, duyệt thiếu giờ, tha muộn/sớm, ghi chú (US26, US28). */
+/** Điều chỉnh khác: số công, phút OT, hệ số lương, duyệt thiếu giờ, tha muộn/sớm, ghi chú (US26, US28). */
 export function AdjustDrawer({ target, onClose }: AdjustDrawerProps) {
   const toast = useToast();
   const [detail, setDetail] = useState<DayDetail | null>(null);
@@ -136,6 +142,7 @@ export function AdjustDrawer({ target, onClose }: AdjustDrawerProps) {
               Hệ thống ghi nhận: {dayStatusLabel(record.status)} · {String(record.cong).replace('.', ',')}{' '}
               công
               {record.otProposed > 0 ? ` · OT đề xuất ${record.otProposed} phút` : ''}
+              {record.payFactor === 1 ? '' : ` · hệ số ${String(record.payFactor).replace('.', ',')}`}
             </Typography.Paragraph>
           ) : null}
           <Form.Item label="Số công">
@@ -149,6 +156,22 @@ export function AdjustDrawer({ target, onClose }: AdjustDrawerProps) {
               aria-label="Phút OT được duyệt"
               value={values.otMinutes}
               onChange={(otMinutes) => set({ otMinutes })}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Hệ số lương"
+            extra="Nhân cả giờ ca và giờ OT, chỉ áp cho nhân viên lương giờ. Để trống là 1."
+          >
+            <InputNumber
+              min={0}
+              max={MAX_PAY_FACTOR}
+              step={0.5}
+              decimalSeparator=","
+              placeholder="1"
+              style={{ width: '100%' }}
+              aria-label="Hệ số lương"
+              value={values.payFactor}
+              onChange={(payFactor) => set({ payFactor })}
             />
           </Form.Item>
           {(

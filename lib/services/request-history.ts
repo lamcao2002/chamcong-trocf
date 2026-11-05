@@ -8,6 +8,7 @@ import { vietnamToday } from '@/lib/domain/date';
 import { requestSummary } from '@/lib/domain/request-text';
 import { canDecideOwn } from './approvals';
 import { draftedRegistrationIds } from './schedule-drafts';
+import { passExpired } from './shift-pass';
 import { periodFor } from './timesheet';
 
 /**
@@ -18,6 +19,8 @@ export async function listRequestHistory(ctx: AuthContext, periodKey?: string) {
   const db = getDb();
   const { period, previousKey, nextKey } = await periodFor(ctx, periodKey, vietnamToday());
   const decider = alias(employees, 'decider');
+  const target = alias(employees, 'target');
+  const now = new Date();
 
   const [rows, library, drafted, ownAllowed] = await Promise.all([
     db
@@ -36,11 +39,13 @@ export async function listRequestHistory(ctx: AuthContext, periodKey?: string) {
         employeeName: employees.name,
         positionName: positions.name,
         deciderName: decider.name,
+        targetName: target.name,
       })
       .from(requests)
       .innerJoin(employees, eq(employees.id, requests.employeeId))
       .leftJoin(positions, eq(positions.id, employees.positionId))
       .leftJoin(decider, eq(decider.id, requests.decidedBy))
+      .leftJoin(target, eq(target.id, requests.targetEmployeeId))
       .where(
         and(
           scopeToStaff(ctx, { companyId: requests.companyId, employeeId: requests.employeeId }),
@@ -66,9 +71,14 @@ export async function listRequestHistory(ctx: AuthContext, periodKey?: string) {
       summary: requestSummary(row.type, payload as Record<string, unknown>, shiftName),
       /** Đăng ký đã nhận vào nháp, chờ Công bố ở màn Xếp ca. */
       inDraft: drafted.has(row.id),
+      /** Pass ca chưa ai trả lời mà ca đã bắt đầu. */
+      expired: row.type === 'shift_pass' && row.status === 'pending' && passExpired(payload, now),
       /** Người quyết định đã bị xoá thì không còn tên. */
       deciderRemoved: row.decidedAt !== null && row.deciderName === null,
-      decidable: row.status === 'pending' && (row.employeeId !== ctx.employee.id || ownAllowed),
+      decidable:
+        row.type !== 'shift_pass' &&
+        row.status === 'pending' &&
+        (row.employeeId !== ctx.employee.id || ownAllowed),
     })),
   };
 }

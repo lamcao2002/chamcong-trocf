@@ -426,6 +426,75 @@ describe('duyệt hàng loạt theo đề xuất (INB-08, TS-08)', () => {
     expect(inside.body.result).toEqual({ approved: items.length, skipped: 0 });
   });
 
+  describe('Theo tuần: Quản trị viên duyệt loạt cả ca Vắng', () => {
+    const absentYesterday = async () => {
+      const id = await newEmployee();
+      await schedule(id, yesterday, [shifts.TOI.id]);
+      return id;
+    };
+    const weekCell = async (employeeId: string, cookie = admin, view = 'week') => {
+      const read = async (week = '') =>
+        (
+          await api('GET', `/timesheet?period=${period()}${view === 'week' ? '&view=week' : ''}${week}`, {
+            cookie,
+          })
+        ).body.timesheet;
+      let timesheet = await read();
+      const target = timesheet.weeks.find(({ from, to }: any) => from <= yesterday && yesterday <= to);
+      if (view === 'week') timesheet = await read(`&week=${target.from}`);
+      const cell = timesheet.employees
+        .find((row: any) => row.id === employeeId)
+        ?.cells.find((c: any) => c.date === yesterday);
+      return { canBulk: timesheet.canBulk, cell };
+    };
+    const bulkAbsence = (items: object[], absence?: string, cookie = admin) =>
+      api('POST', '/approvals/bulk', { cookie, body: { from: yesterday, to: yesterday, items, absence } });
+
+    it('ô Vắng chọn được ở Theo tuần, không chọn được ở Lưới cả kỳ', async () => {
+      const id = await absentYesterday();
+      const { canBulk, cell } = await weekCell(id);
+      expect(canBulk).toBe(true);
+      expect(cell.approvable).toEqual([expect.objectContaining({ label: 'Vắng', absent: true })]);
+      expect((await weekCell(id, admin, 'grid')).cell.approvable).toEqual([]);
+    });
+
+    it('xác nhận vắng: 0 công, hết cần duyệt, ô vẫn là Vắng', async () => {
+      const id = await absentYesterday();
+      const { cell } = await weekCell(id);
+      const before = await auditCount('approval.create');
+      const result = await bulkAbsence(cell.approvable, 'confirm');
+      expect(result.body.result).toEqual({ approved: 1, skipped: 0 });
+      expect(await record(id)).toMatchObject({ status: 'vang', cong: 0, needs_review: false });
+      expect(await auditCount('approval.create')).toBe(before + 1);
+      expect((await weekCell(id)).cell.approvable).toEqual([]);
+    });
+
+    it('cho đủ công: 1 công như ca đi làm đủ, kể cả ca ghép', async () => {
+      const id = await absentYesterday();
+      const { cell } = await weekCell(id);
+      await bulkAbsence(cell.approvable, 'full');
+      // Ca tối là ca ghép: công kỳ vọng 0,5 chỉ dành cho phép và lễ, đi làm đủ vẫn 1 công (T24)
+      expect(await record(id)).toMatchObject({ status: 'du', cong: 1, needs_review: false });
+    });
+
+    it('không chọn cách xử lý thì ca Vắng bị bỏ qua', async () => {
+      const id = await absentYesterday();
+      const { cell } = await weekCell(id);
+      expect((await bulkAbsence(cell.approvable)).body.result).toEqual({ approved: 0, skipped: 1 });
+      expect(await activeApprovals(id)).toHaveLength(0);
+    });
+
+    it('Nhân sự không có nút ở Theo tuần, tự gửi ca Vắng → 403', async () => {
+      const id = await absentYesterday();
+      const { canBulk, cell } = await weekCell(id, hr);
+      expect(canBulk).toBe(false);
+      expect(cell.approvable).toEqual([]);
+      const { cell: seen } = await weekCell(id);
+      expect((await bulkAbsence(seen.approvable, 'confirm', hr)).status).toBe(403);
+      expect(await activeApprovals(id)).toHaveLength(0);
+    });
+  });
+
   it('danh sách rỗng hoặc khoảng ngày ngược → 400', async () => {
     expect((await bulk([])).status).toBe(400);
     const wrong = await api('POST', '/approvals/bulk', {

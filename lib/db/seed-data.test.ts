@@ -31,6 +31,7 @@ describe('schema', () => {
         'notifications',
         'payroll_periods',
         'payslips',
+        'position_covers',
         'position_locations',
         'position_shifts',
         'positions',

@@ -287,6 +287,7 @@ type RecordFields = {
   waivedEarly: boolean;
   otProposed: number;
   otApproved: number;
+  payFactor: number;
   offDay: boolean;
   isHoliday: boolean;
 };
@@ -309,6 +310,7 @@ function fingerprint(rows: readonly RecordFields[], from: string, to: string): s
         row.waivedEarly,
         row.otProposed,
         row.otApproved,
+        row.payFactor,
         row.offDay,
         row.isHoliday,
       ].join('|'),

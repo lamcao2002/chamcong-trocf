@@ -31,6 +31,7 @@ import { assertOwned } from './references';
 import { allowedShiftIds, expectedShiftIds, firstDraftDate, writeCells } from './schedule';
 import { acceptIntoDraft, dropFromDrafts, removeRegistrationFromDraft } from './schedule-drafts';
 import { currentRegistrationWindow } from './registration-window';
+import { incomingPasses, notifyPassTarget, passExpired, passRequestOf } from './shift-pass';
 
 type Reader = Pick<Tx, 'select'>;
 
@@ -220,6 +221,7 @@ async function payloadOf(tx: Tx, ctx: AuthContext, input: RequestInput, excludeI
   }
   if (input.type === 'late_early') return lateEarlyPayload(tx, ctx, input, excludeId);
   if (input.type === 'shift_swap') return swapPayloadOf(tx, ctx, input);
+  if (input.type === 'shift_pass') return (await passRequestOf(tx, ctx, input)).payload;
   return { when: input.when, from: input.from, to: input.to };
 }
 
@@ -230,11 +232,22 @@ export async function createRequest(ctx: AuthContext, input: RequestInput) {
   const [fromDate, toDate] = dateRangeOf(input);
 
   return getDb().transaction(async (tx) => {
-    const payload = await payloadOf(tx, ctx, input);
+    const pass = input.type === 'shift_pass' ? await passRequestOf(tx, ctx, input) : null;
+    const payload = pass ? pass.payload : await payloadOf(tx, ctx, input);
     const [request] = await tx
       .insert(requests)
-      .values({ companyId, employeeId, type: input.type, payload, fromDate, toDate, reason: input.reason })
+      .values({
+        companyId,
+        employeeId,
+        type: input.type,
+        payload,
+        fromDate,
+        toDate,
+        reason: input.reason,
+        targetEmployeeId: pass?.targetEmployeeId ?? null,
+      })
       .returning();
+    if (pass) await notifyPassTarget(tx, ctx, pass.targetEmployeeId, pass.notice);
     await writeAudit(tx, actorOf(ctx), {
       action: 'request.create',
       entity: 'request',
@@ -254,7 +267,9 @@ async function lockOwnEditable(tx: Tx, ctx: AuthContext, id: string) {
     .for('update');
   if (!request) throw notFound('đơn');
   if (request.status !== 'pending') throw new ApiError(409, 'Đơn đã được xử lý, không sửa hay xoá được nữa');
-  if (!editableUntil(request, new Date(), currentRegistrationWindow())) {
+  const now = new Date();
+  const expired = request.type === 'shift_pass' && passExpired(request.payload, now);
+  if (expired || !editableUntil(request, now, currentRegistrationWindow())) {
     throw new ApiError(
       409,
       request.type === 'shift_register'
@@ -272,6 +287,8 @@ export async function updateMyRequest(ctx: AuthContext, id: string, input: Reque
     if (before.type === 'shift_register') {
       throw new ApiError(400, 'Đăng ký ca sửa trên lưới đăng ký: bỏ ô cũ rồi chọn ô mới');
     }
+    if (before.type === 'shift_pass')
+      throw new ApiError(400, 'Đơn pass ca không sửa được, hãy xoá rồi gửi lại');
     if (input.type !== before.type)
       throw new ApiError(400, 'Không đổi được loại đơn, hãy xoá rồi gửi đơn mới');
 
@@ -340,14 +357,19 @@ export async function listMyRequests(ctx: AuthContext) {
   const shiftName = (id: unknown) => library.find((shift) => shift.id === id)?.name ?? null;
   const now = new Date();
   const window = currentRegistrationWindow(now);
+  const editable = (row: (typeof rows)[number]) =>
+    row.type === 'shift_pass' && passExpired(row.payload, now) ? null : editableUntil(row, now, window);
   return {
     balance,
+    incoming: await incomingPasses(db, ctx, now),
     requests: rows.map(({ payload, ...row }) => ({
       ...row,
       /** Chi tiết để mở lại form khi sửa. */
       payload: payload as Record<string, unknown>,
       summary: requestSummary(row.type, payload as Record<string, unknown>, shiftName),
-      editableUntil: editableUntil(row, now, window)?.toISOString() ?? null,
+      editableUntil: editable({ ...row, payload })?.toISOString() ?? null,
+      /** Pass ca chưa ai trả lời mà ca đã bắt đầu. */
+      expired: row.type === 'shift_pass' && row.status === 'pending' && passExpired(payload, now),
     })),
   };
 }
@@ -496,6 +518,8 @@ export async function decideRequest(ctx: AuthContext, id: string, { decision, no
       .for('update');
     if (!request) throw notFound('đơn');
     if (request.status !== 'pending') throw new ApiError(409, 'Đơn này đã được xử lý');
+    if (request.type === 'shift_pass')
+      throw new ApiError(400, 'Đơn pass ca do người được pass tự đồng ý hoặc từ chối');
 
     const { employeeId, fromDate, toDate } = request;
     await assertCanDecide(tx, ctx, employeeId);

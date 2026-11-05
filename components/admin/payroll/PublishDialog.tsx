@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Modal } from 'antd';
+import { App, Button, Modal } from 'antd';
+import { RollbackOutlined, SendOutlined } from '@ant-design/icons';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
 import { vietnamToday } from '@/lib/domain/date';
@@ -24,8 +25,7 @@ export function PublishDialog({ payroll }: { payroll: PayrollView }) {
   const negative = employees.filter(({ net }) => net < 0).length;
   const again = status.published;
 
-  // Đã công bố và số không đổi thì không có gì để công bố lại
-  if (period.from > today || (again && !status.stale)) return null;
+  if (period.from > today) return null;
 
   const publish = async () => {
     setSaving(true);
@@ -42,7 +42,12 @@ export function PublishDialog({ payroll }: { payroll: PayrollView }) {
 
   return (
     <>
-      <Button type="primary" className={styles.publish} onClick={() => setOpen(true)}>
+      {/* Đã công bố mà số không đổi thì Công bố lại chỉ là nút phụ */}
+      <Button
+        type={again && !status.stale ? 'default' : 'primary'}
+        icon={<SendOutlined />}
+        onClick={() => setOpen(true)}
+      >
         {again ? 'Công bố lại' : 'Công bố phiếu lương'}
       </Button>
       <Modal
@@ -95,5 +100,38 @@ export function PublishDialog({ payroll }: { payroll: PayrollView }) {
         </ul>
       </Modal>
     </>
+  );
+}
+
+/** Huỷ công bố: xoá phiếu đã chụp, nhân viên hết thấy phiếu kỳ này; chỉ Quản trị viên. */
+export function UnpublishButton({ payroll }: { payroll: PayrollView }) {
+  const router = useRouter();
+  const toast = useToast();
+  const { modal } = App.useApp();
+  const [, startRefresh] = useTransition();
+  const { period, status } = payroll;
+
+  const confirm = () =>
+    modal.confirm({
+      title: 'Huỷ công bố phiếu lương?',
+      content: `${status.count} nhân viên sẽ không còn thấy phiếu kỳ này trong app và nhận thông báo phiếu đã thu hồi. Sửa xong thì công bố lại.`,
+      okText: 'Huỷ công bố',
+      okButtonProps: { danger: true },
+      cancelText: 'Giữ phiếu',
+      onOk: async () => {
+        const result = await apiRequest(`/api/v1/payroll/publish?period=${period.key}`, 'DELETE');
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success('Đã huỷ công bố, nhân viên không còn thấy phiếu kỳ này');
+        startRefresh(() => router.refresh());
+      },
+    });
+
+  return (
+    <Button type="text" danger icon={<RollbackOutlined />} onClick={confirm}>
+      Huỷ công bố
+    </Button>
   );
 }

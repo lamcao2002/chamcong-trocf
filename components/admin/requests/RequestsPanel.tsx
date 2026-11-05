@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<RequestHistoryRow['type'], string> = {
   late_early: 'Muộn / sớm',
   overtime: 'Làm thêm',
   shift_swap: 'Đổi ca',
+  shift_pass: 'Pass ca',
   shift_register: 'Đăng ký ca',
   forgot: 'Quên chấm',
 };
@@ -42,9 +43,23 @@ const moment = (iso: string) => `${formatClock(iso)} ${formatDate(vietnamToday(n
 const dateRange = ({ fromDate, toDate }: RequestHistoryRow) =>
   fromDate === toDate ? formatDate(fromDate) : `${formatDate(fromDate).slice(0, 5)} – ${formatDate(toDate)}`;
 
+/** Nhãn trạng thái: pass ca do người nhận trả lời nên đọc theo người nhận. */
+function statusLabel(row: RequestHistoryRow) {
+  if (row.type !== 'shift_pass') return STATUS_LABELS[row.status];
+  if (row.expired) return 'Hết hạn';
+  return { pending: 'Chờ người nhận', approved: 'Đã nhận', rejected: 'Người nhận từ chối' }[row.status];
+}
+
 function decisionText(row: RequestHistoryRow) {
+  if (row.type === 'shift_pass') {
+    if (row.expired) return `${row.targetName ?? 'Người nhận'} chưa trả lời trước giờ vào ca`;
+    if (row.status === 'pending') return `Chờ ${row.targetName ?? 'người nhận'} đồng ý`;
+  }
   if (row.status === 'pending') return row.inDraft ? 'Đã nhận vào nháp, chờ Công bố' : 'Chưa ai xử lý';
   const who = row.deciderName ?? (row.deciderRemoved ? 'Người đã bị xoá' : 'Hệ thống');
+  if (row.type === 'shift_pass') {
+    return `${who} ${row.status === 'approved' ? 'đã nhận' : 'không nhận'}${row.decidedAt ? ` lúc ${moment(row.decidedAt)}` : ''}`;
+  }
   return `${row.status === 'approved' ? 'Duyệt' : 'Từ chối'} bởi ${who}${row.decidedAt ? ` lúc ${moment(row.decidedAt)}` : ''}`;
 }
 
@@ -168,7 +183,7 @@ export function RequestsPanel({ history }: { history: RequestHistoryView }) {
               <button
                 type="button"
                 className={styles.row}
-                aria-label={`${row.employeeName}, ${TYPE_LABELS[row.type]}, ${dateRange(row)}, ${STATUS_LABELS[row.status]}`}
+                aria-label={`${row.employeeName}, ${TYPE_LABELS[row.type]}, ${dateRange(row)}, ${statusLabel(row)}`}
                 onClick={() => setOpenId(row.id)}
               >
                 <span className={styles.rowMain}>
@@ -184,7 +199,7 @@ export function RequestsPanel({ history }: { history: RequestHistoryView }) {
                   </span>
                 </span>
                 <span className={styles.rowSide}>
-                  <Tag color={STATUS_COLORS[row.status]}>{STATUS_LABELS[row.status]}</Tag>
+                  <Tag color={row.expired ? 'warning' : STATUS_COLORS[row.status]}>{statusLabel(row)}</Tag>
                   {row.inDraft ? <Tag>Trong nháp</Tag> : null}
                 </span>
               </button>
@@ -231,7 +246,7 @@ export function RequestsPanel({ history }: { history: RequestHistoryView }) {
           <dl className={styles.detail}>
             <dt>Trạng thái</dt>
             <dd>
-              <Tag color={STATUS_COLORS[open.status]}>{STATUS_LABELS[open.status]}</Tag>
+              <Tag color={open.expired ? 'warning' : STATUS_COLORS[open.status]}>{statusLabel(open)}</Tag>
             </dd>
             <dt>Nội dung</dt>
             <dd>{open.summary}</dd>

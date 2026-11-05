@@ -1,8 +1,9 @@
 import 'server-only';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, ne } from 'drizzle-orm';
 import { scopeToCompany, scopeToStaff, type AuthContext } from '@/lib/auth/policy';
 import { getDb } from '@/lib/db/client';
 import { companies, requests, shifts } from '@/lib/db/schema';
+import { ABSENCE_LABEL } from '@/lib/domain/approval';
 import { vietnamToday } from '@/lib/domain/date';
 import { nextPeriod, periodByKey, periodOf, previousPeriod } from '@/lib/domain/period';
 import { requestSummary } from '@/lib/domain/request-text';
@@ -43,23 +44,35 @@ const FLAG_KINDS: FlagKind[] = [
   { flag: 'ot_cho', kind: 'ot_cho', suggestion: 'approve_ot', text: 'Có OT đề xuất chưa duyệt' },
 ];
 
-export type ApprovableItem = { key: string; label: string; otMinutes: number };
+export type ApprovableItem = { key: string; label: string; otMinutes: number; absent: boolean };
 
-/** Việc của một dòng ngày công duyệt được theo đề xuất; Bảng công chọn ô bằng đúng các khoá này. */
+/**
+ * Việc của một dòng ngày công duyệt được trong một lần bấm; Bảng công chọn ô bằng đúng các khoá này.
+ * `absence` thêm việc Vắng (chỉ Theo tuần, Quản trị viên): không có đề xuất, chọn cách xử lý khi duyệt.
+ */
 export function approvableItems(
   record: Pick<DayView, 'employeeId' | 'date' | 'shiftId' | 'flags' | 'suggestions'>,
+  { absence = false }: { absence?: boolean } = {},
 ): ApprovableItem[] {
-  return FLAG_KINDS.filter(({ flag }) => record.flags.includes(flag)).flatMap(({ flag, suggestion }) => {
-    const proposal = record.suggestions.find((row) => row.kind === suggestion);
-    if (!proposal) return [];
-    return [
-      {
-        key: itemKey(record, flag),
-        label: proposal.label,
-        otMinutes: proposal.otMinutes ?? 0,
-      },
-    ];
-  });
+  return FLAG_KINDS.filter(({ flag }) => record.flags.includes(flag)).flatMap(
+    ({ flag, suggestion }): ApprovableItem[] => {
+      if (flag === 'vang') {
+        return absence
+          ? [{ key: itemKey(record, flag), label: ABSENCE_LABEL, otMinutes: 0, absent: true }]
+          : [];
+      }
+      const proposal = record.suggestions.find((row) => row.kind === suggestion);
+      if (!proposal) return [];
+      return [
+        {
+          key: itemKey(record, flag),
+          label: proposal.label,
+          otMinutes: proposal.otMinutes ?? 0,
+          absent: false,
+        },
+      ];
+    },
+  );
 }
 
 const itemKey = (
@@ -155,6 +168,8 @@ export async function inboxBetween(ctx: AuthContext, from: string, to: string, n
         and(
           scopeToStaff(ctx, { companyId: requests.companyId, employeeId: requests.employeeId }),
           eq(requests.status, 'pending'),
+          // Pass ca do người được pass tự trả lời, quản lý không cần xử lý
+          ne(requests.type, 'shift_pass'),
           lte(requests.fromDate, to),
           gte(requests.toDate, from),
         ),

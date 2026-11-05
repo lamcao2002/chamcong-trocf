@@ -24,5 +24,9 @@ export function requestSummary(type: string, payload: Record<string, unknown>, s
     return `Đổi ca · nghỉ ${off}, làm bù ${work}`;
   }
   if (type === 'shift_register') return `Đăng ký ca · ${shiftName(payload.shiftId) ?? ''}`;
+  if (type === 'shift_pass') {
+    const role = payload.positionName ? ` (${String(payload.positionName)})` : '';
+    return `Pass ${shiftName(payload.shiftId) ?? 'ca'}${role} cho ${String(payload.toName ?? '')}`;
+  }
   return `Làm thêm ${String(payload.from)}–${String(payload.to)}`;
 }

@@ -468,6 +468,7 @@ export async function deleteEmployee(ctx: AuthContext, id: string, { email }: Em
 
     await tx.update(employees).set({ managerId: null }).where(eq(employees.managerId, id));
     await tx.update(requests).set({ decidedBy: null }).where(eq(requests.decidedBy, id));
+    await tx.update(requests).set({ targetEmployeeId: null }).where(eq(requests.targetEmployeeId, id));
     await tx.update(approvals).set({ by: null }).where(eq(approvals.by, id));
     await tx.update(adjustments).set({ by: null }).where(eq(adjustments.by, id));
     await tx.update(payrollPeriods).set({ publishedBy: null }).where(eq(payrollPeriods.publishedBy, id));

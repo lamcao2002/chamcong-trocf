@@ -269,6 +269,7 @@ export function InboxPanel({ overview, inbox, brandColor }: InboxPanelProps) {
                           key,
                           label: suggestion!.label,
                           otMinutes: suggestion!.otMinutes ?? 0,
+                          absent: false,
                         })),
                       )
                     }

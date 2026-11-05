@@ -38,6 +38,8 @@ export async function periodFor(ctx: AuthContext, key: string | undefined, today
     period,
     previousKey: previousPeriod(period, cutoffDay).key,
     nextKey: next.from <= today ? next.key : null,
+    /** Kỳ chứa hôm nay, cho nút "Kỳ này". */
+    currentKey: periodOf(today, cutoffDay).key,
   };
 }
 
@@ -128,19 +130,22 @@ export async function getTimesheet(ctx: AuthContext, query: TimesheetQuery = {},
 
   const weeks = weeksIn(period.from, period.to);
   const week = pickWeek(weeks, query.week, today);
-  const library =
-    query.view === 'week'
-      ? await db
-          .select({ id: shifts.id, name: shifts.name, startTime: shifts.startTime, endTime: shifts.endTime })
-          .from(shifts)
-          .where(scopeToCompany(ctx, shifts.companyId))
-      : [];
+  // Theo tuần chỉ Quản trị viên duyệt loạt, và duyệt được cả ca Vắng
+  const isWeek = query.view === 'week';
+  const canBulk = !isWeek || ctx.employee.role === 'admin';
+  const library = isWeek
+    ? await db
+        .select({ id: shifts.id, name: shifts.name, startTime: shifts.startTime, endTime: shifts.endTime })
+        .from(shifts)
+        .where(scopeToCompany(ctx, shifts.companyId))
+    : [];
 
   return {
     ...range,
     today,
     weeks,
-    week: query.view === 'week' ? week : null,
+    week: isWeek ? week : null,
+    canBulk,
     dates: datesOf(period.from, period.to),
     employees: staff.map(({ id, name, positionName }) => {
       const own = perEmployee.get(id) ?? [];
@@ -152,17 +157,18 @@ export async function getTimesheet(ctx: AuthContext, query: TimesheetQuery = {},
         cells: [...days].map(([date, rows]) => {
           const { key, label, title } = daySymbol(rows);
           // Cùng luật với Hộp việc: không tự duyệt việc của mình, trừ khi là Quản trị viên duy nhất
-          const canApprove = id !== ctx.employee.id || ownAllowed;
-          const approvable = canApprove ? rows.flatMap(approvableItems) : [];
+          const canApprove = canBulk && (id !== ctx.employee.id || ownAllowed);
+          const approvable = canApprove
+            ? rows.flatMap((row) => approvableItems(row, { absence: isWeek }))
+            : [];
           return { date, symbol: key, label, title, shiftCount: rows.length, approvable };
         }),
         totals: totalsOf(own),
-        weekDays:
-          query.view === 'week'
-            ? [...days]
-                .filter(([date]) => date >= week.from && date <= week.to)
-                .map(([date, rows]) => ({ date, rows: rows.map((row) => weekRow(row, library)) }))
-            : [],
+        weekDays: isWeek
+          ? [...days]
+              .filter(([date]) => date >= week.from && date <= week.to)
+              .map(([date, rows]) => ({ date, rows: rows.map((row) => weekRow(row, library)) }))
+          : [],
       };
     }),
   };

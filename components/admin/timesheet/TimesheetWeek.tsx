@@ -53,12 +53,25 @@ type TimesheetWeekProps = {
   dates: readonly string[];
   today: string;
   employees: readonly Employee[];
+  /** Duyệt loạt: ô có việc viền đứt, bấm để chọn; khoá ô là `employeeId|date` như Lưới cả kỳ. */
+  picking: boolean;
+  pickedCells: readonly string[];
+  onToggle: (id: string) => void;
   onOpenDay: (employee: Employee, date: string) => void;
   onOpenEmployee: (employee: Employee) => void;
 };
 
 /** Bảng công Theo tuần: mỗi ô là giờ vào–ra hoặc trạng thái, cột Tuần là tổng công và việc tồn (TS-05). */
-export function TimesheetWeek({ dates, today, employees, onOpenDay, onOpenEmployee }: TimesheetWeekProps) {
+export function TimesheetWeek({
+  dates,
+  today,
+  employees,
+  picking,
+  pickedCells,
+  onToggle,
+  onOpenDay,
+  onOpenEmployee,
+}: TimesheetWeekProps) {
   return (
     <div className={styles.scroll}>
       <table className={`${styles.grid} ${styles.weekGrid}`}>
@@ -103,13 +116,21 @@ export function TimesheetWeek({ dates, today, employees, onOpenDay, onOpenEmploy
                   if (!day || day.rows.length === 0) {
                     return <td key={date} className={styles.weekEmpty} />;
                   }
+                  const id = `${employee.id}|${date}`;
+                  const canPick =
+                    picking &&
+                    employee.cells.some((cell) => cell.date === date && cell.approvable.length > 0);
+                  const isPicked = canPick && pickedCells.includes(id);
+                  const pickClass = canPick ? (isPicked ? styles.picked : styles.pickable) : '';
                   return (
                     <td key={date} className={styles.weekDay}>
                       <button
                         type="button"
-                        className={styles.weekCell}
+                        className={`${styles.weekCell} ${pickClass}`}
                         aria-label={`${employee.name}, ${formatDate(date)}: ${day.rows.map(rowLabel).join('; ')}`}
-                        onClick={() => onOpenDay(employee, date)}
+                        aria-pressed={picking ? isPicked : undefined}
+                        disabled={picking && !canPick}
+                        onClick={() => (picking ? onToggle(id) : onOpenDay(employee, date))}
                       >
                         {day.rows.map((row) => (
                           <span key={row.shiftId ?? 'none'} className={styles.weekRow}>

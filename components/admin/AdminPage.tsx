@@ -6,11 +6,13 @@ type AdminPageProps = {
   subtitle?: ReactNode;
   /** Nút hoặc điều hướng nằm trên dải header. */
   extra?: ReactNode;
+  /** Hàng điều khiển thứ hai trên dải header, vd chọn kỳ và nút xuất. */
+  toolbar?: ReactNode;
   children: ReactNode;
 };
 
 /** Khung một trang quản trị: dải header gradient, thẻ đầu tiên chồng lên mép dưới dải. */
-export function AdminPage({ title, subtitle, extra, children }: AdminPageProps) {
+export function AdminPage({ title, subtitle, extra, toolbar, children }: AdminPageProps) {
   return (
     <>
       <header className={styles.band}>
@@ -21,6 +23,7 @@ export function AdminPage({ title, subtitle, extra, children }: AdminPageProps) 
           </div>
           {extra}
         </div>
+        {toolbar ? <div className={styles.toolbar}>{toolbar}</div> : null}
       </header>
       <div className={styles.body}>{children}</div>
     </>

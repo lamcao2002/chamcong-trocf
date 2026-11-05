@@ -17,7 +17,7 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
 | `docs/product/08-should-have.md` | Danh sách việc SH-01…SH-38 sau MVP, thứ tự nhóm, quyết định đang để mặc định |
-| `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, 18 ca P01–P18, kế hoạch production |
+| `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, ca P01–P24, kế hoạch production |
 | `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
 | `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **66 ca kiểm thử T01–T66**, ký hiệu ô Bảng công, quyết định đã chốt |
@@ -118,6 +118,10 @@ Cập nhật bảng này khi xong một việc.
 | SH-05 In phiếu | Code xong trang `/app/in-phieu`, in một người hoặc cả kỳ, mỗi người một tờ; **chưa in ra giấy thật** |
 | SH-09, SH-10 Duyệt hàng loạt | Code xong `POST /approvals/bulk` (`lib/services/bulk-approval.ts`), chọn nhiều ở Hộp việc; đề xuất lấy lại từ server, số đổi thì bỏ qua và báo lại |
 | SH-12 Duyệt loạt Bảng công | Code xong chế độ chọn ô, dùng chung API với Hộp việc |
+| Duyệt loạt Theo tuần, ca Vắng | Code xong: chỉ Quản trị viên, ở Theo tuần duyệt được cả ca Vắng (Xác nhận vắng 0 công / Cho đủ công = 1 công mỗi ca, kể cả ca ghép); Lưới cả kỳ giữ như cũ |
+| Giao diện Lương mới, Huỷ công bố | Code xong: thanh kỳ trên dải header, danh sách và sao kê hai thẻ, bảng Từng ngày; `DELETE /payroll/publish` chỉ Quản trị viên, xoá bản chụp và báo nhân viên; đã thử Chrome 375 và 1440 px |
+| Lương giờ theo ca, hệ số ca | Code xong: lương giờ × (giờ chuẩn ca × công + OT) × hệ số, OT lương giờ không nhân %; hệ số ở Điều chỉnh khác; P22–P24; **cần áp migration `0008_pay_factor` trước khi deploy** |
+| Phiếu nhân viên: chi tiết ngày công | Code xong: "Xem chi tiết N ngày công" ở phiếu M4, bảng `DayTable` chung với sao kê, bỏ cột Công và Sau ca, đọc `payslips.summary.days` chụp lúc công bố (`statementDays` dùng chung với sao kê); phiếu công bố trước đó không có, công bố lại thì có; đã thử Chrome 375 px, **chưa thử điện thoại thật** |
 | SH-13 Kỳ lệch, Tự chọn | Code xong `lib/domain/timesheet-view.ts`: chỉ đổi khoảng xem, tối đa 62 ngày; Excel, drawer một người và duyệt loạt đi theo khoảng đó |
 | SH-14 Theo tuần | Code xong `?view=week`, `TimesheetWeek.tsx`; chưa thử điện thoại thật |
 | SH-16 Thông báo | Code xong bảng `notifications`, `lib/services/notifications.ts`, chuông ở app nhân viên; chưa có web push |
@@ -129,6 +133,7 @@ Cập nhật bảng này khi xong một việc.
 | App nhân viên: tab Tôi, sheet Tạo đơn mới | Code xong: thanh dưới 4 tab + nút giữa, tab Tôi để trống; Đăng ký ca chọn trong sheet Tạo đơn (có ghi chú), bỏ thẻ ở tab Lịch; đã thử Chrome 320 và 375 px, **chưa thử điện thoại thật** |
 | Sửa, xoá đơn; giờ mở đăng ký ca | Code xong: sửa/xoá đơn còn Chờ trong 10 phút, đăng ký ca chỉ gửi/bỏ trong 07:00 T5 – 07:00 T7; Đơn của tôi ở tab Tôi; **chưa thử điện thoại thật** |
 | Đơn từ (lịch sử đơn cho quản lý) | Code xong `/app/don-tu`, `GET /requests`, `lib/services/request-history.ts`; đã thử Chrome 375 và 1440 px |
+| Pass ca (thay Đổi ca) | Code xong `lib/services/shift-pass.ts`, ô Làm thay được ở Vị trí & ca, Pass ca gửi tới bạn ở tab Tôi; **cần áp migration `0007_shift_pass` trước khi deploy, chưa thử điện thoại thật** |
 | Xoá nhân viên (ngoài danh sách SH) | Code xong `DELETE /employees/:id`, chỉ Quản trị viên, gõ lại email; xoá dữ liệu của người đó, giữ quyết định họ đã đưa cho người khác và bỏ tên |
 
 ## Lệnh

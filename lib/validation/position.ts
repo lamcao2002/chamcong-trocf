@@ -12,6 +12,8 @@ export const positionSchema = z
     workDays,
     anyLocation: z.boolean(),
     locationIds: uuidList,
+    /** Vị trí mà người ở vị trí này làm thay được khi nhận pass ca, vd Pha chế làm thay Phục vụ. */
+    coverIds: uuidList.default([]),
     payType: z.enum(['month', 'hour', 'unit']),
     payAmount: z.number().int().min(1).max(10_000_000_000),
     stdDays: z.number().int().min(1).max(31),

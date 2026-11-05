@@ -829,3 +829,33 @@
   align-items: center;
   gap: 8px;
 }
+
+.slipDays {
+  margin-bottom: 12px;
+}
+
+.slipDaysToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.slipDaysToggle:focus-visible {
+  outline: 2px solid var(--brand);
+}
+
+.slipDaysToggle :global(.anticon) {
+  transition: transform 0.15s;
+}
+
+.slipDaysToggle .slipDaysOpen {
+  transform: rotate(180deg);
+}

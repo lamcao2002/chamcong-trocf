@@ -2,12 +2,13 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Drawer, Skeleton } from 'antd';
-import { RightOutlined } from '@ant-design/icons';
+import { DownOutlined, RightOutlined } from '@ant-design/icons';
+import { DayTable } from '@/components/admin/payroll/DayTable';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
 import { vietnamToday } from '@/lib/domain/date';
 import { formatDate, formatDecimal, formatMoney } from '@/lib/format';
-import type { PayslipRow, PayslipView } from '@/lib/services/payroll';
+import type { PayDayDetail, PayslipRow, PayslipView } from '@/lib/services/payroll';
 import { themeCssVars } from '@/lib/theme/tokens';
 import styles from './EmployeeScreen.module.css';
 
@@ -16,6 +17,26 @@ const PAY_LABELS: Record<PayslipView['summary']['payType'], string> = {
   hour: 'Lương giờ',
   unit: 'Lương công',
 };
+
+/** Ngày công trong bản chụp; phiếu công bố trước khi có chi tiết thì ẩn. */
+function SlipDays({ days }: { days: readonly PayDayDetail[] }) {
+  const [open, setOpen] = useState(false);
+  const count = new Set(days.map(({ date }) => date)).size;
+  return (
+    <section className={styles.slipDays}>
+      <button
+        type="button"
+        className={styles.slipDaysToggle}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <DownOutlined className={open ? styles.slipDaysOpen : undefined} />
+        {open ? 'Ẩn' : 'Xem'} chi tiết {count} ngày công
+      </button>
+      {open ? <DayTable days={days} compact /> : null}
+    </section>
+  );
+}
 
 function SlipDetail({ slip }: { slip: PayslipView }) {
   const { summary } = slip;
@@ -58,6 +79,7 @@ function SlipDetail({ slip }: { slip: PayslipView }) {
           </li>
         ))}
       </ul>
+      {summary.days && summary.days.length > 0 ? <SlipDays days={summary.days} /> : null}
       <p className={styles.muted}>
         Phiếu này là bản đã công bố, không đổi khi bảng công được sửa sau ngày công bố.
       </p>

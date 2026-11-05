@@ -17,6 +17,7 @@ import {
   shifts,
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
+import { daySymbol } from '@/lib/domain/symbols';
 import { periodByKey } from '@/lib/domain/period';
 import { formatDate } from '@/lib/format';
 import {
@@ -47,6 +48,8 @@ type PayslipSummary = PayResult['summary'] & {
   stdDays: number;
   from: string;
   to: string;
+  /** Từng ca lúc công bố; phiếu công bố trước khi có trường này thì không có. */
+  days?: PayDayDetail[];
 };
 
 type Staff = Awaited<ReturnType<typeof staffInScope>>[number];
@@ -86,20 +89,8 @@ async function loadProfiles(ids: string[]) {
       const roles: Record<string, RoleProfile> = {};
       for (const extra of extras) {
         if (!held.get(employee.id)?.slice(1).includes(extra.id) || extra.payType === 'month') continue;
-        roles[extra.id] = {
-          name: extra.name,
-          payType: extra.payType,
-          payAmount:
-            ownPay.find((row) => row.employeeId === employee.id && row.positionId === extra.id)?.payAmount ??
-            extra.payAmount,
-          stdDays,
-          otRates: {
-            weekday: extra.otWeekday,
-            saturday: extra.otSaturday,
-            offday: extra.otOffday,
-            holiday: extra.otHoliday,
-          },
-        };
+        const own = ownPay.find((row) => row.employeeId === employee.id && row.positionId === extra.id);
+        roles[extra.id] = { ...roleProfileOf(extra, stdDays), payAmount: own?.payAmount ?? extra.payAmount };
       }
       return [
         employee.id,
@@ -115,6 +106,22 @@ async function loadProfiles(ids: string[]) {
       ];
     }),
   );
+}
+
+/** Mức lương theo một vị trí trả theo giờ hoặc theo công; công chuẩn lấy của vị trí chính. */
+function roleProfileOf(position: typeof positions.$inferSelect, stdDays: number): RoleProfile {
+  return {
+    name: position.name,
+    payType: position.payType as RoleProfile['payType'],
+    payAmount: position.payAmount,
+    stdDays,
+    otRates: {
+      weekday: position.otWeekday,
+      saturday: position.otSaturday,
+      offday: position.otOffday,
+      holiday: position.otHoliday,
+    },
+  };
 }
 
 type Profile = PayProfile & {
@@ -149,6 +156,7 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
           eq(requests.status, 'pending'),
           // Đăng ký ca chưa nhận không đổi công của ai, không được giữ người đó ở "chưa sẵn sàng"
           ne(requests.type, 'shift_register'),
+          ne(requests.type, 'shift_pass'),
           lte(requests.fromDate, to),
           gte(requests.toDate, from),
         ),
@@ -164,9 +172,21 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
   ]);
 
   const hoursOf = (shiftId: string | null) => library.find(({ id }) => id === shiftId)?.stdHours ?? null;
+  // Ca nhận từ pass ca có thể ở vị trí người đó không có (người Pha chế làm thay ca Phục vụ): trả theo mức vị trí của ca
+  const referenced = [...new Set(cells.flatMap(({ positions: map }) => Object.values(map)))];
+  const covered =
+    referenced.length === 0 ? [] : await db.select().from(positions).where(inArray(positions.id, referenced));
 
   return staff.map((person) => {
-    const profile = profiles.get(person.id)!;
+    const base = profiles.get(person.id)!;
+    const borrowed = covered.filter(({ id, payType }) => id !== base.primaryId && payType !== 'month');
+    const profile = {
+      ...base,
+      roles: {
+        ...Object.fromEntries(borrowed.map((row) => [row.id, roleProfileOf(row, base.stdDays)])),
+        ...base.roles,
+      },
+    };
     const own = records.filter(({ employeeId }) => employeeId === person.id);
     const roleOf = ({ date, shiftId }: (typeof own)[number]) => {
       if (!shiftId) return null;
@@ -184,14 +204,15 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
       own.filter(({ needsReview }) => needsReview).length +
       pendingRequests.filter(({ employeeId }) => employeeId === person.id).length;
     const pay = computePay({ profile, days, adjustments: manual, roles: profile.roles });
-    return { ...person, profile, manual, issues, pay };
+    return { ...person, profile, manual, issues, pay, records: own };
   });
 }
 
-function summaryRow({ id, name, positionName, profile, manual, issues, pay }: PeriodRow) {
+function summaryRow({ id, name, email, positionName, profile, manual, issues, pay }: PeriodRow) {
   return {
     id,
     name,
+    email,
     positionName,
     payType: profile.payType,
     cong: pay.summary.cong,
@@ -221,13 +242,28 @@ async function periodStatus(ctx: AuthContext, key: string) {
     .select()
     .from(payrollPeriods)
     .where(and(scopeToCompany(ctx, payrollPeriods.companyId), eq(payrollPeriods.periodKey, key)));
-  if (!period?.published)
-    return { published: false, publishedAt: null, stale: false, publishedNet: 0, count: 0 };
+  if (!period?.published) {
+    return {
+      published: false,
+      publishedAt: null,
+      publishedBy: null,
+      stale: false,
+      publishedNet: 0,
+      count: 0,
+    };
+  }
 
-  const slips = await db.select({ net: payslips.net }).from(payslips).where(eq(payslips.periodId, period.id));
+  const [slips, [by]] = await Promise.all([
+    db.select({ net: payslips.net }).from(payslips).where(eq(payslips.periodId, period.id)),
+    period.publishedBy
+      ? db.select({ name: employees.name }).from(employees).where(eq(employees.id, period.publishedBy))
+      : [],
+  ]);
   return {
     published: true,
     publishedAt: period.publishedAt,
+    /** Người đã xoá thì không còn tên. */
+    publishedBy: by?.name ?? null,
     stale: period.stale,
     publishedNet: slips.reduce((sum, { net }) => sum + net, 0),
     count: slips.length,
@@ -236,7 +272,7 @@ async function periodStatus(ctx: AuthContext, key: string) {
 
 /** Quỹ lương, tiến độ và danh sách của một kỳ (US34). */
 export async function getPayroll(ctx: AuthContext, periodKey?: string) {
-  const { period, previousKey, nextKey } = await periodFor(ctx, periodKey, vietnamToday());
+  const { period, previousKey, nextKey, currentKey } = await periodFor(ctx, periodKey, vietnamToday());
   const staff = await staffInScope(ctx, period.from);
   const [rows, status] = await Promise.all([
     computePeriod(ctx, staff, period.from, period.to, period.key),
@@ -251,6 +287,7 @@ export async function getPayroll(ctx: AuthContext, periodKey?: string) {
     period,
     previousKey,
     nextKey,
+    currentKey,
     status,
     fund: total(rows, ({ pay }) => pay.net),
     headcount: rows.length,
@@ -273,6 +310,70 @@ export async function getPayroll(ctx: AuthContext, periodKey?: string) {
 
 export type PayrollView = Awaited<ReturnType<typeof getPayroll>>;
 
+type ShiftLibrary = Awaited<ReturnType<typeof shiftLibrary>>;
+
+function shiftLibrary(ctx: AuthContext) {
+  return getDb()
+    .select({ id: shifts.id, code: shifts.code, name: shifts.name, startTime: shifts.startTime })
+    .from(shifts)
+    .where(scopeToCompany(ctx, shifts.companyId));
+}
+
+/**
+ * Từng ca trong kỳ cho bảng Từng ngày của sao kê và phiếu nhân viên. `dayAmounts` cùng thứ tự với
+ * `records`, ghép trước khi sắp theo ngày và giờ bắt đầu ca.
+ */
+function statementDays(
+  records: PeriodRow['records'],
+  dayAmounts: PayResult['dayAmounts'],
+  library: ShiftLibrary,
+) {
+  const shiftOf = (shiftId: string | null) => library.find((shift) => shift.id === shiftId);
+  return records
+    .map((record, index) => ({ record, amount: dayAmounts[index] ?? null }))
+    .sort(
+      ({ record: a }, { record: b }) =>
+        a.date.localeCompare(b.date) ||
+        (shiftOf(a.shiftId)?.startTime ?? '').localeCompare(shiftOf(b.shiftId)?.startTime ?? ''),
+    )
+    .map(({ record, amount }) => {
+      const symbol = daySymbol([record]);
+      const lateMin = record.waivedLate ? 0 : record.lateMin;
+      const earlyMin = record.waivedEarly ? 0 : record.earlyMin;
+      return {
+        date: record.date,
+        shiftId: record.shiftId,
+        shiftCode: shiftOf(record.shiftId)?.code ?? null,
+        shiftName: shiftOf(record.shiftId)?.name ?? null,
+        inAt: record.inAt,
+        outAt: record.outAt,
+        workedMin: record.workedMin,
+        cong: record.cong,
+        payFactor: record.payFactor,
+        /** Tiền của ca với lương giờ; lương tháng và công không tách theo ca. */
+        amount,
+        lateMin,
+        earlyMin,
+        otApproved: record.otApproved,
+        otPending: Math.max(0, record.otProposed - record.otApproved),
+        symbol: symbol.key,
+        symbolLabel: symbol.label,
+        symbolTitle: symbol.title,
+        // Ngày đủ công, không muộn sớm, không OT thì ẩn khi tắt "Hiện đủ từng ngày"
+        notable:
+          record.needsReview ||
+          lateMin > 0 ||
+          earlyMin > 0 ||
+          record.otProposed > 0 ||
+          record.otApproved > 0 ||
+          record.payFactor !== 1 ||
+          !['du', 'le', 'chua_toi', 'dang_lam'].includes(record.status),
+      };
+    });
+}
+
+export type PayDayDetail = ReturnType<typeof statementDays>[number];
+
 /** Sao kê một người: từng dòng có công thức chữ, OT chờ và thực lĩnh dự phóng (US34). */
 export async function getPayStatement(ctx: AuthContext, employeeId: string, periodKey?: string) {
   const { period } = await periodFor(ctx, periodKey, vietnamToday());
@@ -280,14 +381,24 @@ export async function getPayStatement(ctx: AuthContext, employeeId: string, peri
   const person = staff.find(({ id }) => id === employeeId);
   if (!person) throw notFound('nhân viên');
 
-  const [row] = await computePeriod(ctx, [person], period.from, period.to, period.key);
-  const { id, name, positionName, profile, manual, issues, pay } = row!;
+  const [[row], library] = await Promise.all([
+    computePeriod(ctx, [person], period.from, period.to, period.key),
+    shiftLibrary(ctx),
+  ]);
+  const { id, name, positionName, profile, manual, issues, pay, records } = row!;
+  const shiftOf = (shiftId: string | null) => library.find((shift) => shift.id === shiftId);
+  const days = statementDays(records, pay.dayAmounts, library);
+  const fixedShift = shiftOf(profile.fixedShiftId);
   return {
     period,
     employee: { id, name, positionName },
     payType: profile.payType,
     payAmount: profile.payAmount,
     stdDays: profile.stdDays,
+    /** Ca cố định thì có tên ca, linh hoạt là null. */
+    fixedShiftName: fixedShift?.name ?? null,
+    shiftCount: records.filter(({ cong }) => cong > 0).length,
+    days,
     issues,
     adjustments: manual.map(({ id: adjustmentId, kind, amount, note }) => ({
       id: adjustmentId,
@@ -366,7 +477,10 @@ export async function publishPayroll(ctx: AuthContext, periodKey?: string) {
   const { period } = await periodFor(ctx, periodKey, today);
   if (period.from > today) throw new ApiError(409, 'Kỳ này chưa bắt đầu');
   const staff = await staffInScope(ctx, period.from);
-  const rows = await computePeriod(ctx, staff, period.from, period.to, period.key);
+  const [rows, library] = await Promise.all([
+    computePeriod(ctx, staff, period.from, period.to, period.key),
+    shiftLibrary(ctx),
+  ]);
   const publishedAt = new Date();
 
   return getDb().transaction(async (tx) => {
@@ -416,7 +530,7 @@ export async function publishPayroll(ctx: AuthContext, periodKey?: string) {
     });
     if (rows.length > 0) {
       await tx.insert(payslips).values(
-        rows.map(({ id, positionName, profile, pay }) => ({
+        rows.map(({ id, positionName, profile, pay, records }) => ({
           companyId,
           periodId,
           employeeId: id,
@@ -430,6 +544,7 @@ export async function publishPayroll(ctx: AuthContext, periodKey?: string) {
             stdDays: profile.stdDays,
             from: period.from,
             to: period.to,
+            days: statementDays(records, pay.dayAmounts, library),
           },
           publishedAt,
         })),
@@ -458,6 +573,53 @@ export async function publishPayroll(ctx: AuthContext, periodKey?: string) {
       after: { periodKey: period.key, count: rows.length, total: totalNet },
     });
     return { periodKey: period.key, count: rows.length, total: totalNet };
+  });
+}
+
+/**
+ * Huỷ công bố: xoá bản chụp nên nhân viên hết thấy phiếu kỳ này, kỳ về Chưa công bố. `audit_logs` giữ
+ * số của các phiếu vừa xoá; công bố lại sau đó là lần công bố mới.
+ */
+export async function unpublishPayroll(ctx: AuthContext, periodKey?: string) {
+  const companyId = ctx.company.id;
+  const { period } = await periodFor(ctx, periodKey, vietnamToday());
+
+  return getDb().transaction(async (tx) => {
+    const [record] = await tx
+      .select()
+      .from(payrollPeriods)
+      .where(and(eq(payrollPeriods.companyId, companyId), eq(payrollPeriods.periodKey, period.key)))
+      .for('update');
+    if (!record?.published) throw new ApiError(409, 'Kỳ này chưa công bố');
+
+    const before = await tx.delete(payslips).where(eq(payslips.periodId, record.id)).returning({
+      employeeId: payslips.employeeId,
+      net: payslips.net,
+    });
+    await tx
+      .update(payrollPeriods)
+      .set({ published: false, publishedAt: null, publishedBy: null, stale: false })
+      .where(eq(payrollPeriods.id, record.id));
+
+    await notify(
+      tx,
+      before.map(({ employeeId }) => ({
+        companyId,
+        employeeId,
+        kind: 'payslip' as const,
+        title: 'Phiếu lương đã thu hồi',
+        body: `Kỳ ${formatDate(period.from).slice(0, 5)} – ${formatDate(period.to)} đang được sửa, sẽ công bố lại`,
+        href: '#/luong',
+      })),
+    );
+    await writeAudit(tx, actorOf(ctx), {
+      action: 'payroll.unpublish',
+      entity: 'payroll_period',
+      entityId: record.id,
+      before: { periodKey: period.key, publishedAt: record.publishedAt, payslips: before },
+      after: null,
+    });
+    return { periodKey: period.key, count: before.length };
   });
 }
 

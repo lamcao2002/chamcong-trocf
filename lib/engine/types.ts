@@ -76,6 +76,8 @@ export type EngineApproval = {
   waiveEarly: boolean;
   confirmShiftId: string | null;
   approveGps: boolean;
+  /** NULL = mặc định 1. */
+  payFactor: number | null;
 };
 
 export type DayInput = {
@@ -123,6 +125,8 @@ export type DayRecord = {
   otProposed: number;
   otApproved: number;
   otState: OtState;
+  /** Hệ số tiền của ca do quản lý đặt khi duyệt, mặc định 1; chỉ lương giờ dùng. */
+  payFactor: number;
   /** Hệ số OT (%) của ngày; không lưu, Lương suy lại từ `offDay`, `isHoliday`. */
   otRate: number;
   /** Không lưu, xem `penaltyPerMin`. */

@@ -2,6 +2,22 @@ import type { Suggestion } from '@/lib/engine/types';
 
 export const MAX_BULK_APPROVALS = 500;
 
+/** Hệ số tiền của một ca đặt khi duyệt công; cột `numeric(4,2)` chứa được tới 99,99. */
+export const MAX_PAY_FACTOR = 10;
+
+/** Nhãn việc Vắng trong duyệt loạt: Vắng không có đề xuất, người duyệt chọn cách xử lý khi bấm. */
+export const ABSENCE_LABEL = 'Vắng';
+export const ABSENCE_CHOICES = ['confirm', 'full'] as const;
+export type AbsenceChoice = (typeof ABSENCE_CHOICES)[number];
+
+/**
+ * Xác nhận vắng là 0 công nhưng hết cần duyệt; cho đủ công là 1 công như ca đi làm đủ, kể cả ca ghép
+ * (T24). Không dùng công kỳ vọng: 0,5 của ca ghép chỉ dành cho phép và lễ.
+ */
+export function absenceDecision(choice: AbsenceChoice): Record<string, unknown> {
+  return { congOverride: choice === 'confirm' ? 0 : 1 };
+}
+
 /** Đề xuất của engine thành trường trong bản ghi duyệt; OT gửi con số tổng của ngày. */
 export function decisionOf(suggestion: Suggestion, otProposed: number): Record<string, unknown> {
   switch (suggestion.kind) {
@@ -18,7 +34,12 @@ export function decisionOf(suggestion: Suggestion, otProposed: number): Record<s
 }
 
 type Target = { employeeId: string; date: string; shiftId: string | null };
-type Picked = Target & { suggestion: Suggestion | null; otProposed: number };
+/** `decision` dùng cho việc không có đề xuất (Vắng) mà người duyệt đã chọn cách xử lý. */
+type Picked = Target & {
+  suggestion: Suggestion | null;
+  otProposed: number;
+  decision?: Record<string, unknown>;
+};
 
 export type ApprovalGroup = Target & { decision: Record<string, unknown>; count: number };
 
@@ -46,7 +67,9 @@ export function groupDecisions(items: readonly Picked[]): ApprovalGroup[] {
       shiftId,
       decision: Object.assign(
         {},
-        ...kept.map(({ suggestion, otProposed }) => (suggestion ? decisionOf(suggestion, otProposed) : {})),
+        ...kept.map(({ suggestion, otProposed, decision }) =>
+          suggestion ? decisionOf(suggestion, otProposed) : (decision ?? {}),
+        ),
       ) as Record<string, unknown>,
       count: kept.length,
     };
