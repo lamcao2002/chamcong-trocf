@@ -158,7 +158,8 @@ function otPrice(profile: PayProfile, day: PayDay, minutes: number) {
     const factor = day.payFactor === 1 ? '' : ` × hệ số ${formatDecimal(day.payFactor)}`;
     return { amount: Math.round((minutes / 60) * rate * day.payFactor), how: `${price}${factor}` };
   }
-  const percent = otRateOf(day, profile.otRates);
+  // Trừ giờ không nhân % OT: trừ đúng đơn giá giờ
+  const percent = minutes < 0 ? 100 : otRateOf(day, profile.otRates);
   return {
     amount: Math.round((minutes / 60) * rate * (percent / 100)),
     how: `${price} × ${percent}% (${dayKindLabel(day)})`,
@@ -199,12 +200,13 @@ export function computePay({ profile, days, adjustments, roles = {} }: PayInput)
   ];
 
   const otLines = days
-    .filter(({ otApproved }) => otApproved > 0)
+    .filter(({ otApproved }) => otApproved !== 0)
     .map((day): PayLine => {
       const { amount, how } = otPrice(profileOf(day), day, day.otApproved);
       return {
         key: `ot_${day.date}`,
-        name: 'Tăng ca đã duyệt',
+        // Giờ OT âm là quản lý trừ giờ khỏi lương của ca
+        name: day.otApproved > 0 ? 'Tăng ca đã duyệt' : 'Trừ giờ',
         amount,
         how: `${shortDate(day.date)}: ${how}`,
       };
@@ -231,7 +233,7 @@ export function computePay({ profile, days, adjustments, roles = {} }: PayInput)
   const dayAmounts = days.map((day) => {
     const dayProfile = profileOf(day);
     if (dayProfile.payType !== 'hour') return null;
-    const ot = day.otApproved > 0 ? otPrice(dayProfile, day, day.otApproved).amount : 0;
+    const ot = day.otApproved !== 0 ? otPrice(dayProfile, day, day.otApproved).amount : 0;
     return shiftBase(dayProfile, day) + ot;
   });
 

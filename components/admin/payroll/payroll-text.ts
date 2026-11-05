@@ -19,8 +19,10 @@ export const periodTitle = (key: string) => `Tháng ${key.slice(5, 7)}/${key.sli
 
 /** Phút thành "4g43", tròn giờ là "5g". */
 export function hoursMinutes(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours === 0) return `${rest}p`;
-  return rest === 0 ? `${hours}g` : `${hours}g${String(rest).padStart(2, '0')}`;
+  // Giờ OT âm (trừ giờ) ghi dấu trừ ở đầu: "−1g30"
+  const sign = minutes < 0 ? '−' : '';
+  const hours = Math.floor(Math.abs(minutes) / 60);
+  const rest = Math.abs(minutes) % 60;
+  if (hours === 0) return `${sign}${rest}p`;
+  return rest === 0 ? `${sign}${hours}g` : `${sign}${hours}g${String(rest).padStart(2, '0')}`;
 }

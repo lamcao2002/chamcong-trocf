@@ -213,8 +213,33 @@ Code: `shiftHours`, `shiftBase`, `PayResult.dayAmounts` (`lib/payroll/compute-pa
 
 ## Nhóm 15 — Chi tiết ngày công trên phiếu nhân viên
 
-- Phiếu lương ở app nhân viên có nút **Xem chi tiết N ngày công**: mở bảng giống bảng Từng ngày của sao kê quản trị, mỗi ca một dòng, **bỏ cột Công và Sau ca**: Ngày, Ca, Vào, Ra, Trong ca, Muộn / sớm, Hệ số, Tiền ca (chỉ khi lương giờ), Ghi nhận. Trên điện thoại bảng cuộn ngang trong khung.
+- Phiếu lương ở app nhân viên có nút **Xem chi tiết N ngày công**: mở bảng mỗi ca một dòng, cột theo thứ tự (đổi 05/11/2026): Ngày, Vị trí, Ca, Tiền ca, Vào, Ra, Trong ca, Muộn / sớm, Hệ số, OT, Ghi chú. Không có cột Công, Sau ca, Ghi nhận. Trên điện thoại bảng cuộn ngang trong khung.
+  - **Vị trí** chỉ hiện khi người đó giữ hơn một vị trí; là vị trí của ca theo lịch, ca chưa ghi là vị trí chính.
+  - **Tiền ca**, **Hệ số** chỉ hiện với ca trả theo giờ.
+  - **OT** là OT đã duyệt, kể cả số âm (trừ giờ); OT chờ lúc công bố không hiện.
+  - **Ghi chú** là ghi chú của quản lý khi duyệt công (Điều chỉnh khác).
 - Số liệu là **bản chụp lúc công bố** (`payslips.summary.days`), không tính lại, nên khớp tổng phiếu. Phiếu công bố trước khi có tính năng này không có chi tiết, nút ẩn; công bố lại kỳ đó thì có.
 - N là số ngày có dòng ngày công trong kỳ, gồm cả ngày Vắng.
 
 Code: `statementDays` (`lib/services/payroll.ts`), `DayTable` dùng chung (`components/admin/payroll/DayTable.tsx`, `compact` cho phiếu), `SlipDays` (`components/employee/PayslipTab.tsx`).
+
+## Nhóm 16 — Giờ OT ở Điều chỉnh khác
+
+Quyết định đã chốt (05/11/2026):
+
+- Ô "Số giờ OT được duyệt" nhập **giờ**, không nhập phút. Có số thập phân (1,5 = 90 phút) và **số âm** (trừ giờ khỏi lương). Lưu thành phút trong `approvals.ot_minutes`, giới hạn ±1440 phút (±24 giờ).
+- Mặc định 0. Ca còn OT chờ duyệt thì ô để trống: lưu quyết định khác không vô tình chốt OT bằng 0; gõ 0 mới là không tính OT.
+- OT âm đi qua cùng công thức: lương giờ × (giờ ca + giờ OT) × hệ số, nên OT −1,5 giờ trừ 1,5 giờ lương. Sao kê ghi dòng "Trừ giờ". Lương tháng, lương công trừ theo đơn giá giờ, không nhân % OT.
+
+## Nhóm 17 — Công bố, công bố lại, huỷ công bố từng người
+
+Quyết định đã chốt (05/11/2026):
+
+- Màn Lương có **ô tích ở từng dòng** và "Chọn tất cả N người đang hiện" theo bộ lọc. Đã chọn người thì cuối danh sách hiện thanh dính: "Công bố (lại) N người đã chọn", "Huỷ công bố N người" (chỉ Quản trị viên, chỉ người đã có phiếu). Nút ở thẻ kỳ lương vẫn là cả kỳ.
+- Sao kê từng người có nút **Công bố phiếu** / **Công bố lại** riêng.
+- Công bố một số người: chỉ thay phiếu của họ, phiếu người khác giữ nguyên; chỉ họ nhận thông báo. Huỷ một số người: chỉ thu hồi phiếu của họ; không còn phiếu nào thì kỳ về Chưa công bố.
+- **Cần công bố lại tính theo từng người**: so phiếu đã chụp với số tính lúc này (thực lĩnh và từng dòng sao kê). Không thêm cột vào CSDL. Cờ `payroll_periods.stale` vẫn giữ cho Excel và phiếu in: bật khi còn người có phiếu lệch số.
+- Thẻ kỳ lương: "Đã công bố 7/10", thêm "2 cần công bố lại". Danh sách có nhãn từng người (Đã công bố, Cần công bố lại, Chưa công bố) và chip lọc "Chưa công bố", "Cần công bố lại" khi kỳ đã có phiếu.
+- API: `POST`, `DELETE /payroll/publish?period=` nhận body `{ employeeIds }` (tối đa 500); không gửi body là cả kỳ. Người ngoài phạm vi trả 404, danh sách rỗng 400, huỷ người chưa có phiếu 409.
+
+Code: `publishPayroll(ctx, key, employeeIds)`, `unpublishPayroll(ctx, key, employeeIds)`, `slipStateOf`, `PayrollView.employees[].slip`, `PublishDialog`/`UnpublishButton` prop `picked`.

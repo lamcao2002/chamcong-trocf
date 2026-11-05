@@ -431,6 +431,27 @@
   gap: 3px;
 }
 
+/* Mã ca và khung giờ ca đầu mỗi dòng: nhìn là biết ca nào, không cần mở drawer */
+.weekShift {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.weekShiftCode {
+  flex: none;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  color: var(--text);
+  font-weight: 700;
+  line-height: 16px;
+}
+
 .miniBar {
   position: relative;
   display: block;

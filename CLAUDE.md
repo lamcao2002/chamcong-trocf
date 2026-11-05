@@ -17,7 +17,7 @@ Tham khảo sản phẩm E-HRM Pro (chamcong.worksheet.vn) — **không sao ché
 | `docs/product/03-prd-mvp.md` | **Nguồn chính**: phạm vi, 14 màn hình, 36 user story + tiêu chí nghiệm thu, 21 bảng CSDL, 36 nhóm API, phi chức năng |
 | `docs/product/04-sprint-1.md` | Danh sách việc S1-01…S1-22, thứ tự, định nghĩa hoàn thành |
 | `docs/product/08-should-have.md` | Danh sách việc SH-01…SH-38 sau MVP, thứ tự nhóm, quyết định đang để mặc định |
-| `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, ca P01–P24, kế hoạch production |
+| `docs/product/07-sprint-4.md` | Danh sách việc S4-01…S4-21, công thức lương, ca P01–P25, kế hoạch production |
 | `docs/product/06-sprint-3.md` | Danh sách việc S3-01…S3-21, 13 quyết định đã chốt, luồng duyệt và đọc dữ liệu |
 | `docs/product/05-sprint-2.md` | Danh sách việc S2-01…S2-22, 17 quyết định đã chốt, thiết kế tính lại ngày công |
 | `docs/product/02-dac-ta-engine-ngay-cong.md` | Bộ tính ngày công (Sprint 2): bước A–F, bảng trạng thái, **66 ca kiểm thử T01–T66**, ký hiệu ô Bảng công, quyết định đã chốt |
@@ -121,9 +121,11 @@ Cập nhật bảng này khi xong một việc.
 | Duyệt loạt Theo tuần, ca Vắng | Code xong: chỉ Quản trị viên, ở Theo tuần duyệt được cả ca Vắng (Xác nhận vắng 0 công / Cho đủ công = 1 công mỗi ca, kể cả ca ghép); Lưới cả kỳ giữ như cũ |
 | Giao diện Lương mới, Huỷ công bố | Code xong: thanh kỳ trên dải header, danh sách và sao kê hai thẻ, bảng Từng ngày; `DELETE /payroll/publish` chỉ Quản trị viên, xoá bản chụp và báo nhân viên; đã thử Chrome 375 và 1440 px |
 | Lương giờ theo ca, hệ số ca | Code xong: lương giờ × (giờ chuẩn ca × công + OT) × hệ số, OT lương giờ không nhân %; hệ số ở Điều chỉnh khác; P22–P24; **cần áp migration `0008_pay_factor` trước khi deploy** |
-| Phiếu nhân viên: chi tiết ngày công | Code xong: "Xem chi tiết N ngày công" ở phiếu M4, bảng `DayTable` chung với sao kê, bỏ cột Công và Sau ca, đọc `payslips.summary.days` chụp lúc công bố (`statementDays` dùng chung với sao kê); phiếu công bố trước đó không có, công bố lại thì có; đã thử Chrome 375 px, **chưa thử điện thoại thật** |
+| Công bố từng người | Code xong: tích chọn ở danh sách Lương, thanh dính Công bố / Huỷ cho người đã chọn, nút riêng trong sao kê; cần công bố lại tính theo từng người bằng so phiếu với số hiện tại; `POST`/`DELETE /payroll/publish` nhận `{ employeeIds }`; đã thử Chrome 375 và 1440 px |
+| Giờ OT ở Điều chỉnh khác | Code xong: nhập số giờ thay cho phút, có số thập phân và số âm (trừ giờ, dòng "Trừ giờ" trên sao kê), ±24 giờ, mặc định 0; P25 |
+| Phiếu nhân viên: chi tiết ngày công | Code xong: "Xem chi tiết N ngày công" ở phiếu M4, bảng `DayTable` (`variant="slip"`): Ngày, Vị trí (nhiều vị trí), Ca, Tiền ca, Vào, Ra, Trong ca, Muộn/sớm, Hệ số, OT, Ghi chú của quản lý, đọc `payslips.summary.days` chụp lúc công bố (`statementDays` dùng chung với sao kê); phiếu công bố trước đó không có, công bố lại thì có; đã thử Chrome 375 px, **chưa thử điện thoại thật** |
 | SH-13 Kỳ lệch, Tự chọn | Code xong `lib/domain/timesheet-view.ts`: chỉ đổi khoảng xem, tối đa 62 ngày; Excel, drawer một người và duyệt loạt đi theo khoảng đó |
-| SH-14 Theo tuần | Code xong `?view=week`, `TimesheetWeek.tsx`; chưa thử điện thoại thật |
+| SH-14 Theo tuần | Code xong `?view=week`, `TimesheetWeek.tsx`, mỗi dòng trong ô có mã ca và giờ ca (`shiftHoursLabel`); chưa thử điện thoại thật |
 | SH-16 Thông báo | Code xong bảng `notifications`, `lib/services/notifications.ts`, chuông ở app nhân viên; chưa có web push |
 | SH-17, SH-18 Đăng ký ca | Code xong: mỗi ô một đơn `shift_register`, lưới ở tab Lịch, nhận ở Xếp ca và Hộp việc; **chưa thử điện thoại thật** |
 | SH-19 Đơn Muộn/sớm | Code xong, engine thêm T60–T66; miễn tính muộn, không đổi công |

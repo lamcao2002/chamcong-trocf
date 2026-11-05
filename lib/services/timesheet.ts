@@ -22,6 +22,7 @@ import { canDecideOwn } from './approvals';
 import { readDayRecords, staffInScope, type DayView } from './day';
 import { approvableItems } from './inbox';
 import { loadEmployeeRules } from './recompute';
+import { shiftHoursLabel } from '@/lib/format';
 
 const WEEK_DAYS = 7;
 
@@ -84,7 +85,7 @@ async function rangeFor(ctx: AuthContext, query: TimesheetQuery, today: string) 
   return resolveRange(query, company?.cutoffDay ?? null, today);
 }
 
-type ShiftClock = { id: string; name: string; startTime: string; endTime: string };
+type ShiftClock = { id: string; code: string; name: string; startTime: string; endTime: string };
 
 /** Một dòng ngày công trong ô tuần: tên ca, chữ trạng thái, mốc để vẽ thanh giờ (TS-05). */
 function weekRow(record: DayView, library: readonly ShiftClock[]) {
@@ -93,6 +94,9 @@ function weekRow(record: DayView, library: readonly ShiftClock[]) {
   return {
     shiftId: record.shiftId,
     shiftName: shift?.name ?? null,
+    shiftCode: shift?.code ?? null,
+    /** Khung giờ ca rút gọn, "07–12", "17:30–22". */
+    shiftHours: shift ? shiftHoursLabel(shift.startTime, shift.endTime) : null,
     symbol: daySymbol([record]).key,
     text: weekCellText(record),
     congValue: record.cong,
@@ -135,7 +139,13 @@ export async function getTimesheet(ctx: AuthContext, query: TimesheetQuery = {},
   const canBulk = !isWeek || ctx.employee.role === 'admin';
   const library = isWeek
     ? await db
-        .select({ id: shifts.id, name: shifts.name, startTime: shifts.startTime, endTime: shifts.endTime })
+        .select({
+          id: shifts.id,
+          code: shifts.code,
+          name: shifts.name,
+          startTime: shifts.startTime,
+          endTime: shifts.endTime,
+        })
         .from(shifts)
         .where(scopeToCompany(ctx, shifts.companyId))
     : [];

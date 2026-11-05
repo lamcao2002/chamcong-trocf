@@ -775,3 +775,114 @@
 .days.daysCompact {
   min-width: 720px;
 }
+
+/* Ghi chú duyệt công dài thì xuống dòng thay vì kéo rộng bảng */
+.noteCell {
+  display: inline-block;
+  min-width: 140px;
+  max-width: 240px;
+  white-space: normal;
+}
+
+/* Công bố từng người */
+.statusGroup {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rowWrap {
+  display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+}
+
+.rowWrap:last-child {
+  border-bottom: 0;
+}
+
+.rowWrap:hover {
+  background: var(--bg-app);
+}
+
+.rowWrap.rowActive:hover {
+  background: var(--brand-soft);
+}
+
+/* Ô tích nằm ngoài nút dòng: bấm ô không mở sao kê; vùng bấm đủ 44px */
+.rowCheck {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: stretch;
+  padding: 0 0 0 16px;
+}
+
+.rowWrap .row {
+  flex: 1;
+  min-width: 0;
+  padding-left: 12px;
+  border-bottom: 0;
+}
+
+.rowWrap .row:hover {
+  background: none;
+}
+
+.slipNone,
+.slipDone,
+.slipStale {
+  font-size: 12px;
+}
+
+.slipNone {
+  color: var(--text-muted);
+}
+
+.slipDone {
+  color: var(--success-fg);
+}
+
+.slipStale {
+  color: var(--warn-fg);
+  font-weight: 600;
+}
+
+.pickBar {
+  position: sticky;
+  /* Trên thanh dưới của điện thoại; desktop không có thanh dưới nên biến bằng 0 */
+  bottom: var(--pick-bar-bottom, 0px);
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 -16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  font-size: 13px;
+}
+
+.pickBarActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 991.98px) {
+  .pickBar {
+    --pick-bar-bottom: var(--bottom-nav-h);
+  }
+}

@@ -105,7 +105,20 @@ test('quản lý công bố phiếu, nhân viên xem phiếu trong app', async (
   await expect(dialog.getByText(/sẽ thấy phiếu lương kỳ này/)).toBeVisible();
   await dialog.getByRole('button', { name: /^Công bố \d+ phiếu$/ }).click();
   await expect(admin.getByText(/^Đã công bố (lại )?phiếu lương$/)).toBeVisible();
-  await expect(admin.getByText('Đã công bố', { exact: true })).toBeVisible();
+  const periodCard = admin.getByRole('region', { name: 'Kỳ lương' });
+  await expect(periodCard.getByText('Đã công bố', { exact: true })).toBeVisible();
+
+  // Chọn một người rồi công bố lại riêng người đó
+  await admin.getByRole('checkbox', { name: `Chọn ${staff.name}` }).check();
+  await admin
+    .getByRole('region', { name: 'Người đã chọn' })
+    .getByRole('button', { name: /Công bố lại 1 người đã chọn$/ })
+    .click();
+  await admin
+    .getByRole('dialog')
+    .getByRole('button', { name: /^Công bố 1 phiếu$/ })
+    .click();
+  await expect(admin.getByText('Đã công bố phiếu lương cho 1 người')).toBeVisible();
 
   await phone.goto('/m#/luong');
   await expect(phone.getByRole('heading', { name: 'Phiếu lương' })).toBeVisible();
@@ -115,14 +128,16 @@ test('quản lý công bố phiếu, nhân viên xem phiếu trong app', async (
   await expect(slip.getByText(/bản đã công bố/)).toBeVisible();
   await slip.getByRole('button', { name: /Xem chi tiết \d+ ngày công$/ }).click();
   await expect(slip.getByRole('button', { name: /Ẩn chi tiết \d+ ngày công$/ })).toBeVisible();
-  await expect(slip.getByRole('columnheader', { name: 'Ghi nhận' })).toBeVisible();
+  await expect(slip.getByRole('columnheader', { name: 'Ghi chú' })).toBeVisible();
+  await expect(slip.getByRole('columnheader', { name: 'OT', exact: true })).toBeVisible();
+  await expect(slip.getByRole('columnheader', { name: 'Ghi nhận' })).toHaveCount(0);
   await expect(slip.getByRole('columnheader', { name: 'Công', exact: true })).toHaveCount(0);
   await expect(slip.getByRole('columnheader', { name: 'Sau ca' })).toHaveCount(0);
 
   // Quản trị viên huỷ công bố: kỳ về Chưa công bố, nhân viên hết thấy phiếu
   await admin.getByRole('button', { name: /Huỷ công bố$/ }).click();
   await admin.locator('.ant-modal-confirm').getByRole('button', { name: 'Huỷ công bố' }).click();
-  await expect(admin.getByText('Chưa công bố', { exact: true })).toBeVisible();
+  await expect(periodCard.getByText('Chưa công bố', { exact: true })).toBeVisible();
   await phone.reload();
   await expect(phone.locator('main button', { hasText: 'Công bố' })).toHaveCount(0);
 });

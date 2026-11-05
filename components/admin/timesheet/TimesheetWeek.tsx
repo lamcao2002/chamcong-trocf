@@ -134,6 +134,12 @@ export function TimesheetWeek({
                       >
                         {day.rows.map((row) => (
                           <span key={row.shiftId ?? 'none'} className={styles.weekRow}>
+                            {row.shiftCode ? (
+                              <span className={styles.weekShift} title={row.shiftName ?? undefined}>
+                                <span className={styles.weekShiftCode}>{row.shiftCode}</span>
+                                {row.shiftHours}
+                              </span>
+                            ) : null}
                             <MiniBar row={row} />
                             <span className={TONE[row.symbol] ?? ''}>{row.text}</span>
                           </span>

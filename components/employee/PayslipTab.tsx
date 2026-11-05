@@ -19,7 +19,7 @@ const PAY_LABELS: Record<PayslipView['summary']['payType'], string> = {
 };
 
 /** Ngày công trong bản chụp; phiếu công bố trước khi có chi tiết thì ẩn. */
-function SlipDays({ days }: { days: readonly PayDayDetail[] }) {
+function SlipDays({ days, multiPosition }: { days: readonly PayDayDetail[]; multiPosition: boolean }) {
   const [open, setOpen] = useState(false);
   const count = new Set(days.map(({ date }) => date)).size;
   return (
@@ -33,7 +33,7 @@ function SlipDays({ days }: { days: readonly PayDayDetail[] }) {
         <DownOutlined className={open ? styles.slipDaysOpen : undefined} />
         {open ? 'Ẩn' : 'Xem'} chi tiết {count} ngày công
       </button>
-      {open ? <DayTable days={days} compact /> : null}
+      {open ? <DayTable days={days} variant="slip" showPosition={multiPosition} /> : null}
     </section>
   );
 }
@@ -79,7 +79,9 @@ function SlipDetail({ slip }: { slip: PayslipView }) {
           </li>
         ))}
       </ul>
-      {summary.days && summary.days.length > 0 ? <SlipDays days={summary.days} /> : null}
+      {summary.days && summary.days.length > 0 ? (
+        <SlipDays days={summary.days} multiPosition={summary.multiPosition ?? false} />
+      ) : null}
       <p className={styles.muted}>
         Phiếu này là bản đã công bố, không đổi khi bảng công được sửa sau ngày công bố.
       </p>

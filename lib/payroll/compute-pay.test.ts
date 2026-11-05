@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computePay, type PayDay, type PayProfile, type PayResult } from './compute-pay';
 
-/** Bộ ca kiểm thử lương P01–P24 của docs/product/07-sprint-4.md; mỗi dòng một test. */
+/** Bộ ca kiểm thử lương P01–P25 của docs/product/07-sprint-4.md; mỗi dòng một test. */
 
 const RATES = { weekday: 150, saturday: null, offday: 200, holiday: 300 };
 const WEDNESDAY = '2026-10-07';
@@ -336,11 +336,23 @@ const CASES: Case[] = [
       expect(pay(unit(60_000), [day({ cong: 1, payFactor: 2 })]).dayAmounts).toEqual([null]);
     },
   },
+  {
+    id: 'P25',
+    title: 'lương giờ: giờ OT âm trừ vào tiền của ca',
+    check: () => {
+      const shift = day({ cong: 1, stdHours: 5, otApproved: -90, otState: 'da_duyet' });
+      const result = pay(hour(25_000), [shift]);
+      expect(result.lines[1]).toMatchObject({ name: 'Trừ giờ', amount: -37_500 });
+      expect(result.net).toBe(87_500);
+      expect(result.dayAmounts).toEqual([87_500]);
+      expect(result.summary.otApprovedMin).toBe(-90);
+    },
+  },
 ];
 
 describe('bộ ca kiểm thử lương', () => {
-  it('có đủ P01–P24', () => {
-    const expected = Array.from({ length: 24 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`);
+  it('có đủ P01–P25', () => {
+    const expected = Array.from({ length: 25 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`);
     expect(CASES.map(({ id }) => id)).toEqual(expected);
   });
 
@@ -356,6 +368,14 @@ describe('ngoài bộ ca kiểm thử', () => {
   it('lương công quy đổi OT theo giờ chuẩn ca', () => {
     const shift = day({ cong: 1, stdHours: 2, otProposed: 60, otApproved: 60, otState: 'da_duyet' });
     expect(pay(unit(60_000), [shift]).lines[1]!.amount).toBe(45_000);
+  });
+
+  it('lương tháng: giờ âm trừ theo đơn giá giờ, không nhân % OT', () => {
+    const minus = day({ otApproved: -60, otState: 'da_duyet' });
+    expect(pay(month(10_000_000), [minus]).lines[1]).toMatchObject({
+      name: 'Trừ giờ',
+      amount: -Math.round(10_000_000 / 26 / 7.5),
+    });
   });
 
   it('OT đã duyệt một phần: phần chờ chỉ tính phần còn lại', () => {

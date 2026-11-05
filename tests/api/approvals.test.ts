@@ -158,7 +158,9 @@ describe('POST /approvals (US25, US26)', () => {
     const bad = async (decision: object) => expect((await approve(id, decision)).status).toBe(400);
     await bad({});
     await bad({ congOverride: 0.3 });
-    await bad({ otMinutes: -1 });
+    // OT âm là trừ giờ, hợp lệ tới −24 giờ; phút phải là số nguyên
+    await bad({ otMinutes: -1441 });
+    await bad({ otMinutes: 1.5 });
     await bad({ confirmShiftId: 'abc' });
     const future = await api('POST', '/approvals', {
       cookie: admin,

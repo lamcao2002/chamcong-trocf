@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { Drawer, Empty, Grid, Input, Progress, Select } from 'antd';
+import { Checkbox, Drawer, Empty, Grid, Input, Progress, Select } from 'antd';
 import { CheckCircleOutlined, InboxOutlined, SearchOutlined } from '@ant-design/icons';
 import { vietnamToday } from '@/lib/domain/date';
 import { formatClock, formatDate, formatDecimal, formatMoney, formatNumber } from '@/lib/format';
@@ -15,7 +15,7 @@ import { PAY_LABELS, hoursMinutes, periodTitle } from './payroll-text';
 import styles from './payroll.module.css';
 
 type Row = PayrollView['employees'][number];
-type Filter = 'all' | 'issues' | 'ot' | 'ready' | 'adjusted';
+type Filter = 'all' | 'issues' | 'ot' | 'ready' | 'adjusted' | 'unpublished' | 'stale';
 type Sort = 'name' | 'netDesc' | 'netAsc' | 'issues';
 
 const FILTERS: { value: Filter; label: string; match: (row: Row) => boolean }[] = [
@@ -25,6 +25,18 @@ const FILTERS: { value: Filter; label: string; match: (row: Row) => boolean }[] 
   { value: 'ready', label: 'Sẵn sàng', match: ({ ready }) => ready },
   { value: 'adjusted', label: 'Có thưởng/phạt', match: ({ hasAdjustment }) => hasAdjustment },
 ];
+
+/** Chỉ hiện khi kỳ đã có người được công bố. */
+const SLIP_FILTERS: typeof FILTERS = [
+  { value: 'unpublished', label: 'Chưa công bố', match: ({ slip }) => slip === 'none' },
+  { value: 'stale', label: 'Cần công bố lại', match: ({ slip }) => slip === 'stale' },
+];
+
+const SLIP_LABELS: Record<Row['slip'], { text: string; className: 'slipNone' | 'slipDone' | 'slipStale' }> = {
+  none: { text: 'Chưa công bố', className: 'slipNone' },
+  published: { text: 'Đã công bố', className: 'slipDone' },
+  stale: { text: 'Cần công bố lại', className: 'slipStale' },
+};
 
 const SORTS: { value: Sort; label: string; compare: (a: Row, b: Row) => number }[] = [
   { value: 'name', label: 'Sắp xếp: tên A → Z', compare: (a, b) => a.name.localeCompare(b.name, 'vi') },
@@ -56,6 +68,8 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
   const [payType, setPayType] = useState<Row['payType'] | null>(null);
   const [sort, setSort] = useState<Sort>('name');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Người đã tích để công bố hoặc huỷ công bố; trống là cả kỳ. */
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const { period, status, otApproved, otPending, review, adjustments } = payroll;
 
   const positions = useMemo(
@@ -63,7 +77,8 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
     [payroll.employees],
   );
   const term = search.trim().toLowerCase();
-  const activeFilter = FILTERS.find(({ value }) => value === filter)!;
+  const filters = status.published ? [...FILTERS, ...SLIP_FILTERS] : FILTERS;
+  const activeFilter = filters.find(({ value }) => value === filter) ?? FILTERS[0]!;
   const rows = payroll.employees
     .filter(
       (row) =>
@@ -77,27 +92,53 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
   const selected = opened ?? (desktop ? (rows[0] ?? null) : null);
   const percent = payroll.headcount ? Math.round((payroll.readyCount / payroll.headcount) * 100) : 0;
   const range = `${formatDate(period.from).slice(0, 5)} – ${formatDate(period.to)}`;
+  // Người đã tích mà không còn trong danh sách (đổi kỳ, nghỉ việc) thì bỏ qua
+  const pickedRows = payroll.employees.filter(({ id }) => picked.has(id));
+  const allShown = rows.length > 0 && rows.every(({ id }) => picked.has(id));
+  const toggle = (id: string, on: boolean) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const toggleShown = (on: boolean) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      for (const { id } of rows) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  const clearPicked = () => setPicked(new Set());
+  const statusLabel = !status.published
+    ? 'Chưa công bố'
+    : status.count < payroll.headcount
+      ? `Đã công bố ${status.count}/${payroll.headcount}`
+      : 'Đã công bố';
 
   return (
     <div className={styles.stack}>
       {status.stale ? (
         <p className={styles.staleBanner} role="status">
-          <strong>Cần công bố lại.</strong> Số liệu đã đổi sau lần công bố: nhân viên đang thấy tổng{' '}
-          {formatMoney(status.publishedNet)}, hiện tính ra {formatMoney(payroll.fund)}.
+          <strong>{status.staleCount} người cần công bố lại.</strong> Số liệu của họ đã đổi sau lần công bố,
+          phiếu trong app vẫn là số cũ. Lọc &quot;Cần công bố lại&quot;, chọn hết rồi bấm Công bố.
         </p>
       ) : null}
       <div className={styles.summary}>
         <section className={styles.main} aria-label="Kỳ lương">
           <div className={styles.mainHead}>
             <h2 className={styles.mainTitle}>Kỳ lương {periodTitle(period.key).toLowerCase()}</h2>
-            {status.published ? (
-              <span className={status.stale ? styles.statusWarn : styles.statusDone}>
-                {status.stale ? null : <CheckCircleOutlined />}
-                {status.stale ? 'Cần công bố lại' : 'Đã công bố'}
+            <span className={styles.statusGroup}>
+              <span className={status.published ? styles.statusDone : styles.statusWarn}>
+                {status.published ? <CheckCircleOutlined /> : null}
+                {statusLabel}
               </span>
-            ) : (
-              <span className={styles.statusWarn}>Chưa công bố</span>
-            )}
+              {status.stale ? (
+                <span className={styles.statusWarn}>{status.staleCount} cần công bố lại</span>
+              ) : null}
+            </span>
           </div>
           <strong className={styles.fund}>{formatMoney(payroll.fund)}</strong>
           <span className={styles.muted}>
@@ -111,7 +152,7 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
           </div>
           {status.published && status.publishedAt ? (
             <p className={styles.publishedLine}>
-              Công bố lúc{' '}
+              Lần công bố gần nhất lúc{' '}
               <strong>
                 {formatClock(status.publishedAt)} {formatDate(vietnamToday(new Date(status.publishedAt)))}
               </strong>
@@ -124,9 +165,12 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
               . Có sửa số liệu thì bấm Công bố lại.
             </p>
           ) : null}
+          {/* Thẻ kỳ luôn là cả kỳ; người đã chọn công bố ở thanh cuối danh sách */}
           <div className={styles.mainActions}>
-            <PublishDialog payroll={payroll} />
-            {status.published && canUnpublish ? <UnpublishButton payroll={payroll} /> : null}
+            <PublishDialog payroll={payroll} picked={[]} onDone={clearPicked} />
+            {status.published && canUnpublish ? (
+              <UnpublishButton payroll={payroll} picked={[]} onDone={clearPicked} />
+            ) : null}
           </div>
         </section>
 
@@ -181,6 +225,14 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
             <h2 className={styles.panelTitle}>Nhân viên</h2>
             <span className={styles.muted}>{payroll.headcount} người</span>
           </div>
+          <Checkbox
+            checked={allShown}
+            indeterminate={!allShown && rows.some(({ id }) => picked.has(id))}
+            disabled={rows.length === 0}
+            onChange={(event) => toggleShown(event.target.checked)}
+          >
+            Chọn tất cả {rows.length} người đang hiện
+          </Checkbox>
           <Input
             allowClear
             prefix={<SearchOutlined />}
@@ -190,7 +242,7 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
             onChange={(event) => setSearch(event.target.value)}
           />
           <div className={styles.chips}>
-            {FILTERS.map(({ value, label, match }) => {
+            {filters.map(({ value, label, match }) => {
               const count = payroll.employees.filter(match).length;
               return (
                 <button
@@ -235,41 +287,75 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
           ) : (
             <div className={styles.list}>
               {rows.map((row) => (
-                <button
+                <div
                   key={row.id}
-                  type="button"
-                  aria-current={row.id === selected?.id ? 'true' : undefined}
-                  className={`${styles.row} ${desktop && row.id === selected?.id ? styles.rowActive : ''}`}
-                  onClick={() => setSelectedId(row.id)}
+                  className={`${styles.rowWrap} ${desktop && row.id === selected?.id ? styles.rowActive : ''}`}
                 >
-                  <span className={styles.avatar} aria-hidden>
-                    {initials(row.name)}
-                  </span>
-                  <span className={styles.rowBody}>
-                    <span className={styles.rowName}>{row.name}</span>
-                    <span className={styles.muted}>{row.positionName ?? 'Chưa có vị trí'}</span>
-                    <span className={styles.muted}>
-                      {formatDecimal(row.cong)} công · OT{' '}
-                      {row.otApprovedMin > 0 ? hoursMinutes(row.otApprovedMin) : 0}
+                  {/* Checkbox của AntD đã là label, bọc bằng div để không lồng label */}
+                  <div className={styles.rowCheck}>
+                    <Checkbox
+                      aria-label={`Chọn ${row.name}`}
+                      checked={picked.has(row.id)}
+                      onChange={(event) => toggle(row.id, event.target.checked)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    aria-current={row.id === selected?.id ? 'true' : undefined}
+                    className={styles.row}
+                    onClick={() => setSelectedId(row.id)}
+                  >
+                    <span className={styles.avatar} aria-hidden>
+                      {initials(row.name)}
                     </span>
-                  </span>
-                  <span className={styles.rowEnd}>
-                    <strong className={row.net < 0 ? styles.alert : ''}>{formatNumber(row.net)}</strong>
-                    {row.ready ? (
-                      <span className={styles.ready}>Sẵn sàng</span>
-                    ) : (
-                      <span className={styles.issues}>{row.issues} việc</span>
-                    )}
-                  </span>
-                </button>
+                    <span className={styles.rowBody}>
+                      <span className={styles.rowName}>{row.name}</span>
+                      <span className={styles.muted}>{row.positionName ?? 'Chưa có vị trí'}</span>
+                      <span className={styles.muted}>
+                        {formatDecimal(row.cong)} công · OT{' '}
+                        {row.otApprovedMin !== 0 ? hoursMinutes(row.otApprovedMin) : 0}
+                      </span>
+                    </span>
+                    <span className={styles.rowEnd}>
+                      <strong className={row.net < 0 ? styles.alert : ''}>{formatNumber(row.net)}</strong>
+                      {row.ready ? (
+                        <span className={styles.ready}>Sẵn sàng</span>
+                      ) : (
+                        <span className={styles.issues}>{row.issues} việc</span>
+                      )}
+                      {status.published ? (
+                        <span className={styles[SLIP_LABELS[row.slip].className]}>
+                          {SLIP_LABELS[row.slip].text}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                </div>
               ))}
             </div>
           )}
+          {pickedRows.length > 0 ? (
+            // Dính ở cuối thẻ: chọn xong công bố ngay, không phải cuộn lên thẻ kỳ lương
+            <div className={styles.pickBar} role="region" aria-label="Người đã chọn">
+              <span>
+                Đã chọn <strong>{pickedRows.length}</strong> ·{' '}
+                <button type="button" className={styles.linkButton} onClick={clearPicked}>
+                  Bỏ chọn
+                </button>
+              </span>
+              <span className={styles.pickBarActions}>
+                <PublishDialog payroll={payroll} picked={pickedRows} onDone={clearPicked} />
+                {status.published && canUnpublish ? (
+                  <UnpublishButton payroll={payroll} picked={pickedRows} onDone={clearPicked} />
+                ) : null}
+              </span>
+            </div>
+          ) : null}
         </section>
 
         {desktop && selected ? (
           <section className={styles.panel} aria-label="Sao kê">
-            <PayStatementView employeeId={selected.id} periodKey={period.key} />
+            <PayStatementView employeeId={selected.id} periodKey={period.key} slip={selected.slip} />
           </section>
         ) : null}
       </div>
@@ -285,7 +371,9 @@ export function PayrollPanel({ payroll, brandColor, canUnpublish }: PayrollPanel
         >
           {/* Drawer nằm ngoài AdminShell nên phải đặt lại biến CSS */}
           <div style={themeCssVars(brandColor ?? undefined) as CSSProperties}>
-            {opened ? <PayStatementView employeeId={opened.id} periodKey={period.key} /> : null}
+            {opened ? (
+              <PayStatementView employeeId={opened.id} periodKey={period.key} slip={opened.slip} />
+            ) : null}
           </div>
         </Drawer>
       )}

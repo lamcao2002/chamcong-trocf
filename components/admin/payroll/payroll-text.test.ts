@@ -7,6 +7,8 @@ describe('payroll-text', () => {
     expect(hoursMinutes(300)).toBe('5g');
     expect(hoursMinutes(65)).toBe('1g05');
     expect(hoursMinutes(45)).toBe('45p');
+    expect(hoursMinutes(-90)).toBe('−1g30');
+    expect(hoursMinutes(-30)).toBe('−30p');
   });
 
   it('tên kỳ và mức lương', () => {

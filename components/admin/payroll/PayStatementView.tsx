@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { App, Button, Skeleton, Switch } from 'antd';
-import { PlusOutlined, PrinterOutlined } from '@ant-design/icons';
+import { PlusOutlined, PrinterOutlined, SendOutlined } from '@ant-design/icons';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
 import { formatDate, formatDecimal, formatMoney, formatNumber } from '@/lib/format';
 import { initials } from '@/lib/navigation/admin';
-import type { PayStatement } from '@/lib/services/payroll';
+import type { PayStatement, SlipState } from '@/lib/services/payroll';
 import { AdjustmentModal } from './AdjustmentModal';
 import { DayTable } from './DayTable';
 import { hoursMinutes, payRate, periodTitle } from './payroll-text';
@@ -21,10 +21,15 @@ const BASIS: Record<PayStatement['payType'], string> = {
   unit: 'Lương theo công',
 };
 
-type PayStatementViewProps = { employeeId: string; periodKey: string };
+type PayStatementViewProps = {
+  employeeId: string;
+  periodKey: string;
+  /** Trạng thái phiếu của người này trong kỳ, cho nút Công bố riêng. */
+  slip: SlipState;
+};
 
 /** Sao kê một người: "Vì sao ra số này", thưởng/phạt, từng ngày, OT chờ và thực lĩnh dự phóng (US34, US35). */
-export function PayStatementView({ employeeId, periodKey }: PayStatementViewProps) {
+export function PayStatementView({ employeeId, periodKey, slip }: PayStatementViewProps) {
   const router = useRouter();
   const toast = useToast();
   const { modal } = App.useApp();
@@ -48,6 +53,28 @@ export function PayStatementView({ employeeId, periodKey }: PayStatementViewProp
   const changed = () => {
     void load();
     startRefresh(() => router.refresh());
+  };
+
+  const publishOne = () => {
+    const again = slip !== 'none';
+    modal.confirm({
+      title: again ? 'Công bố lại phiếu của người này?' : 'Công bố phiếu của người này?',
+      content:
+        'Phiếu được đóng băng theo số lúc này, người này nhận thông báo. Phiếu của người khác giữ nguyên.',
+      okText: again ? 'Công bố lại' : 'Công bố',
+      cancelText: 'Để sau',
+      onOk: async () => {
+        const result = await apiRequest(`/api/v1/payroll/publish?period=${periodKey}`, 'POST', {
+          employeeIds: [employeeId],
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(again ? 'Đã công bố lại phiếu' : 'Đã công bố phiếu');
+        changed();
+      },
+    });
   };
 
   const remove = (id: string) => {
@@ -84,6 +111,13 @@ export function PayStatementView({ employeeId, periodKey }: PayStatementViewProp
           {formatDate(period.to)}
         </span>
         <div className={styles.statementActions}>
+          <Button
+            type={slip === 'published' ? 'default' : 'primary'}
+            icon={<SendOutlined />}
+            onClick={publishOne}
+          >
+            {slip === 'none' ? 'Công bố phiếu' : 'Công bố lại'}
+          </Button>
           <Button
             icon={<PrinterOutlined />}
             href={`/app/in-phieu?period=${periodKey}&nv=${employeeId}`}
@@ -122,9 +156,9 @@ export function PayStatementView({ employeeId, periodKey }: PayStatementViewProp
         </div>
         <div>
           <span className={styles.muted}>OT đã duyệt</span>
-          <strong>{summary.otApprovedMin > 0 ? hoursMinutes(summary.otApprovedMin) : 0}</strong>
+          <strong>{summary.otApprovedMin !== 0 ? hoursMinutes(summary.otApprovedMin) : 0}</strong>
           <span className={styles.muted}>
-            {summary.otApprovedMin > 0 ? formatMoney(otApprovedAmount) : 'Chưa có'}
+            {summary.otApprovedMin !== 0 ? formatMoney(otApprovedAmount) : 'Chưa có'}
           </span>
         </div>
         <div>

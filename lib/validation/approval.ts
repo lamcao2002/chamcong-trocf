@@ -16,7 +16,8 @@ export const approvalSchema = z
       .refine((value) => CONG_CHOICES.includes(value), 'Số công không hợp lệ')
       .nullable()
       .optional(),
-    otMinutes: z.number().int().min(0).max(1440).nullable().optional(),
+    /** Âm là trừ giờ khỏi lương; giao diện nhập giờ, gửi phút. */
+    otMinutes: z.number().int().min(-1440).max(1440).nullable().optional(),
     approveMissing: z.boolean().optional(),
     waiveLate: z.boolean().optional(),
     waiveEarly: z.boolean().optional(),

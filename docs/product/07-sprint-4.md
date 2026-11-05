@@ -102,6 +102,7 @@ Quan sát từ bản gốc trong `docs/website-analysis/04-feature-specification
 | P22 | Hệ số ca, lương giờ | 25.000đ/giờ, ca 4 giờ hệ số 1 và ca 4 giờ hệ số 1,5 có OT 60 phút | 100.000đ + 150.000đ + 37.500đ OT | Đề xuất (04/11) |
 | P23 | OT ngày lễ, lương giờ | 25.000đ/giờ, ca 8 giờ, OT 120 phút ngày lễ | 250.000đ, không nhân 300% | Đề xuất (04/11) |
 | P24 | Hệ số với lương tháng, công | Lương tháng 26 công hệ số 2 | 11.000.000đ, bỏ qua hệ số | Đề xuất (04/11) |
+| P25 | Giờ OT âm, lương giờ | 25.000đ/giờ, ca 5 giờ, OT −1,5 giờ | 87.500đ, dòng "Trừ giờ" −37.500đ | Đề xuất (05/11) |
 
 P19–P21 (nhiều vị trí) ở `08-should-have.md`; P19, P20 đã đổi số theo công thức theo ca.
 

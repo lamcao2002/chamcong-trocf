@@ -6,7 +6,7 @@ import { FormDrawer } from '@/components/common/FormDrawer';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
 import { MAX_PAY_FACTOR } from '@/lib/domain/approval';
-import { dayStatusLabel } from '@/lib/format';
+import { dayStatusLabel, formatDecimal } from '@/lib/format';
 import type { DayDetail } from '@/lib/services/day';
 
 export type AdjustTarget = {
@@ -19,13 +19,17 @@ export type AdjustTarget = {
 
 type Values = {
   cong: string;
-  otMinutes: number | null;
+  /** Giờ OT đã duyệt, âm là trừ giờ; NULL = chưa quyết định, OT chờ vẫn chờ. */
+  otHours: number | null;
   /** NULL = mặc định 1. */
   payFactor: number | null;
   approveMissing: boolean;
   waiveLate: boolean;
   waiveEarly: boolean;
 };
+
+/** Khớp giới hạn ±1440 phút của `approvalSchema.otMinutes`. */
+const MAX_OT_HOURS = 24;
 
 const CONG_OPTIONS = [
   { value: 'system', label: 'Theo hệ thống' },
@@ -36,19 +40,32 @@ const CONG_OPTIONS = [
 
 const EMPTY: Values = {
   cong: 'system',
-  otMinutes: null,
+  otHours: 0,
   payFactor: null,
   approveMissing: false,
   waiveLate: false,
   waiveEarly: false,
 };
 
+const toHours = (minutes: number) => Math.round((minutes / 60) * 100) / 100;
+
+/**
+ * Ô giờ OT mặc định 0. Ca còn OT chờ duyệt thì để trống: lưu quyết định khác không vô tình chốt OT
+ * thành 0, gõ 0 mới là không tính OT.
+ */
+function initialOtHours(detail: DayDetail, shiftId: string | null, otMinutes: number | null) {
+  if (otMinutes !== null) return toHours(otMinutes);
+  const record = detail.records.find((row) => row.shiftId === shiftId);
+  if (record?.otState === 'cho_duyet') return null;
+  return toHours(record?.otApproved ?? 0);
+}
+
 function initialValues(detail: DayDetail, shiftId: string | null): Values {
   const approval = detail.approvals.find((row) => row.shiftId === shiftId);
-  if (!approval) return EMPTY;
+  if (!approval) return { ...EMPTY, otHours: initialOtHours(detail, shiftId, null) };
   return {
     cong: approval.congOverride === null ? 'system' : String(approval.congOverride),
-    otMinutes: approval.otMinutes,
+    otHours: initialOtHours(detail, shiftId, approval.otMinutes),
     payFactor: approval.payFactor,
     approveMissing: approval.approveMissing,
     waiveLate: approval.waiveLate,
@@ -62,7 +79,9 @@ function changes(before: Values, after: Values) {
     ...(after.cong === before.cong
       ? {}
       : { congOverride: after.cong === 'system' ? null : Number(after.cong) }),
-    ...(after.otMinutes === before.otMinutes ? {} : { otMinutes: after.otMinutes }),
+    ...(after.otHours === before.otHours
+      ? {}
+      : { otMinutes: after.otHours === null ? null : Math.round(after.otHours * 60) }),
     ...(after.payFactor === before.payFactor ? {} : { payFactor: after.payFactor }),
     ...(after.approveMissing === before.approveMissing ? {} : { approveMissing: after.approveMissing }),
     ...(after.waiveLate === before.waiveLate ? {} : { waiveLate: after.waiveLate }),
@@ -72,7 +91,7 @@ function changes(before: Values, after: Values) {
 
 type AdjustDrawerProps = { target: AdjustTarget | null; onClose: () => void };
 
-/** Điều chỉnh khác: số công, phút OT, hệ số lương, duyệt thiếu giờ, tha muộn/sớm, ghi chú (US26, US28). */
+/** Điều chỉnh khác: số công, giờ OT, hệ số lương, duyệt thiếu giờ, tha muộn/sớm, ghi chú (US26, US28). */
 export function AdjustDrawer({ target, onClose }: AdjustDrawerProps) {
   const toast = useToast();
   const [detail, setDetail] = useState<DayDetail | null>(null);
@@ -141,21 +160,28 @@ export function AdjustDrawer({ target, onClose }: AdjustDrawerProps) {
             <Typography.Paragraph type="secondary">
               Hệ thống ghi nhận: {dayStatusLabel(record.status)} · {String(record.cong).replace('.', ',')}{' '}
               công
-              {record.otProposed > 0 ? ` · OT đề xuất ${record.otProposed} phút` : ''}
+              {record.otProposed > 0 ? ` · OT đề xuất ${formatDecimal(toHours(record.otProposed))} giờ` : ''}
               {record.payFactor === 1 ? '' : ` · hệ số ${String(record.payFactor).replace('.', ',')}`}
             </Typography.Paragraph>
           ) : null}
           <Form.Item label="Số công">
             <Segmented options={CONG_OPTIONS} value={values.cong} onChange={(cong) => set({ cong })} />
           </Form.Item>
-          <Form.Item label="Phút OT được duyệt" extra="Để trống là chưa quyết định, 0 là không tính OT.">
+          <Form.Item
+            label="Số giờ OT được duyệt"
+            extra="Nhập được số thập phân (1,5 = 1 giờ 30 phút) và số âm để trừ giờ. Để trống là chưa quyết định."
+          >
             <InputNumber
-              min={0}
-              max={1440}
+              min={-MAX_OT_HOURS}
+              max={MAX_OT_HOURS}
+              step={0.5}
+              decimalSeparator=","
+              placeholder="0"
+              addonAfter="giờ"
               style={{ width: '100%' }}
-              aria-label="Phút OT được duyệt"
-              value={values.otMinutes}
-              onChange={(otMinutes) => set({ otMinutes })}
+              aria-label="Số giờ OT được duyệt"
+              value={values.otHours}
+              onChange={(otHours) => set({ otHours })}
             />
           </Form.Item>
           <Form.Item
