@@ -31,6 +31,27 @@ test('quản lý xếp ca, nhân viên chấm công, Bảng công có ngày côn
   await expect(admin.getByRole('button', { name: new RegExp(staff.name) }).first()).toBeVisible();
 });
 
+test('chưa cho phép vị trí: nút chấm vẫn bấm được, bấm thì hướng dẫn bật định vị, không ghi lần chấm', async ({
+  browser,
+}) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  await scheduleToday(api, staff);
+
+  const phone = await staffPage(browser, staff, { location: false });
+  await phone.goto('/m');
+  const punch = phone.getByRole('button', { name: 'VÀO CA' });
+  await expect(punch).toBeEnabled();
+  await punch.click();
+  // AntD ghi tiêu đề hai lần (một bản ẩn cho trình đọc màn hình), lấy bản trong hộp xác nhận
+  await expect(
+    phone.locator('.ant-modal-confirm-title', { hasText: 'Cần bật định vị để chấm công' }),
+  ).toBeVisible();
+  await phone.getByRole('button', { name: 'Đã hiểu' }).click();
+  await expect(phone.getByText(/Đã vào ca lúc/)).toHaveCount(0);
+  await expect(phone.getByRole('button', { name: 'VÀO CA' })).toBeEnabled();
+});
+
 test('duyệt hết một việc trong Hộp việc', async ({ browser }) => {
   const api = await adminApi();
   const staff = await newStaff(api);

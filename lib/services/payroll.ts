@@ -810,6 +810,9 @@ export async function getPayrollDocument(ctx: AuthContext, periodKey?: string, e
           otApprovedMin: summary.otApprovedMin,
           lines: row.lines as PayLine[],
           net: row.net,
+          /** Phiếu công bố trước khi có chi tiết ngày công thì trống. */
+          days: summary.days ?? [],
+          multiPosition: summary.multiPosition ?? false,
         };
       }),
     };
@@ -817,19 +820,24 @@ export async function getPayrollDocument(ctx: AuthContext, periodKey?: string, e
 
   const staff = await staffInScope(ctx, period.from);
   const wanted = employeeId ? staff.filter(({ id }) => id === employeeId) : staff;
-  const rows = wanted.length > 0 ? await computePeriod(ctx, wanted, period.from, period.to, period.key) : [];
+  const [rows, library] = await Promise.all([
+    wanted.length > 0 ? computePeriod(ctx, wanted, period.from, period.to, period.key) : [],
+    shiftLibrary(ctx),
+  ]);
   return {
     period,
     state: 'draft' as const,
-    slips: rows.map(({ id, name, positionName, profile, pay }) => ({
-      employeeId: id,
-      name,
-      positionName,
-      payType: profile.payType,
-      cong: pay.summary.cong,
-      otApprovedMin: pay.summary.otApprovedMin,
-      lines: pay.lines,
-      net: pay.net,
+    slips: rows.map((row) => ({
+      employeeId: row.id,
+      name: row.name,
+      positionName: row.positionName,
+      payType: row.profile.payType,
+      cong: row.pay.summary.cong,
+      otApprovedMin: row.pay.summary.otApprovedMin,
+      lines: row.pay.lines,
+      net: row.pay.net,
+      days: statementDays(row, library),
+      multiPosition: row.profile.positionCount > 1,
     })),
   };
 }

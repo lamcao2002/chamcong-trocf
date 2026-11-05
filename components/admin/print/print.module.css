@@ -97,6 +97,31 @@
   color: var(--text-muted);
 }
 
+.netBox {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+}
+
+.netBox strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.days {
+  margin-top: 16px;
+}
+
+.daysTitle {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
 @media print {
   .page {
     max-width: none;
@@ -115,5 +140,19 @@
   .slip + .slip {
     border-top: 0;
     padding-top: 0;
+  }
+
+  /* Trên giấy không cuộn được: bảng co theo khổ giấy, chữ nhỏ lại */
+  .days :global(table) {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  .days :global(div) {
+    overflow: visible;
+  }
+
+  .days tr {
+    break-inside: avoid;
   }
 }

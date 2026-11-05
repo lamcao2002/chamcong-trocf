@@ -40,6 +40,8 @@ function SlipDays({ days, multiPosition }: { days: readonly PayDayDetail[]; mult
 
 function SlipDetail({ slip }: { slip: PayslipView }) {
   const { summary } = slip;
+  const hasDays = (summary.days?.length ?? 0) > 0;
+  const shownLines = hasDays ? slip.lines.filter(({ key }) => key.startsWith('adjustment_')) : slip.lines;
   return (
     <>
       <div className={styles.slipNet}>
@@ -68,20 +70,21 @@ function SlipDetail({ slip }: { slip: PayslipView }) {
           <strong>{summary.otApprovedMin}p</strong>
         </div>
       </div>
-      <ul className={styles.slipLines}>
-        {slip.lines.map(({ key, name, amount, how }) => (
-          <li key={key}>
-            <span>
-              {name}
-              <span className={styles.timelineSub}>{how}</span>
-            </span>
-            <strong>{formatMoney(amount)}</strong>
-          </li>
-        ))}
-      </ul>
-      {summary.days && summary.days.length > 0 ? (
-        <SlipDays days={summary.days} multiPosition={summary.multiPosition ?? false} />
+      {/* Bảng ngày công đã có tiền từng ca nên chỉ giữ thưởng/phạt; phiếu cũ chưa có bảng thì hiện đủ dòng */}
+      {shownLines.length > 0 ? (
+        <ul className={styles.slipLines}>
+          {shownLines.map(({ key, name, amount, how }) => (
+            <li key={key}>
+              <span>
+                {name}
+                <span className={styles.timelineSub}>{how}</span>
+              </span>
+              <strong>{formatMoney(amount)}</strong>
+            </li>
+          ))}
+        </ul>
       ) : null}
+      {hasDays ? <SlipDays days={summary.days!} multiPosition={summary.multiPosition ?? false} /> : null}
       <p className={styles.muted}>
         Phiếu này là bản đã công bố, không đổi khi bảng công được sửa sau ngày công bố.
       </p>

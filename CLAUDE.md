@@ -70,7 +70,7 @@ Ký hiệu trong tài liệu: **[Gốc]** = quan sát được trên bản gốc
 | S2-10 Gắn tính lại | Code xong: lần chấm, lịch, ca, vị trí, nhân viên, ngày lễ, cài đặt |
 | S2-11 Cron | Code xong; **cần đặt `CRON_SECRET` trên Vercel** |
 | S2-12 → S2-14 Xếp ca | Code xong API và màn A4, đã thử trên Chrome 375 và 1440 px |
-| S2-15 → S2-18 Chấm công | Code xong API và màn M2, đã thử trên Chrome giả lập GPS; **chưa thử điện thoại thật** |
+| S2-15 → S2-18 Chấm công | Code xong API và màn M2, nút VÀO/RA CA luôn bấm được, xin quyền vị trí lúc bấm (`locateOnce`), đã thử trên Chrome giả lập GPS; **chưa thử điện thoại thật** |
 | S2-19 Kiểm tra ngày công | Xong, màn tạm đã thay bằng Bảng công ở S3-13 |
 | S2-20 Test API | Code xong: 163 test, gồm chạy song song, kỳ đã công bố, chặn trang theo quyền |
 | S2-21 Thử điện thoại thật | **Chưa làm**, cần người thử tại quán, phiếu thử ở `docs/product/05-sprint-2.md` |
@@ -115,7 +115,7 @@ Cập nhật bảng này khi xong một việc.
 | SH-01 Thêm hàng loạt | Code xong `POST /employees/bulk`, bộ đọc `lib/domain/staff-import.ts`, đã thử trên Chrome 375 và 1440 px |
 | SH-02 Gửi link cài app, QR | Code xong; tin nhắn chỉ kèm PIN ngay sau khi tạo hoặc đặt lại PIN; **chưa quét QR bằng điện thoại thật** |
 | SH-03, SH-04 Xuất Excel | Code xong `/timesheet/export`, `/payroll/export`; kỳ đã công bố lấy bản chụp |
-| SH-05 In phiếu | Code xong trang `/app/in-phieu`, in một người hoặc cả kỳ, mỗi người một tờ; **chưa in ra giấy thật** |
+| SH-05 In phiếu | Code xong trang `/app/in-phieu`, in một người hoặc cả kỳ, mỗi người một tờ; thực lĩnh, thưởng/phạt và bảng ngày công, không có "Vì sao ra số này" (phiếu app nhân viên cũng vậy); **chưa in ra giấy thật** |
 | SH-09, SH-10 Duyệt hàng loạt | Code xong `POST /approvals/bulk` (`lib/services/bulk-approval.ts`), chọn nhiều ở Hộp việc; đề xuất lấy lại từ server, số đổi thì bỏ qua và báo lại |
 | SH-12 Duyệt loạt Bảng công | Code xong chế độ chọn ô, dùng chung API với Hộp việc |
 | Duyệt loạt Theo tuần, ca Vắng | Code xong: chỉ Quản trị viên, ở Theo tuần duyệt được cả ca Vắng (Xác nhận vắng 0 công / Cho đủ công = 1 công mỗi ca, kể cả ca ghép); Lưới cả kỳ giữ như cũ |

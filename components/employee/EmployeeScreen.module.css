@@ -123,6 +123,11 @@
   margin: 6px 0 0;
 }
 
+/* Hộp hướng dẫn bật định vị khi bấm chấm công mà bị chặn quyền */
+.guideModal p {
+  margin: 6px 0 0;
+}
+
 .choices {
   display: flex;
   flex-wrap: wrap;

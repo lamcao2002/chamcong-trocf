@@ -74,13 +74,17 @@ export async function adminPage(browser: Browser): Promise<Page> {
   return context.newPage();
 }
 
-export async function staffPage(browser: Browser, staff: Staff): Promise<Page> {
+/** `location: false` là nhân viên chưa cho phép vị trí: trình duyệt tự từ chối khi app xin quyền. */
+export async function staffPage(
+  browser: Browser,
+  staff: Staff,
+  { location = true }: { location?: boolean } = {},
+): Promise<Page> {
   const context = await browser.newContext({
     viewport: { width: 375, height: 812 },
     isMobile: true,
     hasTouch: true,
-    geolocation: NEAR,
-    permissions: ['geolocation'],
+    ...(location ? { geolocation: NEAR, permissions: ['geolocation'] } : {}),
   });
   await context.request.post('/api/v1/auth/app/login', {
     data: { companyCode: COMPANY, email: staff.email, pin: staff.pin },
