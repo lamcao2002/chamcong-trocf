@@ -7,7 +7,9 @@ import { downloadFile } from '@/lib/api/client';
 import { useToast } from './useToast';
 
 /** Tải file qua fetch thay vì thẻ link, để lỗi hiện thành toast thay vì một trang JSON. */
-export function ExportButton({ url, label = 'Xuất Excel' }: { url: string; label?: string }) {
+type ExportButtonProps = { url: string; label?: string; className?: string };
+
+export function ExportButton({ url, label = 'Xuất Excel', className }: ExportButtonProps) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
 
@@ -19,7 +21,7 @@ export function ExportButton({ url, label = 'Xuất Excel' }: { url: string; lab
   };
 
   return (
-    <Button icon={<DownloadOutlined />} loading={loading} onClick={() => void run()}>
+    <Button className={className} icon={<DownloadOutlined />} loading={loading} onClick={() => void run()}>
       {label}
     </Button>
   );

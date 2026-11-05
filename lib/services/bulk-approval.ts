@@ -3,7 +3,7 @@ import { ApiError } from '@/lib/api/errors';
 import { isUniqueViolation } from '@/lib/api/server';
 import type { AuthContext } from '@/lib/auth/policy';
 import { getDb } from '@/lib/db/client';
-import { groupDecisions } from '@/lib/domain/approval';
+import { ABSENCE_LABEL, absenceDecision, groupDecisions } from '@/lib/domain/approval';
 import type { BulkApprovalInput } from '@/lib/validation/approval';
 import { ALREADY_DECIDED, assertCanDecide, writeApproval } from './approvals';
 import { inboxBetween } from './inbox';
@@ -12,14 +12,23 @@ import { lockEmployees, recomputeDays } from './recompute';
 /**
  * Duyệt nhiều việc theo đề xuất (INB-08, TS-08). Đề xuất lấy lại từ server, client chỉ nêu việc nào và
  * nhãn đã thấy: nhãn lệch nghĩa là số liệu đổi sau khi quản lý xem, việc đó được bỏ qua và báo lại.
+ * Vắng không có đề xuất: chỉ duyệt khi lô có `absence` (xác nhận vắng hoặc cho đủ công).
  */
 export async function approveSuggested(ctx: AuthContext, input: BulkApprovalInput) {
   const { items } = await inboxBetween(ctx, input.from, input.to);
   const current = new Map(items.map((item) => [item.key, item]));
   const picked = input.items.flatMap(({ key, label }) => {
     const item = current.get(key);
+    if (item?.kind === 'vang') {
+      if (!input.absence || label !== ABSENCE_LABEL) return [];
+      return [{ ...item, decision: absenceDecision(input.absence) }];
+    }
     return item?.suggestion?.label === label ? [item] : [];
   });
+  // Duyệt loạt ca Vắng ở Bảng công Theo tuần chỉ dành cho Quản trị viên
+  if (picked.some(({ kind }) => kind === 'vang') && ctx.employee.role !== 'admin') {
+    throw new ApiError(403, 'Chỉ Quản trị viên duyệt loạt được ca Vắng');
+  }
   const groups = groupDecisions(picked);
   const approved = groups.reduce((sum, { count }) => sum + count, 0);
   const result = { approved, skipped: input.items.length - approved };

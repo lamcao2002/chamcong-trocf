@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Suggestion } from '@/lib/engine/types';
-import { decisionOf, groupDecisions } from './approval';
+import { absenceDecision, decisionOf, groupDecisions } from './approval';
 
 const suggestion = (kind: Suggestion['kind'], extra: Partial<Suggestion> = {}): Suggestion => ({
   kind,
@@ -49,4 +49,25 @@ describe('groupDecisions', () => {
       expect(group!.decision).not.toHaveProperty('otMinutes');
     },
   );
+});
+
+describe('absenceDecision', () => {
+  it('xác nhận vắng là 0 công, cho đủ công là 1 công như ca đi làm đủ', () => {
+    expect(absenceDecision('confirm')).toEqual({ congOverride: 0 });
+    expect(absenceDecision('full')).toEqual({ congOverride: 1 });
+  });
+
+  it('việc Vắng đã chọn cách xử lý đi vào quyết định của nhóm', () => {
+    const [group] = groupDecisions([
+      {
+        employeeId: 'a',
+        date: '2026-11-02',
+        shiftId: 's1',
+        suggestion: null,
+        otProposed: 0,
+        decision: { congOverride: 0 },
+      },
+    ]);
+    expect(group).toMatchObject({ count: 1, decision: { congOverride: 0 } });
+  });
 });

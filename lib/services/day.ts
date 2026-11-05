@@ -67,7 +67,12 @@ export async function readDayRecords(
 /** Người trong phạm vi quản lý còn làm tính từ ngày `from`. */
 export function staffInScope(ctx: AuthContext, from: string) {
   return getDb()
-    .select({ id: employees.id, name: employees.name, positionName: positions.name })
+    .select({
+      id: employees.id,
+      name: employees.name,
+      email: employees.email,
+      positionName: positions.name,
+    })
     .from(employees)
     .leftJoin(positions, eq(positions.id, employees.positionId))
     .where(

@@ -21,6 +21,10 @@
   line-height: 30px;
 }
 
+.toolbar {
+  margin-top: 14px;
+}
+
 .subtitle {
   margin: 2px 0 0;
   opacity: 0.85;

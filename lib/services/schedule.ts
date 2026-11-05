@@ -387,7 +387,11 @@ export async function assertCellsAllowed(tx: Tx, ctx: AuthContext, cells: readon
     'cells',
   );
 
-  const [allowed, held] = await Promise.all([allowedShiftIds(tx, staff), positionsOf(tx, staff)]);
+  const [allowed, held, live] = await Promise.all([
+    allowedShiftIds(tx, staff),
+    positionsOf(tx, staff),
+    tx.select().from(scheduleCells).where(cellMatch(scheduleCells, cells)),
+  ]);
   for (const { employeeId, date, shiftIds, positions: map } of cells) {
     const employee = staff.find(({ id }) => id === employeeId)!;
     if (date < employee.onboardDate || (employee.leftDate && date > employee.leftDate)) {
@@ -395,10 +399,17 @@ export async function assertCellsAllowed(tx: Tx, ctx: AuthContext, cells: readon
         cells: 'Ngày không hợp lệ',
       });
     }
-    if (shiftIds.some((shiftId) => !allowed.get(employeeId)?.includes(shiftId))) {
+    // Ca và vị trí đã có sẵn trong lịch (vd nhận từ pass ca) được giữ khi sửa ô, dù vốn không được xếp
+    const existing = live.find((row) => row.employeeId === employeeId && row.date === date);
+    const kept = (shiftId: string) => existing?.shiftIds.includes(shiftId) ?? false;
+    if (shiftIds.some((shiftId) => !allowed.get(employeeId)?.includes(shiftId) && !kept(shiftId))) {
       throw new ApiError(400, 'Ca không nằm trong ca được làm của nhân viên', { cells: 'Ca không hợp lệ' });
     }
-    if (Object.values(map ?? {}).some((positionId) => !held.get(employeeId)?.includes(positionId))) {
+    const badPosition = Object.entries(map ?? {}).some(
+      ([shiftId, positionId]) =>
+        !held.get(employeeId)?.includes(positionId) && existing?.positions[shiftId] !== positionId,
+    );
+    if (badPosition) {
       throw new ApiError(400, 'Nhân viên không làm vị trí này', { cells: 'Vị trí không hợp lệ' });
     }
   }

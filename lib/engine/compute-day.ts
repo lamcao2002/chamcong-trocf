@@ -37,6 +37,7 @@ function blankRecord({ date, isHoliday }: DayInput, shiftId: string | null, stat
     otProposed: 0,
     otApproved: 0,
     otState: 'none',
+    payFactor: 1,
     otRate: 0,
     penalty: 0,
     missing: 0,
@@ -60,7 +61,7 @@ const SUGGESTION_FLAGS: Record<Suggestion['kind'], readonly string[]> = {
 
 function finish(record: DayRecord): DayRecord {
   const { flags, otProposed, otApproved, suggestions } = record;
-  const otDecided = otProposed > 0 || otApproved > 0;
+  const otDecided = otProposed > 0 || otApproved !== 0;
   return {
     ...record,
     otState: flags.includes('ot_cho') ? 'cho_duyet' : otDecided ? 'da_duyet' : 'none',
@@ -99,6 +100,7 @@ function applyApproval(record: DayRecord, approvals: DayInput['approvals']): Day
     otApproved: approval.otMinutes ?? record.otApproved,
     waivedLate: approval.waiveLate,
     waivedEarly: approval.waiveEarly,
+    payFactor: approval.payFactor ?? record.payFactor,
   };
 }
 

@@ -13,3 +13,11 @@ export const adjustmentSchema = z.object({
 });
 
 export type AdjustmentInput = z.infer<typeof adjustmentSchema>;
+
+/** Tối đa bằng một lô duyệt loạt: quán nhỏ, chọn cả danh sách vẫn dưới mức này. */
+const MAX_PUBLISH_PICK = 500;
+
+/** Không gửi body hoặc không có `employeeIds` là cả kỳ. */
+export const publishPickSchema = z
+  .object({ employeeIds: z.array(uuid).min(1, 'Chưa chọn nhân viên nào').max(MAX_PUBLISH_PICK).optional() })
+  .optional();

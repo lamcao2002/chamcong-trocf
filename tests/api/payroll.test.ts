@@ -94,14 +94,15 @@ describe('nhiều vị trí (SH-36)', () => {
       key: `base_${pc}`,
       name: 'Lương theo giờ · Pha chế',
       amount: 150_000,
-      how: '5 giờ × 30.000đ',
+      how: '1 ca · 5 giờ × 30.000đ',
     });
+    expect(body.days[0]).toMatchObject({ positionName: 'Pha chế', note: null });
     const { employee } = (await api('GET', `/employees/${id}`, { cookie: admin })).body;
     expect(employee.extraPayAmounts).toEqual({ [pc]: 30_000 });
 
     // Tắt lương riêng: về mức của vị trí Pha chế
     await api('PATCH', `/employees/${id}`, { cookie: admin, body: { extraPayAmounts: {} } });
-    expect((await statement(id)).lines[0]).toMatchObject({ amount: 140_000, how: '5 giờ × 28.000đ' });
+    expect((await statement(id)).lines[0]).toMatchObject({ amount: 140_000, how: '1 ca · 5 giờ × 28.000đ' });
     expect((await api('GET', `/employees/${id}`, { cookie: admin })).body.employee.extraPositionIds).toEqual([
       pc,
     ]);
@@ -121,15 +122,34 @@ describe('nhiều vị trí (SH-36)', () => {
 });
 
 describe('sao kê (US34)', () => {
-  it('lương giờ tính theo phút làm, OT chờ tách riêng, có dự phóng', async () => {
+  it('lương giờ tính theo giờ chuẩn của ca, OT chờ tách riêng, có dự phóng', async () => {
     const { id } = await newEmployee();
     await workedDay(id);
     const body = await statement(id);
-    expect(body.lines[0]).toMatchObject({ key: 'base', amount: 125_000, how: '5 giờ × 25.000đ' });
+    expect(body.lines[0]).toMatchObject({ key: 'base', amount: 125_000, how: '1 ca · 5 giờ × 25.000đ' });
     expect(body.net).toBe(125_000);
-    expect(body.pendingOt).toMatchObject({ minutes: 60, amount: 37_500 });
-    expect(body.projectedNet).toBe(162_500);
+    expect(body.pendingOt).toMatchObject({ minutes: 60, amount: 25_000 });
+    expect(body.projectedNet).toBe(150_000);
     expect(body.issues).toBe(1);
+  });
+
+  it('từng ngày: ca, giờ vào ra, OT chờ, ngày có việc; kiểu ca và số ca', async () => {
+    const { id } = await newEmployee();
+    await workedDay(id);
+    const body = await statement(id);
+    expect(body.days).toEqual([
+      expect.objectContaining({
+        date: yesterday,
+        shiftCode: 'TOI',
+        workedMin: 300,
+        cong: 1,
+        otPending: 60,
+        symbol: 'ot_cho',
+        symbolTitle: 'OT chờ duyệt',
+        notable: true,
+      }),
+    ]);
+    expect(body).toMatchObject({ shiftCount: 1, fixedShiftName: null });
   });
 
   it('duyệt OT thì Lương đổi ngay', async () => {
@@ -140,9 +160,59 @@ describe('sao kê (US34)', () => {
       body: { employeeId: id, date: yesterday, shiftId: shifts.TOI.id, otMinutes: 60 },
     });
     const body = await statement(id);
-    expect(body.net).toBe(162_500);
+    expect(body.net).toBe(150_000);
     expect(body.pendingOt.minutes).toBe(0);
-    expect(body.lines[1].how).toContain('60p × 25.000đ/giờ × 150%');
+    expect(body.lines[1].how).toBe(`${yesterday.slice(8)}/${yesterday.slice(5, 7)}: 60p × 25.000đ/giờ`);
+  });
+
+  it('giờ OT âm trừ lương; quá ±24 giờ bị chặn', async () => {
+    const { id } = await newEmployee();
+    await workedDay(id);
+    const target = { employeeId: id, date: yesterday, shiftId: shifts.TOI.id };
+    expect(
+      (await api('POST', '/approvals', { cookie: admin, body: { ...target, otMinutes: -90 } })).status,
+    ).toBe(201);
+    const body = await statement(id);
+    // 5 giờ ca − 1,5 giờ = 3,5 giờ × 25.000đ
+    expect(body.net).toBe(87_500);
+    expect(body.lines[1]).toMatchObject({ name: 'Trừ giờ', amount: -37_500 });
+    expect(body.pendingOt.minutes).toBe(0);
+    for (const otMinutes of [-1441, 1441]) {
+      const bad = await api('POST', '/approvals', { cookie: admin, body: { ...target, otMinutes } });
+      expect(bad.status).toBe(400);
+    }
+  });
+
+  it('hệ số lương ở duyệt công nhân cả giờ ca và OT; bỏ hệ số thì về 1', async () => {
+    const { id } = await newEmployee();
+    await workedDay(id);
+    const target = { employeeId: id, date: yesterday, shiftId: shifts.TOI.id };
+    const saved = await api('POST', '/approvals', {
+      cookie: admin,
+      body: { ...target, otMinutes: 60, payFactor: 1.5, note: 'Ở lại kiểm kê' },
+    });
+    expect(saved.status).toBe(201);
+    const body = await statement(id);
+    // (5 giờ ca + 1 giờ OT) × 25.000đ × 1,5
+    expect(body.net).toBe(225_000);
+    expect(body.lines.map(({ name }: { name: string }) => name)).toEqual([
+      'Ca hệ số 1,5',
+      'Tăng ca đã duyệt',
+    ]);
+    expect(body.days[0]).toMatchObject({
+      payFactor: 1.5,
+      amount: 225_000,
+      notable: true,
+      note: 'Ở lại kiểm kê',
+    });
+
+    await api('POST', '/approvals', { cookie: admin, body: { ...target, payFactor: null } });
+    expect((await statement(id)).net).toBe(150_000);
+
+    for (const payFactor of [-1, 11, 1.234]) {
+      const bad = await api('POST', '/approvals', { cookie: admin, body: { ...target, payFactor } });
+      expect(bad.status).toBe(400);
+    }
   });
 
   it('ghi đè lương riêng thắng vị trí', async () => {
@@ -281,6 +351,26 @@ describe('công bố (US36)', () => {
     const slip = (await api('GET', `/app/payslips/${period}`, { cookie: session })).body.payslip;
     expect(slip.lines[0]).toMatchObject({ key: 'base', amount: 125_000 });
     expect(slip.summary).toMatchObject({ payType: 'hour', payAmount: 25_000, positionName: 'Phục vụ' });
+    expect(slip.summary.days).toEqual([
+      expect.objectContaining({
+        date: yesterday,
+        shiftCode: 'TOI',
+        positionName: 'Phục vụ',
+        note: null,
+        cong: 1,
+        amount: 125_000,
+        otPending: 60,
+      }),
+    ]);
+    expect(slip.summary.multiPosition).toBe(false);
+
+    // Ngày công trong phiếu là bản chụp: duyệt OT sau công bố không đổi phiếu
+    await api('POST', '/approvals', {
+      cookie: admin,
+      body: { employeeId: id, date: yesterday, shiftId: shifts.TOI.id, otMinutes: 60 },
+    });
+    const after = (await api('GET', `/app/payslips/${period}`, { cookie: session })).body.payslip;
+    expect(after.summary.days[0]).toMatchObject({ otApproved: 0, amount: 125_000 });
   });
 
   it('sửa sau công bố: phiếu không đổi, kỳ báo cần công bố lại; công bố lại ra số mới, audit giữ số cũ', async () => {
@@ -297,12 +387,12 @@ describe('công bố (US36)', () => {
       (await api('GET', `/app/payslips/${period}`, { cookie: session })).body.payslip.net;
     expect(await read()).toBe(125_000);
     expect((await payroll()).status.stale).toBe(true);
-    expect((await statement(id)).net).toBe(162_500);
+    expect((await statement(id)).net).toBe(150_000);
 
     const before = await auditCount('payroll.republish');
     expect((await publish()).status).toBe(201);
     expect(await auditCount('payroll.republish')).toBe(before + 1);
-    expect(await read()).toBe(162_500);
+    expect(await read()).toBe(150_000);
     expect((await payroll()).status.stale).toBe(false);
     const [log] =
       await sql`select before from audit_logs where action = 'payroll.republish' order by at desc limit 1`;
@@ -414,8 +504,101 @@ describe('công bố (US36)', () => {
     }
   });
 
+  it('Huỷ công bố: nhân viên hết thấy phiếu, kỳ về Chưa công bố, có nhật ký; chỉ Quản trị viên', async () => {
+    await unpublish();
+    const { id, session } = await newEmployee();
+    await workedDay(id);
+    await publish();
+    expect((await api('GET', '/app/payslips', { cookie: session })).body.payslips).toHaveLength(1);
+    const status = (await payroll()).status;
+    expect(status).toMatchObject({ published: true, publishedBy: 'Nguyễn Thu Hà' });
+
+    const cancel = (cookie = admin) => api('DELETE', `/payroll/publish?period=${period}`, { cookie });
+    expect((await cancel(hr)).status).toBe(403);
+    const before = await auditCount('payroll.unpublish');
+    const result = await cancel();
+    expect(result.status).toBe(200);
+    expect(await auditCount('payroll.unpublish')).toBe(before + 1);
+    expect((await api('GET', '/app/payslips', { cookie: session })).body.payslips).toHaveLength(0);
+    expect((await payroll()).status).toMatchObject({ published: false, publishedAt: null, count: 0 });
+    const notes = await sql`select title from notifications where employee_id = ${id}`;
+    expect(notes).toContainEqual({ title: 'Phiếu lương đã thu hồi' });
+    expect((await cancel()).status).toBe(409);
+
+    await publish();
+    expect((await api('GET', '/app/payslips', { cookie: session })).body.payslips).toHaveLength(1);
+  });
+
   it('kỳ chưa bắt đầu không công bố được, Quản lý nhóm không có quyền', async () => {
     expect((await api('POST', '/payroll/publish?period=2099-01', { cookie: admin })).status).toBe(409);
     expect((await api('POST', `/payroll/publish?period=${period}`, { cookie: manager })).status).toBe(403);
+  });
+});
+
+describe('công bố từng người', () => {
+  const pick = (method: 'POST' | 'DELETE', employeeIds: string[]) =>
+    api(method, `/payroll/publish?period=${period}`, { cookie: admin, body: { employeeIds } });
+  const slipOf = async (id: string) => (await payroll()).employees.find((row: any) => row.id === id).slip;
+
+  it('chỉ người được chọn có phiếu; sửa số thì người đó cần công bố lại; công bố lại không đụng người khác', async () => {
+    await unpublish();
+    const a = await newEmployee();
+    const b = await newEmployee();
+    await workedDay(a.id);
+    await workedDay(b.id);
+
+    const first = await pick('POST', [a.id]);
+    expect(first.status).toBe(201);
+    expect(first.body.published).toMatchObject({ count: 1, total: 125_000 });
+    expect(await slipOf(a.id)).toBe('published');
+    expect(await slipOf(b.id)).toBe('none');
+    const view = await payroll();
+    expect(view.status).toMatchObject({ published: true, count: 1, stale: false, staleCount: 0 });
+    expect((await api('GET', `/app/payslips/${period}`, { cookie: b.session })).status).toBe(404);
+
+    // Duyệt OT của A: chỉ A cần công bố lại
+    await api('POST', '/approvals', {
+      cookie: admin,
+      body: { employeeId: a.id, date: yesterday, shiftId: shifts.TOI.id, otMinutes: 60 },
+    });
+    expect(await slipOf(a.id)).toBe('stale');
+    expect((await payroll()).status).toMatchObject({ stale: true, staleCount: 1 });
+
+    const before = await auditCount('payroll.republish');
+    await pick('POST', [a.id, b.id]);
+    expect(await auditCount('payroll.republish')).toBe(before + 1);
+    expect(await slipOf(a.id)).toBe('published');
+    expect(await slipOf(b.id)).toBe('published');
+    const slipA = (await api('GET', `/app/payslips/${period}`, { cookie: a.session })).body.payslip;
+    expect(slipA.net).toBe(150_000);
+  });
+
+  it('huỷ công bố một người: người đó hết thấy phiếu, người khác giữ; hết phiếu thì kỳ về Chưa công bố', async () => {
+    await unpublish();
+    const a = await newEmployee();
+    const b = await newEmployee();
+    await workedDay(a.id);
+    await pick('POST', [a.id, b.id]);
+
+    expect((await pick('DELETE', [a.id])).status).toBe(200);
+    expect((await api('GET', `/app/payslips/${period}`, { cookie: a.session })).status).toBe(404);
+    expect((await api('GET', `/app/payslips/${period}`, { cookie: b.session })).status).toBe(200);
+    expect((await payroll()).status).toMatchObject({ published: true, count: 1 });
+    // Người đã chọn chưa có phiếu: không có gì để huỷ
+    expect((await pick('DELETE', [a.id])).status).toBe(409);
+
+    await pick('DELETE', [b.id]);
+    expect((await payroll()).status).toMatchObject({ published: false, count: 0 });
+  });
+
+  it('chọn sai: rỗng 400, người ngoài công ty 404, Nhân sự không huỷ được', async () => {
+    expect((await pick('POST', [])).status).toBe(400);
+    expect((await pick('POST', ['00000000-0000-0000-0000-000000000000'])).status).toBe(404);
+    const a = await newEmployee();
+    const denied = await api('DELETE', `/payroll/publish?period=${period}`, {
+      cookie: hr,
+      body: { employeeIds: [a.id] },
+    });
+    expect(denied.status).toBe(403);
   });
 });

@@ -8,6 +8,7 @@ import {
   employeePositions,
   employees,
   locations,
+  positionCovers,
   positionLocations,
   positions,
   positionShifts,
@@ -20,7 +21,7 @@ import { assertOwned } from './references';
 
 export async function listPositions(ctx: AuthContext) {
   const db = getDb();
-  const [rows, shiftRows, locationRows, headcounts] = await Promise.all([
+  const [rows, shiftRows, locationRows, headcounts, coverRows] = await Promise.all([
     db
       .select()
       .from(positions)
@@ -41,6 +42,11 @@ export async function listPositions(ctx: AuthContext) {
       .from(employees)
       .where(and(scopeToCompany(ctx, employees.companyId), eq(employees.status, 'active')))
       .groupBy(employees.positionId),
+    db
+      .select({ positionId: positionCovers.positionId, coversId: positionCovers.coversId })
+      .from(positionCovers)
+      .innerJoin(positions, eq(positions.id, positionCovers.positionId))
+      .where(scopeToCompany(ctx, positions.companyId)),
   ]);
 
   return rows.map((position) => ({
@@ -48,6 +54,7 @@ export async function listPositions(ctx: AuthContext) {
     shiftIds: shiftRows.filter((row) => row.positionId === position.id).map((row) => row.shiftId),
     locationIds: locationRows.filter((row) => row.positionId === position.id).map((row) => row.locationId),
     headcount: headcounts.find((row) => row.positionId === position.id)?.total ?? 0,
+    coverIds: coverRows.filter((row) => row.positionId === position.id).map((row) => row.coversId),
   }));
 }
 
@@ -71,11 +78,17 @@ function findPosition(ctx: AuthContext, id: string) {
 async function assertReferences(tx: Tx, ctx: AuthContext, input: PositionInput) {
   await assertOwned(tx, ctx, shifts, input.shiftIds, 'shiftIds');
   await assertOwned(tx, ctx, locations, input.locationIds, 'locationIds');
+  await assertOwned(tx, ctx, positions, input.coverIds, 'coverIds');
 }
 
 async function replaceLinks(tx: Tx, positionId: string, input: PositionInput) {
   await tx.delete(positionShifts).where(eq(positionShifts.positionId, positionId));
   await tx.delete(positionLocations).where(eq(positionLocations.positionId, positionId));
+  await tx.delete(positionCovers).where(eq(positionCovers.positionId, positionId));
+  const covers = input.coverIds.filter((id) => id !== positionId);
+  if (covers.length > 0) {
+    await tx.insert(positionCovers).values(covers.map((coversId) => ({ positionId, coversId })));
+  }
   await tx.insert(positionShifts).values(input.shiftIds.map((shiftId) => ({ positionId, shiftId })));
   if (input.locationIds.length > 0) {
     await tx
@@ -84,8 +97,11 @@ async function replaceLinks(tx: Tx, positionId: string, input: PositionInput) {
   }
 }
 
-export async function createPosition(ctx: AuthContext, { shiftIds, locationIds, ...fields }: PositionInput) {
-  const input = { ...fields, shiftIds, locationIds };
+export async function createPosition(
+  ctx: AuthContext,
+  { shiftIds, locationIds, coverIds, ...fields }: PositionInput,
+) {
+  const input = { ...fields, shiftIds, locationIds, coverIds };
   return getDb().transaction(async (tx) => {
     await assertReferences(tx, ctx, input);
     const [position] = await tx
@@ -106,9 +122,9 @@ export async function createPosition(ctx: AuthContext, { shiftIds, locationIds, 
 export async function updatePosition(
   ctx: AuthContext,
   id: string,
-  { shiftIds, locationIds, ...fields }: PositionInput,
+  { shiftIds, locationIds, coverIds, ...fields }: PositionInput,
 ) {
-  const input = { ...fields, shiftIds, locationIds };
+  const input = { ...fields, shiftIds, locationIds, coverIds };
   return getDb().transaction(async (tx) => {
     const [before] = await tx.select().from(positions).where(findPosition(ctx, id)).for('update');
     if (!before) throw notFound('vị trí');

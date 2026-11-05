@@ -98,14 +98,14 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
   });
 
   const cellId = (employeeId: string, date: string) => `${employeeId}|${date}`;
-  // Tính trên các dòng đang hiện: ô bị bộ lọc ẩn không được duyệt ngầm
+  // Tính trên các dòng và tuần đang hiện: ô bị bộ lọc ẩn không được duyệt ngầm
+  const shown = (date: string) => !week || (date >= week.from && date <= week.to);
   const selectable = rows.flatMap(({ id, cells }) =>
     cells
-      .filter(({ approvable }) => approvable.length > 0)
+      .filter(({ date, approvable }) => shown(date) && approvable.length > 0)
       .map((cell) => ({ id: cellId(id, cell.date), cell })),
   );
   const chosen = selectable.filter(({ id }) => pickedCells.includes(id));
-  const picksCells = picking && !isWeek;
   const toggleCell = (id: string) =>
     setPickedCells((ids) => (ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]));
   const scroller = useRef<HTMLDivElement>(null);
@@ -207,7 +207,7 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
           onChange={(value) => setPosition(value ?? null)}
         />
         <ExportButton url={`/api/v1/timesheet/export${rangeSearch}`} />
-        {isWeek ? null : (
+        {timesheet.canBulk ? (
           <Button
             type={picking ? 'primary' : 'default'}
             aria-pressed={picking}
@@ -216,7 +216,7 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
           >
             {picking ? 'Đang chọn ô' : 'Duyệt loạt'}
           </Button>
-        )}
+        ) : null}
       </div>
 
       <div className={styles.viewBar}>
@@ -259,6 +259,9 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
           dates={dates.filter((date) => date >= week.from && date <= week.to)}
           today={timesheet.today}
           employees={rows}
+          picking={picking}
+          pickedCells={pickedCells}
+          onToggle={toggleCell}
           onOpenDay={({ id, name }, date) => setDayTarget({ employeeId: id, name, date })}
           onOpenEmployee={openEmployee}
         />
@@ -352,7 +355,7 @@ export function TimesheetPanel({ timesheet }: { timesheet: TimesheetView }) {
         </div>
       )}
 
-      {picksCells ? (
+      {picking ? (
         <div className={styles.bulkBar} role="status">
           <span>
             {chosen.length > 0

@@ -36,6 +36,7 @@ type PositionForm = Pick<
   | 'workDays'
   | 'anyLocation'
   | 'locationIds'
+  | 'coverIds'
   | 'payType'
   | 'payAmount'
   | 'stdDays'
@@ -53,6 +54,7 @@ const NEW_POSITION: Partial<PositionForm> = {
   workDays: [0, 1, 2, 3, 4, 5, 6],
   anyLocation: false,
   locationIds: [],
+  coverIds: [],
   payType: 'hour',
   stdDays: 26,
   leaveDays: 12,
@@ -115,6 +117,15 @@ export function PositionsPanel({ positions, shifts, locations }: PositionsPanelP
               ))}
             </div>
             <p className={styles.muted}>{formatWorkDays(position.workDays)}</p>
+            {position.coverIds.length > 0 ? (
+              <p className={styles.muted}>
+                Làm thay được:{' '}
+                {positions
+                  .filter(({ id }) => position.coverIds.includes(id))
+                  .map(({ name }) => name)
+                  .join(', ')}
+              </p>
+            ) : null}
             <p className={styles.muted}>
               <EnvironmentOutlined />{' '}
               {position.anyLocation ? 'Ở đâu cũng được' : position.locationIds.map(locationName).join(', ')}
@@ -220,6 +231,24 @@ export function PositionsPanel({ positions, shifts, locations }: PositionsPanelP
               <Checkbox.Group options={locationOptions} />
             </Form.Item>
           )}
+
+          <Divider plain orientation="left">
+            Pass ca
+          </Divider>
+          <Form.Item
+            label="Làm thay được"
+            name="coverIds"
+            extra="Người ở vị trí này nhận được ca pass của các vị trí đã chọn, vd Pha chế làm thay Phục vụ."
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="Chỉ nhận ca cùng vị trí"
+              options={positions
+                .filter(({ id }) => id !== drawer.editingId)
+                .map(({ id, name }) => ({ value: id, label: name }))}
+            />
+          </Form.Item>
 
           <Divider plain orientation="left">
             Lương

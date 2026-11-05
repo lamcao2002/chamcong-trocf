@@ -1,5 +1,5 @@
 /**
- * Lược đồ CSDL (Drizzle) — 21 bảng theo PRD MVP, thêm `notifications`, `employee_positions`, `schedule_drafts`.
+ * Lược đồ CSDL (Drizzle) — 21 bảng theo PRD MVP, thêm `notifications`, `employee_positions`, `schedule_drafts`, `position_covers`.
  *
  * Quy ước:
  * - Mọi bảng có `company_id`, trừ `companies` và 4 bảng nối thuần (lọc qua bảng cha).
@@ -53,6 +53,7 @@ export const requestTypeEnum = pgEnum('request_type', [
   'late_early',
   'shift_swap',
   'shift_register',
+  'shift_pass',
 ]);
 export const requestStatusEnum = pgEnum('request_status', ['pending', 'approved', 'rejected']);
 export const dayStatusEnum = pgEnum('day_status', [
@@ -214,6 +215,20 @@ export const positionShifts = pgTable(
       .references(() => shifts.id),
   },
   (t) => [primaryKey({ columns: [t.positionId, t.shiftId] })],
+).enableRLS();
+
+/** Vị trí `position_id` làm thay được vị trí `covers_id`, vd Pha chế làm thay Phục vụ; dùng khi pass ca. */
+export const positionCovers = pgTable(
+  'position_covers',
+  {
+    positionId: uuid('position_id')
+      .notNull()
+      .references(() => positions.id, { onDelete: 'cascade' }),
+    coversId: uuid('covers_id')
+      .notNull()
+      .references(() => positions.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.positionId, t.coversId] })],
 ).enableRLS();
 
 export const positionLocations = pgTable(
@@ -395,6 +410,8 @@ export const requests = pgTable(
     reason: text('reason'),
     status: requestStatusEnum('status').notNull().default('pending'),
     decidedBy: uuid('decided_by').references(() => employees.id),
+    /** Người được pass ca; họ đồng ý hoặc từ chối thay cho quản lý. */
+    targetEmployeeId: uuid('target_employee_id').references(() => employees.id),
     decidedAt: timestamptz('decided_at'),
     rejectNote: text('reject_note'),
     createdAt: createdAt(),
@@ -464,6 +481,8 @@ export const approvals = pgTable(
     waiveEarly: boolean('waive_early').notNull().default(false),
     confirmShiftId: uuid('confirm_shift_id').references(() => shifts.id),
     approveGps: boolean('approve_gps').notNull().default(false),
+    /** Hệ số tiền của ca, chỉ áp cho lương giờ; NULL = mặc định 1. */
+    payFactor: cong('pay_factor'),
     note: text('note'),
     /** NULL khi người quyết định đã bị xoá: quyết định vẫn giữ để công của người khác không đổi. */
     by: uuid('by').references(() => employees.id),
@@ -500,6 +519,7 @@ export const dayRecords = pgTable(
     otProposed: integer('ot_proposed').notNull().default(0),
     otApproved: integer('ot_approved').notNull().default(0),
     otState: otStateEnum('ot_state').notNull().default('none'),
+    payFactor: cong('pay_factor').notNull().default(1),
     missing: integer('missing').notNull().default(0),
     offDay: boolean('off_day').notNull().default(false),
     isHoliday: boolean('is_holiday').notNull().default(false),

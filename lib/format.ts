@@ -69,3 +69,10 @@ export function formatWorkDays(days: readonly number[]): string {
     .map(({ label }) => label)
     .join(', ');
 }
+
+const shortClock = (time: string) => (time.slice(3, 5) === '00' ? time.slice(0, 2) : time.slice(0, 5));
+
+/** Khung giờ ca rút gọn cho ô hẹp: "07:00:00"–"12:00:00" thành "07–12", phút lẻ giữ lại "17:30–22". */
+export function shiftHoursLabel(startTime: string, endTime: string): string {
+  return `${shortClock(startTime)}–${shortClock(endTime)}`;
+}

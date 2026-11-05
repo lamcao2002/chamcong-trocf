@@ -100,12 +100,25 @@ test('quản lý công bố phiếu, nhân viên xem phiếu trong app', async (
 
   const admin = await adminPage(browser);
   await admin.goto('/app/luong');
-  await admin.getByRole('button', { name: /^Công bố (phiếu lương|lại)$/ }).click();
+  await admin.getByRole('button', { name: /Công bố (phiếu lương|lại)$/ }).click();
   const dialog = admin.getByRole('dialog');
   await expect(dialog.getByText(/sẽ thấy phiếu lương kỳ này/)).toBeVisible();
   await dialog.getByRole('button', { name: /^Công bố \d+ phiếu$/ }).click();
   await expect(admin.getByText(/^Đã công bố (lại )?phiếu lương$/)).toBeVisible();
-  await expect(admin.getByText('Đã công bố', { exact: true })).toBeVisible();
+  const periodCard = admin.getByRole('region', { name: 'Kỳ lương' });
+  await expect(periodCard.getByText('Đã công bố', { exact: true })).toBeVisible();
+
+  // Chọn một người rồi công bố lại riêng người đó
+  await admin.getByRole('checkbox', { name: `Chọn ${staff.name}` }).check();
+  await admin
+    .getByRole('region', { name: 'Người đã chọn' })
+    .getByRole('button', { name: /Công bố lại 1 người đã chọn$/ })
+    .click();
+  await admin
+    .getByRole('dialog')
+    .getByRole('button', { name: /^Công bố 1 phiếu$/ })
+    .click();
+  await expect(admin.getByText('Đã công bố phiếu lương cho 1 người')).toBeVisible();
 
   await phone.goto('/m#/luong');
   await expect(phone.getByRole('heading', { name: 'Phiếu lương' })).toBeVisible();
@@ -113,6 +126,20 @@ test('quản lý công bố phiếu, nhân viên xem phiếu trong app', async (
   const slip = phone.getByRole('dialog');
   await expect(slip.getByText('Thực lĩnh')).toBeVisible();
   await expect(slip.getByText(/bản đã công bố/)).toBeVisible();
+  await slip.getByRole('button', { name: /Xem chi tiết \d+ ngày công$/ }).click();
+  await expect(slip.getByRole('button', { name: /Ẩn chi tiết \d+ ngày công$/ })).toBeVisible();
+  await expect(slip.getByRole('columnheader', { name: 'Ghi chú' })).toBeVisible();
+  await expect(slip.getByRole('columnheader', { name: 'OT', exact: true })).toBeVisible();
+  await expect(slip.getByRole('columnheader', { name: 'Ghi nhận' })).toHaveCount(0);
+  await expect(slip.getByRole('columnheader', { name: 'Công', exact: true })).toHaveCount(0);
+  await expect(slip.getByRole('columnheader', { name: 'Sau ca' })).toHaveCount(0);
+
+  // Quản trị viên huỷ công bố: kỳ về Chưa công bố, nhân viên hết thấy phiếu
+  await admin.getByRole('button', { name: /Huỷ công bố$/ }).click();
+  await admin.locator('.ant-modal-confirm').getByRole('button', { name: 'Huỷ công bố' }).click();
+  await expect(periodCard.getByText('Chưa công bố', { exact: true })).toBeVisible();
+  await phone.reload();
+  await expect(phone.locator('main button', { hasText: 'Công bố' })).toHaveCount(0);
 });
 
 test('thêm hàng loạt: dán danh sách, xem trước, nhân viên đăng nhập bằng PIN vừa hiện', async ({
@@ -201,13 +228,37 @@ test('Bảng công: Kỳ lệch, Tự chọn và Theo tuần', async ({ browser 
   await admin.getByText('Theo tuần', { exact: true }).click();
   await expect(admin).toHaveURL(/view=week/);
   await admin.getByLabel('Tìm tên').fill(staff.name);
-  await expect(admin.getByRole('button', { name: 'Duyệt loạt' })).toHaveCount(0);
   await admin.getByRole('button', { name: new RegExp(`^${staff.name}, `) }).click();
   await expect(admin.getByRole('dialog').getByText('Lần chấm')).toBeVisible();
 
   await admin.goto('/app/bang-cong?start=16');
   await expect(admin.getByText('Bắt đầu từ ngày')).toBeVisible();
   await expect(admin.getByRole('link', { name: 'Kỳ này' })).toBeVisible();
+});
+
+test('Bảng công Theo tuần: Quản trị viên duyệt loạt ca Vắng, chọn cho đủ công', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  const yesterday = new Date(`${today()}T00:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const date = yesterday.toISOString().slice(0, 10);
+  await api.put('/api/v1/schedule', {
+    data: { cells: [{ employeeId: staff.id, date, shiftIds: [staff.shiftId], isOff: false }] },
+  });
+
+  const admin = await adminPage(browser);
+  await admin.goto(`/app/bang-cong?from=${date}&to=${date}&view=week`);
+  await admin.getByLabel('Tìm tên').fill(staff.name);
+  await admin.getByRole('button', { name: 'Duyệt loạt' }).click();
+  await admin.getByRole('button', { name: new RegExp(`^${staff.name}, `) }).click();
+  await admin.getByRole('button', { name: /Duyệt 1$/ }).click();
+  const dialog = admin.getByRole('dialog');
+  await expect(dialog.getByText('Có 1 ca Vắng')).toBeVisible();
+  await dialog.getByLabel('Cho đủ công').check();
+  await dialog.getByRole('button', { name: 'Duyệt', exact: true }).click();
+
+  await expect(admin.getByText('Đã duyệt 1 việc')).toBeVisible();
+  await expect(admin.getByText('1 công', { exact: true })).toBeVisible();
 });
 
 test('nhân viên đăng ký ca tuần sau, quản lý nhận ở kiểu Theo ca rồi công bố, chuông báo', async ({
@@ -391,4 +442,44 @@ test('quản lý xem lại lịch sử đơn ở Đơn từ, duyệt ngay trong 
   const row = admin.getByRole('button', { name: new RegExp(`^${staff.name}, Muộn / sớm.*Đã duyệt$`) });
   await expect(row).toBeVisible();
   await expect(row.getByText(/Duyệt bởi Nguyễn Thu Hà lúc/)).toBeVisible();
+});
+
+test('nhân viên pass ca cho đồng nghiệp, người nhận đồng ý thì lịch đổi', async ({ browser }) => {
+  const api = await adminApi();
+  const giver = await newStaff(api);
+  const taker = await newStaff(api);
+  const tomorrow = new Date(Date.parse(`${today()}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const monday = new Date(`${tomorrow}T00:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+  await api.put('/api/v1/schedule', {
+    data: { cells: [{ employeeId: giver.id, date: tomorrow, shiftIds: [giver.shiftId], isOff: false }] },
+  });
+  await api.post('/api/v1/schedule/publish', { data: { week: monday.toISOString().slice(0, 10) } });
+
+  const phone = await staffPage(browser, giver);
+  await phone.goto('/m');
+  await phone.getByRole('button', { name: 'Tạo đơn' }).click();
+  const sheet = phone.getByRole('dialog');
+  await sheet.getByRole('button', { name: 'Pass ca' }).click();
+  await sheet.getByLabel('Ca của bạn').click();
+  await phone
+    .locator('.ant-select-item-option')
+    .filter({ hasText: `Ca ${giver.tag}` })
+    .click();
+  await sheet.getByLabel('Pass cho').fill(taker.name);
+  await phone.locator('.ant-select-item-option').filter({ hasText: taker.name }).click();
+  await sheet.getByLabel('Lý do').fill('Có việc gia đình đột xuất');
+  await sheet.getByRole('button', { name: 'Gửi đơn' }).click();
+  await expect(phone.getByText('Đã gửi, chờ người nhận đồng ý')).toBeVisible();
+
+  const other = await staffPage(browser, taker);
+  await other.goto('/m#/toi');
+  const box = other.getByRole('region', { name: 'Pass ca gửi tới bạn' });
+  await expect(box.getByText(giver.name)).toBeVisible();
+  await box.getByRole('button', { name: 'Nhận ca' }).click();
+  await other.locator('.ant-modal-confirm').getByRole('button', { name: 'Nhận ca' }).click();
+  await expect(other.getByText('Đã nhận ca, lịch của bạn đã cập nhật')).toBeVisible();
+
+  await phone.goto('/m#/toi');
+  await expect(phone.getByText('Đã nhận', { exact: true })).toBeVisible();
 });

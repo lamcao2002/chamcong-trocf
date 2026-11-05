@@ -47,6 +47,14 @@ export const requestSchema = z
       reason,
     }),
     z.object({
+      type: z.literal('shift_pass'),
+      date: isoDate,
+      shiftId: uuid,
+      /** Người được pass ca. */
+      toEmployeeId: uuid,
+      reason,
+    }),
+    z.object({
       type: z.literal('shift_swap'),
       offDate: isoDate,
       offShiftId: uuid,
@@ -89,6 +97,14 @@ export const requestSchema = z
   });
 
 export type RequestInput = z.infer<typeof requestSchema>;
+
+/** Người được pass ca trả lời. */
+export const passResponseSchema = z.object({ decision: z.enum(['accept', 'decline']) });
+
+export type PassResponseInput = z.infer<typeof passResponseSchema>;
+
+/** Hỏi danh sách người nhận được một ca. */
+export const passSlotSchema = z.object({ date: isoDate, shiftId: uuid });
 
 export const decisionSchema = z.object({
   decision: z.enum(['approve', 'reject']),

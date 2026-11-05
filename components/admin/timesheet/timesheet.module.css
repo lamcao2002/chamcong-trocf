@@ -406,6 +406,20 @@
   cursor: pointer;
 }
 
+/* .weekCell đứng sau .pickable nên phải nhắc lại viền chọn ô */
+.weekCell.pickable {
+  border: 1px dashed var(--text);
+}
+
+.weekCell.picked {
+  border: 2px solid var(--text);
+}
+
+.weekCell:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .weekCell:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 1px;
@@ -415,6 +429,27 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+
+/* Mã ca và khung giờ ca đầu mỗi dòng: nhìn là biết ca nào, không cần mở drawer */
+.weekShift {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.weekShiftCode {
+  flex: none;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  color: var(--text);
+  font-weight: 700;
+  line-height: 16px;
 }
 
 .miniBar {

@@ -50,6 +50,20 @@
       "when": 1793758042202,
       "tag": "0006_extra_position_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793766669099,
+      "tag": "0007_shift_pass",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793797905225,
+      "tag": "0008_pay_factor",
+      "breakpoints": true
     }
   ]
 }

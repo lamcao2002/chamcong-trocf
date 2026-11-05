@@ -7,16 +7,20 @@ import { useConfirmDiscard } from '@/components/common/useConfirmDiscard';
 import { useLeaveGuard } from '@/components/common/useLeaveGuard';
 import { useToast } from '@/components/common/useToast';
 import { apiRequest } from '@/lib/api/client';
-import { formatDecimal } from '@/lib/format';
+import { formatDayLabel, formatDecimal } from '@/lib/format';
 import type { AppHome } from '@/lib/services/attendance';
 import type { RegistrationView } from '@/lib/services/registrations';
+import type { PassableShift } from '@/lib/services/shift-pass';
 import type { MyRequestView } from '@/lib/services/requests';
 import { themeCssVars, tokens } from '@/lib/theme/tokens';
 import { RegisterGrid } from './RegisterCard';
 import { ForgotIcon, LateIcon, LeaveIcon, OvertimeIcon, RegisterIcon, SwapIcon } from './RequestIcons';
 import styles from './EmployeeScreen.module.css';
 
-type RequestType = 'leave' | 'forgot' | 'overtime' | 'late_early' | 'shift_swap' | 'shift_register';
+type RequestType =
+  'leave' | 'forgot' | 'overtime' | 'late_early' | 'shift_swap' | 'shift_pass' | 'shift_register';
+
+type Candidate = { id: string; name: string; positionNames: string[] };
 type Balance = { total: number; used: number; remaining: number };
 
 /** Màu nền và màu nét của biểu tượng từng loại, lấy từ màu ngữ nghĩa của theme. */
@@ -24,7 +28,7 @@ const TYPES: { value: RequestType; label: string; icon: ReactNode; tone: string 
   { value: 'leave', label: 'Nghỉ phép', icon: <LeaveIcon />, tone: 'warn' },
   { value: 'late_early', label: 'Muộn / sớm', icon: <LateIcon />, tone: 'warn' },
   { value: 'overtime', label: 'Làm thêm', icon: <OvertimeIcon />, tone: 'ot' },
-  { value: 'shift_swap', label: 'Đổi ca', icon: <SwapIcon />, tone: 'info' },
+  { value: 'shift_pass', label: 'Pass ca', icon: <SwapIcon />, tone: 'info' },
   { value: 'shift_register', label: 'Đăng ký ca', icon: <RegisterIcon />, tone: 'brand' },
   { value: 'forgot', label: 'Quên chấm', icon: <ForgotIcon />, tone: 'danger' },
 ];
@@ -95,6 +99,9 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
   const [registration, setRegistration] = useState<RegistrationView | null>(null);
   const [picked, setPicked] = useState<readonly string[]>([]);
   const [note, setNote] = useState('');
+  const [passable, setPassable] = useState<PassableShift[] | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[] | null>(null);
+  const slot = Form.useWatch('slot', form) as string | undefined;
   const [formDirty, setFormDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -171,20 +178,48 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
     onSent();
   };
 
+  // Pass ca: tải ca của tôi khi mở loại này, tải người nhận được khi chọn ca
+  useEffect(() => {
+    if (!open || type !== 'shift_pass') return;
+    setPassable(null);
+    void apiRequest<{ shifts: PassableShift[] }>('/api/v1/app/shift-pass', 'GET').then((result) => {
+      if (result.ok) setPassable(result.shifts);
+    });
+  }, [open, type]);
+
+  useEffect(() => {
+    setCandidates(null);
+    if (type !== 'shift_pass' || !slot) return;
+    const [date, shiftId] = slot.split('|');
+    const url = `/api/v1/app/shift-pass/candidates?date=${date}&shiftId=${shiftId}`;
+    void apiRequest<{ candidates: Candidate[] }>(url, 'GET').then((result) => {
+      if (result.ok) setCandidates(result.candidates);
+      else toast.error(result.error);
+    });
+    form.setFieldValue('toEmployeeId', undefined);
+  }, [slot, type, form, toast]);
+
   const submit = async () => {
     if (registering) {
       await sendRegistration();
       return;
     }
-    const values = (await form.validateFields().catch(() => null)) as Record<string, unknown> | null;
-    if (!values) return;
+    const validated = (await form.validateFields().catch(() => null)) as Record<string, unknown> | null;
+    if (!validated) return;
+    const { slot: picked, ...rest } = validated;
+    const values =
+      type === 'shift_pass' && typeof picked === 'string'
+        ? { ...rest, date: picked.split('|')[0], shiftId: picked.split('|')[1] }
+        : validated;
     setSaving(true);
     const result = editing
       ? await apiRequest(`/api/v1/app/requests/${editing.id}`, 'PATCH', { type, ...values })
       : await apiRequest('/api/v1/app/requests', 'POST', { type, ...values });
     setSaving(false);
     if (result.ok) {
-      toast.success(editing ? 'Đã sửa đơn' : 'Đã gửi đơn');
+      toast.success(
+        editing ? 'Đã sửa đơn' : type === 'shift_pass' ? 'Đã gửi, chờ người nhận đồng ý' : 'Đã gửi đơn',
+      );
       onClose();
       onSent();
       return;
@@ -247,7 +282,9 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
           <p className={styles.muted}>
             {editing
               ? 'Sửa xong bấm Lưu, quản lý sẽ thấy nội dung mới'
-              : 'Gửi tới quản lý trực tiếp của bạn để duyệt'}
+              : type === 'shift_pass'
+                ? 'Gửi tới đồng nghiệp nhận ca, họ đồng ý là lịch đổi'
+                : 'Gửi tới quản lý trực tiếp của bạn để duyệt'}
           </p>
         </div>
         <button
@@ -393,6 +430,50 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
                 extra="Đơn được duyệt thì số phút này không tính muộn."
               >
                 <Select options={[{ value: '', label: 'Cả ngày' }, ...shiftOptions]} />
+              </Form.Item>
+            </>
+          ) : null}
+
+          {type === 'shift_pass' ? (
+            <>
+              <Form.Item
+                label="Ca của bạn"
+                name="slot"
+                rules={required}
+                extra="Ca đã xếp trong 14 ngày tới, chưa bắt đầu."
+              >
+                <Select
+                  placeholder={passable?.length === 0 ? 'Bạn chưa có ca nào để pass' : 'Chọn ca'}
+                  loading={passable === null}
+                  options={(passable ?? []).map((shift) => ({
+                    value: `${shift.date}|${shift.shiftId}`,
+                    label: `${formatDayLabel(shift.date)} · ${shift.shiftName} ${shift.startTime}–${shift.endTime}${shift.positionName ? ` · ${shift.positionName}` : ''}`,
+                  }))}
+                />
+              </Form.Item>
+              <Form.Item
+                label="Pass cho"
+                name="toEmployeeId"
+                rules={required}
+                extra="Người rảnh giờ đó và làm được vị trí của ca. Họ đồng ý thì lịch đổi ngay."
+              >
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  disabled={!slot}
+                  loading={Boolean(slot) && candidates === null}
+                  placeholder={
+                    !slot
+                      ? 'Chọn ca trước'
+                      : candidates?.length === 0
+                        ? 'Không có ai nhận được ca này'
+                        : 'Chọn người'
+                  }
+                  options={(candidates ?? []).map(({ id, name, positionNames }) => ({
+                    value: id,
+                    label: positionNames.length > 0 ? `${name} · ${positionNames.join(', ')}` : name,
+                  }))}
+                />
               </Form.Item>
             </>
           ) : null}

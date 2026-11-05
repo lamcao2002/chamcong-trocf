@@ -144,7 +144,7 @@ Duyệt không sửa lần chấm gốc; nó lưu một bản ghi duyệt riêng
 | --- | --- | --- |
 | Duyệt theo đề xuất | Xoá cờ cần duyệt của việc đó; áp đề xuất (phút OT, công, vị trí, ca) | \[Gốc\] |
 | Điều chỉnh khác — Số công | "Theo hệ thống" giữ công tính được; 1 / 0,5 / 0 ghi đè | \[Gốc\] |
-| Điều chỉnh khác — Phút OT | Ghi đè phút OT đã duyệt; để trống = không đổi | \[Gốc\] |
+| Điều chỉnh khác — Số giờ OT | Ghi đè OT đã duyệt; nhập **giờ**, có số thập phân và số âm (trừ giờ), lưu thành phút, giới hạn ±24 giờ; mặc định 0, ca còn OT chờ thì để trống = chưa quyết định (đổi 05/11/2026) | \[Gốc\], \[Đề xuất\] |
 | Duyệt thiếu giờ | Coi ngày đủ công dù thiếu chấm; không phạt quên chấm | \[Gốc\] |
 | Không tính OT | OT đã duyệt = 0, cờ OT đóng | \[Gốc\] |
 | Tha muộn / sớm | `waived` = true, không phạt | \[Gốc\] |

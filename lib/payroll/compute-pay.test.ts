@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computePay, type PayDay, type PayProfile, type PayResult } from './compute-pay';
 
-/** Bộ ca kiểm thử lương P01–P18 của docs/product/07-sprint-4.md; mỗi dòng một test. */
+/** Bộ ca kiểm thử lương P01–P25 của docs/product/07-sprint-4.md; mỗi dòng một test. */
 
 const RATES = { weekday: 150, saturday: null, offday: 200, holiday: 300 };
 const WEDNESDAY = '2026-10-07';
@@ -17,6 +17,7 @@ const day = (fields: Partial<PayDay> = {}): PayDay => ({
   otProposed: 0,
   otApproved: 0,
   otState: 'none',
+  payFactor: 1,
   lateMin: 0,
   waivedLate: false,
   earlyMin: 0,
@@ -82,8 +83,12 @@ const CASES: Case[] = [
   },
   {
     id: 'P04',
-    title: 'lương giờ',
-    check: () => expect(pay(hour(25_000), [day({ cong: 1, workedMin: 4761 })]).net).toBe(1_983_750),
+    title: 'lương giờ: giờ chuẩn của ca × công, không theo phút chấm',
+    check: () => {
+      const result = pay(hour(25_000), [day({ cong: 1, workedMin: 431 }), day({ cong: 1, workedMin: 452 })]);
+      expect(result.net).toBe(375_000);
+      expect(result.lines[0]!.how).toBe('2 ca · 15 giờ × 25.000đ');
+    },
   },
   {
     id: 'P05',
@@ -113,7 +118,7 @@ const CASES: Case[] = [
   },
   {
     id: 'P08',
-    title: 'ngày nghỉ tuần của lương giờ không trả hai lần',
+    title: 'ngày nghỉ tuần của lương giờ chỉ trả qua OT, không nhân %',
     check: () => {
       const offDay = day({
         offDay: true,
@@ -124,7 +129,7 @@ const CASES: Case[] = [
         stdHours: null,
       });
       const result = pay(hour(25_000), [offDay]);
-      expect(result.net).toBe(200_000);
+      expect(result.net).toBe(100_000);
       expect(result.lines[0]).toMatchObject({ key: 'base', amount: 0 });
     },
   },
@@ -155,13 +160,13 @@ const CASES: Case[] = [
         otState: 'da_duyet',
         stdHours: null,
       });
-      expect(pay(hour(20_000), [saturday]).lines[1]!.how).toContain('× 150% (ngày nghỉ)');
+      expect(pay(month(10_400_000), [saturday]).lines[1]!.how).toContain('× 150% (ngày nghỉ)');
     },
   },
   {
     id: 'P11',
     title: 'ghi đè lương thắng vị trí',
-    check: () => expect(pay(hour(27_000), [day({ cong: 1, workedMin: 60 })]).net).toBe(27_000),
+    check: () => expect(pay(hour(27_000), [day({ cong: 1, workedMin: 60 })]).net).toBe(202_500),
   },
   {
     id: 'P12',
@@ -200,8 +205,9 @@ const CASES: Case[] = [
     title: 'lương giờ: phép năm có trả, nghỉ ốm không',
     check: () => {
       const result = pay(hour(25_000), [day({ cong: 1 }), day({ cong: 0 })]);
-      expect(result.lines.find(({ key }) => key === 'paid_leave')!.amount).toBe(187_500);
-      expect(result.net).toBe(187_500);
+      expect(result.lines).toEqual([
+        { key: 'base', name: 'Lương theo giờ', amount: 187_500, how: '1 ca · 7,5 giờ × 25.000đ' },
+      ]);
     },
   },
   {
@@ -231,16 +237,16 @@ const CASES: Case[] = [
         roles: { [PV]: { ...hour(22_000), payType: 'hour', name: 'Phục vụ' } },
       });
       expect(result.lines.map(({ key, amount }) => [key, amount])).toEqual([
-        ['base', 250_000],
-        [`base_${PV}`, 110_000],
+        ['base', 187_500],
+        [`base_${PV}`, 165_000],
       ]);
       expect(result.lines[1]!.name).toBe('Lương theo giờ · Phục vụ');
-      expect(result.net).toBe(360_000);
+      expect(result.net).toBe(352_500);
     },
   },
   {
     id: 'P20',
-    title: 'nhiều vị trí: OT của ca vị trí phụ theo đơn giá và % của vị trí đó',
+    title: 'nhiều vị trí: OT của ca vị trí phụ theo đơn giá của vị trí đó',
     check: () => {
       const ot = day({
         cong: 1,
@@ -259,7 +265,7 @@ const CASES: Case[] = [
         },
       });
       expect(result.lines.map(({ key }) => key)).toEqual([`base_${PV}`, `ot_${WEDNESDAY}`]);
-      expect(result.lines[1]!.amount).toBe(40_000);
+      expect(result.lines.map(({ amount }) => amount)).toEqual([150_000, 20_000]);
     },
   },
   {
@@ -276,11 +282,77 @@ const CASES: Case[] = [
       expect(result.net).toBe(800_000);
     },
   },
+  {
+    id: 'P22',
+    title: 'lương giờ: hệ số của ca nhân cả giờ ca và OT',
+    check: () => {
+      const shift = day({
+        cong: 1,
+        stdHours: 4,
+        otProposed: 60,
+        otApproved: 60,
+        otState: 'da_duyet',
+        payFactor: 1.5,
+      });
+      const result = pay(hour(25_000), [day({ cong: 1, stdHours: 4 }), shift]);
+      expect(result.lines).toEqual([
+        { key: 'base', name: 'Lương theo giờ', amount: 100_000, how: '1 ca · 4 giờ × 25.000đ' },
+        {
+          key: `base_factor_${WEDNESDAY}_0`,
+          name: 'Ca hệ số 1,5',
+          amount: 150_000,
+          how: '07/10: 4 giờ × 25.000đ × 1,5',
+        },
+        {
+          key: `ot_${WEDNESDAY}`,
+          name: 'Tăng ca đã duyệt',
+          amount: 37_500,
+          how: '07/10: 60p × 25.000đ/giờ × hệ số 1,5',
+        },
+      ]);
+      expect(result.dayAmounts).toEqual([100_000, 187_500]);
+    },
+  },
+  {
+    id: 'P23',
+    title: 'lương giờ: OT ngày lễ không nhân %',
+    check: () => {
+      const holiday = day({
+        cong: 1,
+        isHoliday: true,
+        stdHours: 8,
+        otProposed: 120,
+        otApproved: 120,
+        otState: 'da_duyet',
+      });
+      expect(pay(hour(25_000), [holiday]).net).toBe(250_000);
+    },
+  },
+  {
+    id: 'P24',
+    title: 'hệ số chỉ áp cho lương giờ',
+    check: () => {
+      expect(pay(month(11_000_000), [day({ cong: 26, payFactor: 2 })]).net).toBe(11_000_000);
+      expect(pay(unit(60_000), [day({ cong: 1, payFactor: 2 })]).dayAmounts).toEqual([null]);
+    },
+  },
+  {
+    id: 'P25',
+    title: 'lương giờ: giờ OT âm trừ vào tiền của ca',
+    check: () => {
+      const shift = day({ cong: 1, stdHours: 5, otApproved: -90, otState: 'da_duyet' });
+      const result = pay(hour(25_000), [shift]);
+      expect(result.lines[1]).toMatchObject({ name: 'Trừ giờ', amount: -37_500 });
+      expect(result.net).toBe(87_500);
+      expect(result.dayAmounts).toEqual([87_500]);
+      expect(result.summary.otApprovedMin).toBe(-90);
+    },
+  },
 ];
 
 describe('bộ ca kiểm thử lương', () => {
-  it('có đủ P01–P21', () => {
-    const expected = Array.from({ length: 21 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`);
+  it('có đủ P01–P25', () => {
+    const expected = Array.from({ length: 25 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`);
     expect(CASES.map(({ id }) => id)).toEqual(expected);
   });
 
@@ -296,6 +368,14 @@ describe('ngoài bộ ca kiểm thử', () => {
   it('lương công quy đổi OT theo giờ chuẩn ca', () => {
     const shift = day({ cong: 1, stdHours: 2, otProposed: 60, otApproved: 60, otState: 'da_duyet' });
     expect(pay(unit(60_000), [shift]).lines[1]!.amount).toBe(45_000);
+  });
+
+  it('lương tháng: giờ âm trừ theo đơn giá giờ, không nhân % OT', () => {
+    const minus = day({ otApproved: -60, otState: 'da_duyet' });
+    expect(pay(month(10_000_000), [minus]).lines[1]).toMatchObject({
+      name: 'Trừ giờ',
+      amount: -Math.round(10_000_000 / 26 / 7.5),
+    });
   });
 
   it('OT đã duyệt một phần: phần chờ chỉ tính phần còn lại', () => {
