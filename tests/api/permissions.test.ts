@@ -58,6 +58,16 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'POST', path: '/approvals/bulk', allowed: ['manager', 'hr', 'admin'], body: {} },
   { method: 'DELETE', path: `/approvals/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
   { method: 'POST', path: `/requests/${NIL}/decide`, allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'GET', path: '/inventory/items', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'POST', path: '/inventory/items', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'PATCH', path: `/inventory/items/${NIL}`, allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'DELETE', path: `/inventory/items/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
+  { method: 'POST', path: '/inventory/sheets', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'PATCH', path: `/inventory/sheets/${NIL}`, allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'DELETE', path: `/inventory/sheets/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
+  { method: 'GET', path: '/inventory/reports', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'GET', path: `/inventory/reports/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
+  { method: 'POST', path: `/inventory/reports/${NIL}/decide`, allowed: ['manager', 'hr', 'admin'], body: {} },
 ];
 
 let cookies: Record<Exclude<Role, 'none'>, string>;

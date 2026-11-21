@@ -10,6 +10,7 @@ import { vietnamToday } from '@/lib/domain/date';
 import { formatClock, formatDate } from '@/lib/format';
 import type { MyRequestView } from '@/lib/services/requests';
 import type { IncomingPass } from '@/lib/services/shift-pass';
+import { InventoryHistory } from './InventoryCard';
 import styles from './EmployeeScreen.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,13 +48,14 @@ function deadlineText(until: string, now: number, registering: boolean) {
 }
 
 type ProfileTabProps = {
+  brandColor: string | null;
   reloadKey: number;
   onEdit: (request: MyRequestView) => void;
   onChanged: () => void;
 };
 
 /** Tab Tôi: hiện có Đơn của tôi; thông tin cá nhân và cài đặt bổ sung sau. */
-export function ProfileTab({ reloadKey, onEdit, onChanged }: ProfileTabProps) {
+export function ProfileTab({ brandColor, reloadKey, onEdit, onChanged }: ProfileTabProps) {
   const toast = useToast();
   const confirm = useConfirmDiscard();
   const [rows, setRows] = useState<MyRequestView[] | null>(null);
@@ -210,6 +212,8 @@ export function ProfileTab({ reloadKey, onEdit, onChanged }: ProfileTabProps) {
           })}
         </ul>
       </div>
+
+      <InventoryHistory brandColor={brandColor} reloadKey={reloadKey} />
     </main>
   );
 }

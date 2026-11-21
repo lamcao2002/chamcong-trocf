@@ -262,3 +262,18 @@ Quyết định đã chốt (05/11/2026):
 - Mở trang: quyền đã cấp thì theo dõi vị trí ngay như cũ (thấy Trong/Ngoài vùng trước khi bấm); chưa hỏi thì không hỏi ngay, ghi "Bấm chấm công, app sẽ xin quyền dùng vị trí". Trình duyệt không có Permissions API thì theo dõi ngay như cũ.
 - Linh hoạt mà chưa chọn ca: bấm thì báo "Chọn ca trước khi vào".
 - Ngoài vùng vẫn chấm được, chờ quản lý duyệt như cũ.
+
+## Nhóm 20 — Kiểm kê vật dụng và hàng hoá
+
+Quyết định đã chốt (06/11/2026, sửa 07/11/2026):
+
+- **Danh mục** (`/app/kiem-ke` tab Danh mục): quản lý (Quản lý nhóm trở lên) nhập trước mọi món, mỗi món có **loại** (Vật dụng / Nguyên liệu), tên, đơn vị, **số lượng hiện có** (tối đa 2 chữ số lẻ), ghi chú cho nhân viên. Số hiện có là **số chung của quán**: phiếu nào được duyệt cũng cập nhật số này.
+- **Phiếu kiểm kê** (tab Phiếu): tên phiếu, **một hoặc nhiều vị trí** dùng phiếu, các món lấy từ danh mục (thêm từng món, "Thêm hết vật dụng / nguyên liệu", bỏ món, đổi thứ tự). Một món nằm được ở nhiều phiếu. Xoá món khỏi danh mục thì món rời mọi phiếu; xoá phiếu thì báo cáo cũ giữ tên phiếu.
+- Nhân viên chỉ kiểm kê **khi đang trong ca**: lần chấm cuối trong 18 giờ là VÀO CA. Thấy các phiếu dành cho vị trí của ca đó trên lịch (không ghi thì vị trí chính). **Mỗi phiếu đếm và gửi riêng**, mỗi lần VÀO CA gửi mỗi phiếu một lần; hai người cùng ca thì mỗi người gửi một báo cáo.
+- Bảng đếm nhóm món theo loại (vật dụng trước), **thấy số hiện có**, nút "Đủ" điền nhanh. Số đếm khác số hiện có thì dòng **báo đỏ** (Thiếu/Dư bao nhiêu) và **bắt buộc ghi lý do**. Dòng khớp thì không giữ lý do.
+- Gửi rồi: **sửa, xoá được trong 10 phút** (`REQUEST_EDIT_MINUTES`) khi còn Chờ duyệt; xoá rồi gửi lại được nếu còn trong ca. Quản lý duyệt hoặc từ chối thì khoá ngay. Quản lý sửa phiếu lúc nhân viên đang đếm thì lúc gửi được báo mở lại.
+- Quản lý **Duyệt**: số đếm từng món thành số hiện có mới. **Từ chối**: giữ số cũ. Có ghi chú cho nhân viên, nhân viên nhận thông báo ở chuông. Quản lý nhóm chỉ thấy và duyệt báo cáo của người mình quản lý.
+- Báo cáo chụp tên phiếu, vị trí, loại, tên, đơn vị, số hiện có lúc gửi: sửa danh mục hay phiếu về sau không đổi báo cáo cũ. Món bị sửa số sau lúc gửi thì drawer duyệt ghi "Số hiện có đã đổi thành…"; duyệt vẫn ghi đè bằng số đếm.
+- Nơi hiện ở app: ô **Kiểm kê** trong sheet Tạo đơn (một phiếu thì mở thẳng, nhiều phiếu thì chọn phiếu; chưa VÀO CA thì nhắc vào ca; vị trí chưa có phiếu thì báo hỏi quản lý), thẻ **Kiểm kê trong ca** ở màn Chấm công, **Kiểm kê của tôi** ở tab Tôi (20 lần gần nhất). Màn quản lý hiện mọi báo cáo chờ và 100 báo cáo đã xử lý gần nhất.
+- [Đề xuất, để mặc định] Chưa có: thông báo cho quản lý khi có báo cáo mới, kiểm kê ngoài ca, duyệt từng dòng, xuất Excel, lịch sử số hiện có theo thời gian.
+- Migration: `0009_inventory` (bản đầu, mỗi vị trí một danh sách) và `0010_inventory_sheets` (danh mục + phiếu). 0010 chuyển dữ liệu cũ: mỗi vị trí có món thành phiếu "Kiểm kê <vị trí>", món cũ thành Vật dụng trong danh mục (quản lý đổi loại nếu là nguyên liệu), báo cáo cũ gắn sang phiếu đó.

@@ -9,6 +9,7 @@ import type { AppHome } from '@/lib/services/attendance';
 import type { MyRequestView } from '@/lib/services/requests';
 import { buildAntdTheme } from '@/lib/theme/tokens';
 import { EmployeeNav, useHashTab } from './EmployeeNav';
+import { InventorySheet, type InventorySource } from './InventorySheet';
 import { NotificationBell } from './NotificationBell';
 import { PayslipTab } from './PayslipTab';
 import { ProfileTab } from './ProfileTab';
@@ -32,6 +33,8 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
   const [sheetOpen, setSheetOpen] = useState(false);
   const [requestsKey, setRequestsKey] = useState(0);
   const [editing, setEditing] = useState<MyRequestView | null>(null);
+  const [inventory, setInventory] = useState<InventorySource | null>(null);
+  const reload = () => setRequestsKey((key) => key + 1);
 
   return (
     <>
@@ -53,12 +56,13 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
       <ConfigProvider theme={buildAntdTheme(brandColor ?? undefined)}>
         {/* Ẩn chứ không gỡ: màn Chấm công giữ GPS và đồng hồ khi chuyển tab */}
         <div hidden={tab !== 'cham'}>
-          <PunchScreen home={home} />
+          <PunchScreen home={home} brandColor={brandColor} reloadKey={requestsKey} />
         </div>
         {tab === 'lich' ? <ScheduleTab brandColor={brandColor} /> : null}
         {tab === 'luong' ? <PayslipTab brandColor={brandColor} /> : null}
         {tab === 'toi' ? (
           <ProfileTab
+            brandColor={brandColor}
             reloadKey={requestsKey}
             onEdit={(request) => {
               setEditing(request);
@@ -80,7 +84,18 @@ export function EmployeeHome({ name, role, companyName, brandColor, home }: Empl
           brandColor={brandColor}
           editing={editing}
           onClose={() => setSheetOpen(false)}
-          onSent={() => setRequestsKey((key) => key + 1)}
+          onSent={reload}
+          onInventory={(source) => {
+            // Bảng đếm là sheet riêng có nút gửi riêng: đóng Tạo đơn rồi mở bảng đếm
+            setSheetOpen(false);
+            setInventory(source);
+          }}
+        />
+        <InventorySheet
+          source={inventory}
+          brandColor={brandColor}
+          onClose={() => setInventory(null)}
+          onChanged={reload}
         />
       </ConfigProvider>
     </>

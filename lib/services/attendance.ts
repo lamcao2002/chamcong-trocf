@@ -28,7 +28,7 @@ import { allowedShiftIds } from './schedule';
 import { positionsOf } from './staff-positions';
 
 /** Lần vào không có lần ra quá mốc này thì coi là quên RA CA, nút quay lại VÀO CA. */
-const OPEN_PUNCH_MS = 18 * 60 * 60 * 1000;
+export const OPEN_PUNCH_MS = 18 * 60 * 60 * 1000;
 
 type Reader = Pick<Tx, 'select'>;
 

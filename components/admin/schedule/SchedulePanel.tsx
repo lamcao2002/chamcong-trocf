@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Empty, Segmented } from 'antd';
+import { Button, Empty, Segmented, Switch } from 'antd';
 import { CheckOutlined, CloseOutlined, SendOutlined, UndoOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 import { UnsavedBar } from '@/components/common/UnsavedBar';
@@ -46,6 +46,8 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
   const [edits, setEdits] = useState<Record<string, CellValue>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [view, setView] = useState<View>('employee');
+  /** Theo ca: ẩn tên đăng ký chờ nhận để lưới chỉ còn người đã xếp, chụp lại gửi nhân viên. */
+  const [hidePending, setHidePending] = useState(false);
   const [posting, setPosting] = useState(false);
   const [refreshing, startRefresh] = useTransition();
 
@@ -176,6 +178,13 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
             { value: 'shift', label: 'Theo ca' },
           ]}
         />
+        {view === 'shift' ? (
+          <label className={styles.toggle}>
+            <Switch size="small" checked={hidePending} onChange={setHidePending} />
+            Ẩn đăng ký chờ nhận
+            {registrations.length > 0 ? ` (${registrations.length})` : ''}
+          </label>
+        ) : null}
       </div>
 
       {schedule.draftCount > 0 ? (
@@ -267,6 +276,7 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
           cellOf={cellOf}
           isDirty={isDirty}
           isDraft={isDraft}
+          hidePending={hidePending}
           onChange={change}
           onDecide={(ids, decision, positionId) => void decide(ids, decision, positionId)}
           busy={busy}
@@ -359,7 +369,8 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
 
       <p className={styles.footnote}>
         Từ ngày mai trở đi, bấm Lưu là lưu nháp: nhân viên, Bảng công và Lương chỉ thấy sau khi Công bố. Hôm
-        nay và các ngày đã qua có hiệu lực ngay. Ở kiểu Theo ca, tên có viền đứt là người đăng ký chờ nhận.
+        nay và các ngày đã qua có hiệu lực ngay. Ở kiểu Theo ca, tên có viền đứt là người đăng ký chờ nhận;
+        bật Ẩn đăng ký chờ nhận để lưới chỉ còn người đã xếp.
       </p>
 
       <ScheduleDrawer

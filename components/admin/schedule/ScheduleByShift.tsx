@@ -19,6 +19,8 @@ export type ShiftViewProps = {
   cellOf: (employee: Employee, date: string) => CellValue;
   isDirty: (employee: Employee, date: string) => boolean;
   isDraft: (employee: Employee, date: string) => boolean;
+  /** Ẩn người đăng ký chờ nhận khỏi lưới; drawer của ô vẫn hiện để nhận hoặc từ chối. */
+  hidePending: boolean;
   onChange: (employee: Employee, date: string, next: CellValue) => void;
   /** Nhận hoặc từ chối đăng ký qua API; khoá khi còn ô chưa lưu vì tải lại sẽ mất chúng. */
   onDecide: (ids: string[], decision: 'approve' | 'reject', positionId?: string | null) => void;
@@ -55,7 +57,7 @@ const pendingFor = (schedule: ScheduleView, { shift, date }: Slot) =>
 
 /** Màn A4 kiểu Theo ca: hàng là ca, cột là ngày, mỗi ô là người đã xếp và người đăng ký chờ nhận. */
 export function ScheduleByShift(props: ShiftViewProps) {
-  const { schedule, today, cellOf, isDirty, isDraft } = props;
+  const { schedule, today, cellOf, isDirty, isDraft, hidePending } = props;
   const [slot, setSlot] = useState<{ shiftId: string; date: string } | null>(null);
   const positionName = (id: string | null) => schedule.positions.find((row) => row.id === id)?.name ?? '';
   const open = slot
@@ -93,7 +95,7 @@ export function ScheduleByShift(props: ShiftViewProps) {
             </div>
             {schedule.dates.map((date) => {
               const people = assignedTo(schedule, cellOf, { shift, date });
-              const pending = pendingFor(schedule, { shift, date });
+              const pending = hidePending ? [] : pendingFor(schedule, { shift, date });
               const dirty = people.some(({ employee }) => isDirty(employee, date));
               const draft = people.some(({ employee }) => isDraft(employee, date));
               const counts = [...new Set(people.map(({ positionId }) => positionId))].map((id) => ({

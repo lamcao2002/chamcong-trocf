@@ -25,6 +25,7 @@ import {
   employees,
   employeeShifts,
   explanations,
+  inventoryReports,
   locations,
   notifications,
   payrollPeriods,
@@ -449,8 +450,9 @@ export async function deleteEmployee(ctx: AuthContext, id: string, { email }: Em
     await tx.select({ id: employees.id }).from(employees).where(eq(employees.id, id)).for('update');
     const counts = await ownedCounts(tx, id);
 
-    // Lần chấm tổng hợp trỏ tới đơn, nên xoá lần chấm trước đơn
+    // Lần chấm tổng hợp trỏ tới đơn, nên xoá lần chấm trước đơn; kiểm kê trỏ tới lần VÀO CA nên xoá trước lần chấm
     for (const table of [
+      inventoryReports,
       notifications,
       attendanceLogs,
       explanations,
@@ -471,6 +473,7 @@ export async function deleteEmployee(ctx: AuthContext, id: string, { email }: Em
     await tx.update(requests).set({ targetEmployeeId: null }).where(eq(requests.targetEmployeeId, id));
     await tx.update(approvals).set({ by: null }).where(eq(approvals.by, id));
     await tx.update(adjustments).set({ by: null }).where(eq(adjustments.by, id));
+    await tx.update(inventoryReports).set({ decidedBy: null }).where(eq(inventoryReports.decidedBy, id));
     await tx.update(payrollPeriods).set({ publishedBy: null }).where(eq(payrollPeriods.publishedBy, id));
     await tx.update(auditLogs).set({ actorId: null }).where(eq(auditLogs.actorId, id));
 

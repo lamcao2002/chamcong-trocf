@@ -504,3 +504,71 @@ test('nhân viên pass ca cho đồng nghiệp, người nhận đồng ý thì 
   await phone.goto('/m#/toi');
   await expect(phone.getByText('Đã nhận', { exact: true })).toBeVisible();
 });
+
+test('quản lý thêm món vào danh mục, tạo phiếu cho Phục vụ; nhân viên mở phiếu ở Tạo đơn, đếm lệch ghi lý do, quản lý duyệt thì số đổi', async ({
+  browser,
+}) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  await scheduleToday(api, staff);
+  const item = `Ly ${staff.tag}`;
+  const sheet = `Phiếu ${staff.tag}`;
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/kiem-ke?tab=danh-muc');
+  await admin.getByRole('button', { name: 'Thêm món' }).click();
+  await admin.getByLabel('Tên món').fill(item);
+  await admin.getByLabel('Đơn vị').fill('cái');
+  await admin.getByLabel('Số lượng hiện có').fill('12');
+  await admin.getByRole('button', { name: 'Lưu món' }).click();
+  await expect(admin.getByText('Đã lưu món.')).toBeVisible();
+
+  await admin.getByRole('tab', { name: /Phiếu/ }).click();
+  await admin.getByRole('button', { name: 'Tạo phiếu' }).click();
+  await admin.getByLabel('Tên phiếu').fill(sheet);
+  await admin.getByRole('checkbox', { name: 'Phục vụ' }).check();
+  await admin.getByRole('combobox', { name: 'Thêm món vào phiếu' }).fill(item);
+  await admin.locator('.ant-select-item-option', { hasText: item }).click();
+  await expect(admin.getByRole('button', { name: `Bỏ ${item} khỏi phiếu` })).toBeVisible();
+  await admin.getByRole('button', { name: 'Lưu phiếu' }).click();
+  await expect(admin.getByText('Đã lưu phiếu.')).toBeVisible();
+
+  const phone = await staffPage(browser, staff);
+  await phone.goto('/m');
+  // Chưa VÀO CA: ô Kiểm kê trong Tạo đơn chỉ nhắc vào ca trước
+  await phone.getByRole('button', { name: 'Tạo đơn' }).click();
+  await phone.getByRole('dialog').getByRole('button', { name: 'Kiểm kê' }).click();
+  await expect(phone.getByText(/Bạn cần VÀO CA trước/)).toBeVisible();
+  await phone.getByRole('button', { name: 'Đóng' }).click();
+
+  await phone.getByRole('button', { name: 'VÀO CA' }).click();
+  await expect(phone.getByText(/Đã vào ca lúc/)).toBeVisible();
+  await phone.getByRole('button', { name: 'Tạo đơn' }).click();
+  await phone.getByRole('dialog').getByRole('button', { name: 'Kiểm kê' }).click();
+  // Phục vụ có thể còn phiếu của lần chạy trước: có nhiều phiếu thì chọn phiếu của test này
+  const pick = phone.locator('.ant-drawer-open').getByRole('button', { name: new RegExp(sheet) });
+  const title = phone.getByRole('heading', { name: sheet });
+  await expect(pick.or(title)).toBeVisible();
+  if (await pick.isVisible()) await pick.click();
+  await expect(title).toBeVisible();
+  await phone.getByLabel(`Số đếm ${item}`).fill('10');
+  await expect(phone.getByText('Thiếu 2 cái')).toBeVisible();
+  await phone.getByRole('button', { name: /Gửi kiểm kê · 1 món lệch/ }).click();
+  await expect(phone.getByText('Ghi lý do lệch', { exact: true })).toBeVisible();
+  await phone.getByLabel(`Lý do lệch ${item}`).fill('Vỡ 2 ly khi rửa');
+  await phone.getByRole('button', { name: /Gửi kiểm kê/ }).click();
+  await expect(phone.getByText('Đã gửi kiểm kê')).toBeVisible();
+  const card = phone
+    .getByRole('region', { name: 'Kiểm kê' })
+    .getByRole('button', { name: new RegExp(sheet) });
+  await expect(card.getByText('Chờ duyệt')).toBeVisible();
+  await expect(card.getByText('1 món lệch')).toBeVisible();
+
+  await admin.goto('/app/kiem-ke');
+  await admin.getByRole('button', { name: new RegExp(staff.name) }).click();
+  await expect(admin.getByRole('cell', { name: /Vỡ 2 ly khi rửa/ })).toBeVisible();
+  await admin.getByRole('button', { name: 'Duyệt, cập nhật số' }).click();
+  await expect(admin.getByText('Đã duyệt, số hiện có đã cập nhật')).toBeVisible();
+  await admin.goto('/app/kiem-ke?tab=danh-muc');
+  await expect(admin.getByRole('button', { name: `Sửa ${item}` })).toContainText('10');
+});

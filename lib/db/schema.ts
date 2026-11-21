@@ -624,3 +624,122 @@ export const auditLogs = pgTable(
   },
   (t) => [index('audit_logs_company_at_idx').on(t.companyId, t.at)],
 ).enableRLS();
+
+const quantity = (name: string) => numeric(name, { precision: 12, scale: 2, mode: 'number' });
+
+export const inventoryKindEnum = pgEnum('inventory_kind', ['vat_dung', 'nguyen_lieu']);
+
+/** Danh mục món cần kiểm kê của quán; `quantity` là số hiện có chung, phiếu nào duyệt cũng đổi số này. */
+export const inventoryItems = pgTable(
+  'inventory_items',
+  {
+    id: id(),
+    companyId: companyId(),
+    /** Cột của bản đầu (mỗi vị trí một danh sách); migration 0010 chuyển sang phiếu và để NULL, không dùng nữa. */
+    positionId: uuid('position_id').references(() => positions.id, { onDelete: 'cascade' }),
+    kind: inventoryKindEnum('kind').notNull().default('vat_dung'),
+    name: text('name').notNull(),
+    unit: text('unit').notNull(),
+    quantity: quantity('quantity').notNull().default(0),
+    /** Ghi chú của quản lý: để ở đâu, đếm thế nào. */
+    note: text('note'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index('inventory_items_position_idx').on(t.companyId, t.positionId)],
+).enableRLS();
+
+/** Phiếu kiểm kê: một nhóm món lấy từ danh mục, dành cho một hoặc nhiều vị trí. */
+export const inventorySheets = pgTable(
+  'inventory_sheets',
+  {
+    id: id(),
+    companyId: companyId(),
+    name: text('name').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('inventory_sheets_company_idx').on(t.companyId)],
+).enableRLS();
+
+export const inventorySheetPositions = pgTable(
+  'inventory_sheet_positions',
+  {
+    sheetId: uuid('sheet_id')
+      .notNull()
+      .references(() => inventorySheets.id, { onDelete: 'cascade' }),
+    positionId: uuid('position_id')
+      .notNull()
+      .references(() => positions.id, { onDelete: 'cascade' }),
+  },
+  (t) => [primaryKey({ columns: [t.sheetId, t.positionId] })],
+).enableRLS();
+
+/** Món trong phiếu theo thứ tự đếm; xoá món khỏi danh mục thì tự rời mọi phiếu. */
+export const inventorySheetItems = pgTable(
+  'inventory_sheet_items',
+  {
+    sheetId: uuid('sheet_id')
+      .notNull()
+      .references(() => inventorySheets.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => inventoryItems.id, { onDelete: 'cascade' }),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.sheetId, t.itemId] })],
+).enableRLS();
+
+/**
+ * Một lần kiểm kê một phiếu của một người trong một ca: gắn với lần VÀO CA đang mở nên mỗi ca gửi mỗi
+ * phiếu một lần. Tên phiếu, tên vị trí chụp lại để báo cáo cũ còn đọc được khi phiếu, vị trí bị xoá.
+ */
+export const inventoryReports = pgTable(
+  'inventory_reports',
+  {
+    id: id(),
+    companyId: companyId(),
+    employeeId: employeeId(),
+    punchInId: uuid('punch_in_id')
+      .notNull()
+      .references(() => attendanceLogs.id),
+    sheetId: uuid('sheet_id').references(() => inventorySheets.id, { onDelete: 'set null' }),
+    sheetName: text('sheet_name').notNull(),
+    /** Vị trí của ca lúc gửi. */
+    positionId: uuid('position_id').references(() => positions.id, { onDelete: 'set null' }),
+    positionName: text('position_name').notNull(),
+    date: date('date').notNull(),
+    shiftId: uuid('shift_id').references(() => shifts.id, { onDelete: 'set null' }),
+    status: requestStatusEnum('status').notNull().default('pending'),
+    decidedBy: uuid('decided_by').references(() => employees.id),
+    decidedAt: timestamptz('decided_at'),
+    decisionNote: text('decision_note'),
+    createdAt: createdAt(),
+    updatedAt: timestamptz('updated_at'),
+  },
+  (t) => [
+    unique('inventory_reports_punch_sheet_unique').on(t.punchInId, t.sheetId),
+    index('inventory_reports_company_status_idx').on(t.companyId, t.status, t.date),
+    index('inventory_reports_employee_idx').on(t.employeeId, t.createdAt),
+  ],
+).enableRLS();
+
+/** Từng dòng của lần kiểm kê; loại, tên, đơn vị, số hiện có chụp lúc gửi. Lọc công ty qua `inventory_reports`. */
+export const inventoryReportLines = pgTable(
+  'inventory_report_lines',
+  {
+    id: id(),
+    reportId: uuid('report_id')
+      .notNull()
+      .references(() => inventoryReports.id, { onDelete: 'cascade' }),
+    itemId: uuid('item_id').references(() => inventoryItems.id, { onDelete: 'set null' }),
+    kind: inventoryKindEnum('kind').notNull().default('vat_dung'),
+    name: text('name').notNull(),
+    unit: text('unit').notNull(),
+    expected: quantity('expected').notNull(),
+    counted: quantity('counted').notNull(),
+    /** Lý do lệch của nhân viên, bắt buộc khi `counted` khác `expected`. */
+    note: text('note'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => [index('inventory_report_lines_report_idx').on(t.reportId)],
+).enableRLS();

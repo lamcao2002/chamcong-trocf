@@ -864,3 +864,163 @@
 .slipDaysToggle .slipDaysOpen {
   transform: rotate(180deg);
 }
+
+.invStatus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.invList {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invList li {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.invList li.invOff {
+  border-radius: var(--radius-md);
+  border-top-color: transparent;
+  background: var(--danger-bg);
+}
+
+.invHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.invExpected {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.invHint {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.invInput {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.invCounted {
+  margin: 6px 0 0;
+}
+
+.invDiff,
+.invError {
+  margin: 6px 0;
+  color: var(--danger-fg);
+  font-weight: 600;
+}
+
+.invError {
+  margin-bottom: 0;
+  font-size: 13px;
+}
+
+.invOff .invHead strong,
+.invOff .invCounted {
+  color: var(--danger-fg);
+}
+
+.invFooter {
+  display: flex;
+  gap: 8px;
+}
+
+.invHistoryRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.invHistoryRow:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.invTags {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.invTags :global(.ant-tag) {
+  margin-inline-end: 0;
+}
+
+.invGroup {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.invSheets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invSheetRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.invSheetRow:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.invSheetMain {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.invChevron {
+  color: var(--text-muted);
+}

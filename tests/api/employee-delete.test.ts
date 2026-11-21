@@ -39,6 +39,7 @@ const remove = (person: Person, cookie = admin, email = person.email) =>
   api('DELETE', `/employees/${person.id}`, { cookie, body: { email } });
 
 const TABLES = [
+  'inventory_reports',
   'attendance_logs',
   'day_records',
   'requests',

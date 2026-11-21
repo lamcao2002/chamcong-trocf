@@ -11,7 +11,7 @@ import {
 } from './seed-data';
 
 describe('schema', () => {
-  it('có đủ 21 bảng của PRD và bảng thông báo', () => {
+  it('có đủ 21 bảng của PRD, bảng thông báo và kiểm kê', () => {
     const tables = (Object.values(schema).filter(isTable) as Table[]).map(getTableName).sort();
     expect(tables).toEqual(
       [
@@ -27,6 +27,12 @@ describe('schema', () => {
         'employees',
         'explanations',
         'holidays',
+        'inventory_items',
+        'inventory_report_lines',
+        'inventory_reports',
+        'inventory_sheet_items',
+        'inventory_sheet_positions',
+        'inventory_sheets',
         'locations',
         'notifications',
         'payroll_periods',

@@ -64,6 +64,20 @@
       "when": 1793797905225,
       "tag": "0008_pay_factor",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793961280611,
+      "tag": "0009_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794021832852,
+      "tag": "0010_inventory_sheets",
+      "breakpoints": true
     }
   ]
 }
