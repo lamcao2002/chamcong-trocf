@@ -127,7 +127,7 @@ export function TimesheetWeek({
                       <button
                         type="button"
                         className={`${styles.weekCell} ${pickClass}`}
-                        aria-label={`${employee.name}, ${formatDate(date)}: ${day.rows.map(rowLabel).join('; ')}`}
+                        aria-label={`${employee.name}, ${formatDate(date)}: ${day.rows.map(rowLabel).join('; ')}${day.penalties > 0 ? `; ${day.penalties} phiếu phạt` : ''}`}
                         aria-pressed={picking ? isPicked : undefined}
                         disabled={picking && !canPick}
                         onClick={() => (picking ? onToggle(id) : onOpenDay(employee, date))}
@@ -144,6 +144,11 @@ export function TimesheetWeek({
                             <span className={TONE[row.symbol] ?? ''}>{row.text}</span>
                           </span>
                         ))}
+                        {day.penalties > 0 ? (
+                          <span className={styles.weekPenalty}>
+                            Đã phạt{day.penalties > 1 ? ` ×${day.penalties}` : ''}
+                          </span>
+                        ) : null}
                       </button>
                     </td>
                   );

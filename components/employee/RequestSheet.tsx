@@ -10,15 +10,34 @@ import { apiRequest } from '@/lib/api/client';
 import { formatDayLabel, formatDecimal } from '@/lib/format';
 import type { AppHome } from '@/lib/services/attendance';
 import type { RegistrationView } from '@/lib/services/registrations';
+import type { MyInventoryView } from '@/lib/services/inventory';
 import type { PassableShift } from '@/lib/services/shift-pass';
 import type { MyRequestView } from '@/lib/services/requests';
 import { themeCssVars, tokens } from '@/lib/theme/tokens';
+import { inventoryChoices, SheetPicker, type SheetChoice } from './InventoryCard';
+import type { InventorySource } from './InventorySheet';
 import { RegisterGrid } from './RegisterCard';
-import { ForgotIcon, LateIcon, LeaveIcon, OvertimeIcon, RegisterIcon, SwapIcon } from './RequestIcons';
+import {
+  ForgotIcon,
+  InventoryIcon,
+  LateIcon,
+  LeaveIcon,
+  OvertimeIcon,
+  RegisterIcon,
+  SwapIcon,
+} from './RequestIcons';
 import styles from './EmployeeScreen.module.css';
 
+/** `inventory` không phải đơn: ô Kiểm kê mở bảng đếm của ca đang làm. */
 type RequestType =
-  'leave' | 'forgot' | 'overtime' | 'late_early' | 'shift_swap' | 'shift_pass' | 'shift_register';
+  | 'leave'
+  | 'forgot'
+  | 'overtime'
+  | 'late_early'
+  | 'shift_swap'
+  | 'shift_pass'
+  | 'shift_register'
+  | 'inventory';
 
 type Candidate = { id: string; name: string; positionNames: string[] };
 type Balance = { total: number; used: number; remaining: number };
@@ -31,6 +50,7 @@ const TYPES: { value: RequestType; label: string; icon: ReactNode; tone: string 
   { value: 'shift_pass', label: 'Pass ca', icon: <SwapIcon />, tone: 'info' },
   { value: 'shift_register', label: 'Đăng ký ca', icon: <RegisterIcon />, tone: 'brand' },
   { value: 'forgot', label: 'Quên chấm', icon: <ForgotIcon />, tone: 'danger' },
+  { value: 'inventory', label: 'Kiểm kê', icon: <InventoryIcon />, tone: 'info' },
 ];
 
 const LEAVE_TYPES = [
@@ -82,13 +102,23 @@ type RequestSheetProps = {
   editing: MyRequestView | null;
   onClose: () => void;
   onSent: () => void;
+  /** Đang trong ca có danh sách: mở bảng đếm (hoặc báo cáo đã gửi) thay cho sheet này. */
+  onInventory: (source: InventorySource) => void;
 };
 
 /**
  * Sheet Tạo đơn: 6 loại đơn, Đăng ký ca chọn ngay trên lưới tuần sau (US29–US31, EMP-12, EMP-13).
  * Người ca cố định không có ô Đăng ký ca. Quy tắc chặn nằm ở server.
  */
-export function RequestSheet({ open, choices, brandColor, editing, onClose, onSent }: RequestSheetProps) {
+export function RequestSheet({
+  open,
+  choices,
+  brandColor,
+  editing,
+  onClose,
+  onSent,
+  onInventory,
+}: RequestSheetProps) {
   const toast = useToast();
   const desktop = Grid.useBreakpoint().lg ?? false;
   const confirmDiscard = useConfirmDiscard();
@@ -104,8 +134,12 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
   const slot = Form.useWatch('slot', form) as string | undefined;
   const [formDirty, setFormDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Bấm ô Kiểm kê: các phiếu để chọn khi có nhiều phiếu, hoặc lý do chưa kiểm kê được. */
+  const [inventory, setInventory] = useState<SheetChoice[] | string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const registering = type === 'shift_register';
+  const counting = type === 'inventory';
   const dirty = registering ? picked.length > 0 || note.trim() !== '' : formDirty;
   useLeaveGuard(open && dirty);
 
@@ -120,6 +154,7 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
   useEffect(() => {
     if (!open) return;
     setType(editing ? (editing.type as RequestType) : 'leave');
+    setInventory(null);
     setFormDirty(false);
     setPicked([]);
     setNote('');
@@ -148,13 +183,33 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
     onClose();
   };
 
+  const openInventory = async () => {
+    setChecking(true);
+    const result = await apiRequest<{ inventory: MyInventoryView }>('/api/v1/app/inventory', 'GET');
+    setChecking(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+    const choices = inventoryChoices(result.inventory);
+    // Một phiếu thì mở luôn; nhiều phiếu thì chọn ngay trong sheet này
+    if (typeof choices !== 'string' && choices.length === 1) {
+      onInventory(choices[0]!.source);
+      return true;
+    }
+    setInventory(choices);
+    return false;
+  };
+
   const choose = async (next: RequestType) => {
-    if (next === type || editing) return;
+    // Ô Kiểm kê bấm lại được: lần trước chưa VÀO CA, giờ có thể đã vào
+    if (editing || checking || (next === type && next !== 'inventory')) return;
     if (dirty && !(await confirmDiscard())) return;
     form.resetFields();
     setFormDirty(false);
     setPicked([]);
     setNote('');
+    if (next === 'inventory' && (await openInventory())) return;
     setType(next);
   };
 
@@ -260,18 +315,21 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
       rootClassName={styles.sheetRoot}
       title={null}
       footer={
-        <Button
-          block
-          type="primary"
-          size="large"
-          shape="round"
-          icon={<SendOutlined />}
-          loading={saving}
-          disabled={registering && (picked.length === 0 || !registration?.window.open)}
-          onClick={() => void submit()}
-        >
-          {submitLabel}
-        </Button>
+        // Kiểm kê gửi ở bảng đếm riêng, sheet này chỉ chọn phiếu
+        counting ? null : (
+          <Button
+            block
+            type="primary"
+            size="large"
+            shape="round"
+            icon={<SendOutlined />}
+            loading={saving}
+            disabled={registering && (picked.length === 0 || !registration?.window.open)}
+            onClick={() => void submit()}
+          >
+            {submitLabel}
+          </Button>
+        )
       }
       styles={{ footer: { padding: '12px 16px max(12px, env(safe-area-inset-bottom))' } }}
     >
@@ -284,7 +342,9 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
               ? 'Sửa xong bấm Lưu, quản lý sẽ thấy nội dung mới'
               : type === 'shift_pass'
                 ? 'Gửi tới đồng nghiệp nhận ca, họ đồng ý là lịch đổi'
-                : 'Gửi tới quản lý trực tiếp của bạn để duyệt'}
+                : counting
+                  ? 'Đếm theo phiếu của vị trí ca đang làm'
+                  : 'Gửi tới quản lý trực tiếp của bạn để duyệt'}
           </p>
         </div>
         <button
@@ -303,6 +363,7 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
             key={value}
             type="button"
             aria-pressed={type === value}
+            aria-busy={value === 'inventory' && checking}
             disabled={editing !== null && type !== value}
             className={`${styles.typeTile} ${type === value ? styles.typeActive : ''}`}
             onClick={() => void choose(value)}
@@ -337,7 +398,20 @@ export function RequestSheet({ open, choices, brandColor, editing, onClose, onSe
         </>
       ) : null}
 
-      {registering ? null : (
+      {counting && typeof inventory === 'string' ? (
+        <div className={styles.guide} role="status">
+          <strong>Chưa kiểm kê được</strong>
+          <p>{inventory}</p>
+        </div>
+      ) : null}
+      {counting && Array.isArray(inventory) ? (
+        <>
+          <p className={styles.muted}>Chọn phiếu cần kiểm. Mỗi phiếu đếm và gửi riêng.</p>
+          <SheetPicker choices={inventory} onPick={onInventory} />
+        </>
+      ) : null}
+
+      {registering || counting ? null : (
         <Form
           key={editing?.id ?? 'new'}
           form={form}

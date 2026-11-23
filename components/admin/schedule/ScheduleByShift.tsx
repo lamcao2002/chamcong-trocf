@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import { Button, Divider, Drawer, Empty, Flex, Grid, Select, Tag, Typography } from 'antd';
-import { CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { CheckOutlined, CloseOutlined, DeleteOutlined, PlusOutlined, UndoOutlined } from '@ant-design/icons';
 import { positionOfShift, positionShort } from '@/lib/domain/shift-positions';
 import { formatDayLabel } from '@/lib/format';
 import type { ScheduleView } from '@/lib/services/schedule';
 import { tokens } from '@/lib/theme/tokens';
 import { withShift, withoutShift, type CellValue } from './ScheduleDrawer';
 import styles from './schedule.module.css';
+
+export type RegistrationDecision = 'approve' | 'reject' | 'undo';
 
 type Employee = ScheduleView['employees'][number];
 type Shift = ScheduleView['shifts'][number];
@@ -19,9 +21,11 @@ export type ShiftViewProps = {
   cellOf: (employee: Employee, date: string) => CellValue;
   isDirty: (employee: Employee, date: string) => boolean;
   isDraft: (employee: Employee, date: string) => boolean;
+  /** Ẩn người đăng ký chờ nhận khỏi lưới; drawer của ô vẫn hiện để nhận hoặc từ chối. */
+  hidePending: boolean;
   onChange: (employee: Employee, date: string, next: CellValue) => void;
-  /** Nhận hoặc từ chối đăng ký qua API; khoá khi còn ô chưa lưu vì tải lại sẽ mất chúng. */
-  onDecide: (ids: string[], decision: 'approve' | 'reject', positionId?: string | null) => void;
+  /** Nhận, từ chối hoặc huỷ nhận đăng ký qua API; khoá khi còn ô chưa lưu vì tải lại sẽ mất chúng. */
+  onDecide: (ids: string[], decision: RegistrationDecision, positionId?: string | null) => void;
   busy: boolean;
   hasEdits: boolean;
 };
@@ -55,7 +59,7 @@ const pendingFor = (schedule: ScheduleView, { shift, date }: Slot) =>
 
 /** Màn A4 kiểu Theo ca: hàng là ca, cột là ngày, mỗi ô là người đã xếp và người đăng ký chờ nhận. */
 export function ScheduleByShift(props: ShiftViewProps) {
-  const { schedule, today, cellOf, isDirty, isDraft } = props;
+  const { schedule, today, cellOf, isDirty, isDraft, hidePending } = props;
   const [slot, setSlot] = useState<{ shiftId: string; date: string } | null>(null);
   const positionName = (id: string | null) => schedule.positions.find((row) => row.id === id)?.name ?? '';
   const open = slot
@@ -93,7 +97,7 @@ export function ScheduleByShift(props: ShiftViewProps) {
             </div>
             {schedule.dates.map((date) => {
               const people = assignedTo(schedule, cellOf, { shift, date });
-              const pending = pendingFor(schedule, { shift, date });
+              const pending = hidePending ? [] : pendingFor(schedule, { shift, date });
               const dirty = people.some(({ employee }) => isDirty(employee, date));
               const draft = people.some(({ employee }) => isDraft(employee, date));
               const counts = [...new Set(people.map(({ positionId }) => positionId))].map((id) => ({
@@ -188,6 +192,15 @@ function SlotDrawer({
       )
     : [];
   const addingEmployee = schedule.employees.find(({ id }) => id === adding);
+  // Ca vào nháp nhờ nhận đăng ký: huỷ nhận thì gỡ ca và đơn quay về chờ nhận, thay cho nút gỡ
+  const acceptedFor = (employee: Employee) =>
+    schedule.registrations.find(
+      (row) =>
+        row.inDraft &&
+        row.employeeId === employee.id &&
+        row.date === slot?.date &&
+        row.shiftId === slot.shift.id,
+    );
 
   const close = () => {
     setAdding(undefined);
@@ -241,12 +254,19 @@ function SlotDrawer({
             {people.map(({ employee, fixed, positionId }) => {
               const cell = cellOf(employee, slot.date);
               const editable = editableOn(employee) && !fixed;
+              const accepted = acceptedFor(employee);
               return (
                 <Flex key={employee.id} align="center" justify="space-between" gap={8} wrap>
                   <span>
                     <strong>{employee.name}</strong>
                     {fixed ? <Tag style={{ marginLeft: 6 }}>Ca cố định</Tag> : null}
-                    {isDraft(employee, slot.date) ? <Tag style={{ marginLeft: 6 }}>Nháp</Tag> : null}
+                    {accepted ? (
+                      <Tag color="processing" style={{ marginLeft: 6 }}>
+                        Đã nhận đăng ký
+                      </Tag>
+                    ) : isDraft(employee, slot.date) ? (
+                      <Tag style={{ marginLeft: 6 }}>Nháp</Tag>
+                    ) : null}
                   </span>
                   <Flex align="center" gap={6}>
                     {employee.positionIds.length > 1 && editable ? (
@@ -268,7 +288,18 @@ function SlotDrawer({
                         {schedule.positions.find((row) => row.id === positionId)?.name ?? ''}
                       </Typography.Text>
                     )}
-                    {editable ? (
+                    {accepted ? (
+                      <Button
+                        size="small"
+                        icon={<UndoOutlined />}
+                        aria-label={`Huỷ nhận ${employee.name}`}
+                        disabled={busy || hasEdits}
+                        title={hasEdits ? 'Lưu hoặc bỏ các ô đang sửa trước' : undefined}
+                        onClick={() => onDecide([accepted.id], 'undo')}
+                      >
+                        Huỷ nhận
+                      </Button>
+                    ) : editable ? (
                       <Button
                         size="small"
                         danger

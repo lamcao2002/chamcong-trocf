@@ -12,7 +12,7 @@ const LIST_LIMIT = 50;
 export type NewNotification = {
   companyId: string;
   employeeId: string;
-  kind: 'request' | 'schedule' | 'payslip';
+  kind: 'request' | 'schedule' | 'payslip' | 'inventory' | 'penalty';
   title: string;
   body: string;
   /** Tab cần mở trong app nhân viên. */

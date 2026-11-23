@@ -39,12 +39,15 @@ const remove = (person: Person, cookie = admin, email = person.email) =>
   api('DELETE', `/employees/${person.id}`, { cookie, body: { email } });
 
 const TABLES = [
+  'inventory_reports',
   'attendance_logs',
   'day_records',
   'requests',
   'explanations',
   'approvals',
   'adjustments',
+  'penalties',
+  'penalty_dismissals',
   'payslips',
   'schedule_cells',
   'schedule_drafts',
@@ -116,6 +119,19 @@ describe('xoá nhân viên', () => {
         note: 'Thử',
       },
     });
+    const penalty = await api('POST', '/penalties', {
+      cookie: admin,
+      body: {
+        employeeId: person.id,
+        date: yesterday,
+        ruleId: null,
+        otherReason: 'Thử',
+        scars: 1,
+        amount: 0,
+        note: 'Ghi chú bằng chứng để thử xoá',
+      },
+    });
+    expect(penalty.status).toBe(201);
 
     const { impact } = (await api('GET', `/employees/${person.id}/deletion`, { cookie: admin })).body;
     expect(impact).toMatchObject({ email: person.email, requests: 1, adjustments: 1 });

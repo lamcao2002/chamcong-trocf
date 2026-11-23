@@ -25,6 +25,7 @@ const FIELDS = [
   'otFromRequest',
   'cutoffDay',
   'deviceBinding',
+  'scarThreshold',
 ] as const satisfies readonly (keyof CompanyInput)[];
 
 function pickValues(company: CompanyView): CompanyInput {
@@ -191,6 +192,22 @@ export function SettingsForm({ company }: { company: CompanyView }) {
           extra="Mỗi tài khoản chỉ chấm công được trên điện thoại đã chấm lần đầu. Đổi máy thì Nhân sự bấm Mở khoá máy trong hồ sơ. Nên thử trên iPhone và Android của quán trước khi bật."
         >
           <Switch />
+        </Form.Item>
+      </Card>
+
+      <Card title="Phạt" style={{ boxShadow: tokens.shadowCard }}>
+        <Form.Item
+          label="Ngưỡng cảnh báo sẹo"
+          name="scarThreshold"
+          extra="Đủ số sẹo này trong một kỳ lương thì nhân viên nhận cảnh báo và trang Phạt gắn nhãn Đủ ngưỡng. Để trống là tắt."
+        >
+          <InputNumber
+            min={1}
+            max={99}
+            precision={0}
+            addonAfter="sẹo"
+            style={{ width: '100%', maxWidth: 240 }}
+          />
         </Form.Item>
       </Card>
 

@@ -131,11 +131,13 @@ Cập nhật bảng này khi xong một việc.
 | SH-19 Đơn Muộn/sớm | Code xong, engine thêm T60–T66; miễn tính muộn, không đổi công |
 | SH-20 Đơn Đổi ca | Code xong: duyệt thì sửa lịch hai ngày; đã có lần chấm thì chặn |
 | SH-27, SH-28 Gắn thiết bị | Code xong `lib/services/device.ts`, mặc định tắt; gắn ở lần chấm đầu, chỉ chặn ở bước chấm; **chưa thử iPhone/Android thật, không bật cho quán trước khi thử** |
-| SH-36 → SH-38 Nhiều vị trí, Theo ca, lịch nháp | Code xong: vị trí phụ, vị trí từng ca, lương theo vị trí của ca (P19–P21), nháp + Công bố/Bỏ nháp theo tuần, kiểu xem Theo ca; đã thử Chrome 375 và 1440 px. lương riêng từng vị trí; **cần áp migration `0005_positions_drafts` và `0006_extra_position_pay` trước khi deploy** |
+| SH-36 → SH-38 Nhiều vị trí, Theo ca, lịch nháp | Code xong: vị trí phụ, vị trí từng ca, lương theo vị trí của ca (P19–P21), nháp + Công bố/Bỏ nháp theo tuần, kiểu xem Theo ca (công tắc Ẩn đăng ký chờ nhận để chụp lịch đã xếp; Huỷ nhận đăng ký đã vào nháp: `decision: 'undo'`, gỡ ca, đơn về chờ nhận, không báo nhân viên); đã thử Chrome 375 và 1440 px. lương riêng từng vị trí; **cần áp migration `0005_positions_drafts` và `0006_extra_position_pay` trước khi deploy** |
 | App nhân viên: tab Tôi, sheet Tạo đơn mới | Code xong: thanh dưới 4 tab + nút giữa, tab Tôi để trống; Đăng ký ca chọn trong sheet Tạo đơn (có ghi chú), bỏ thẻ ở tab Lịch; đã thử Chrome 320 và 375 px, **chưa thử điện thoại thật** |
 | Sửa, xoá đơn; giờ mở đăng ký ca | Code xong: sửa/xoá đơn còn Chờ trong 10 phút, đăng ký ca chỉ gửi/bỏ trong 07:00 T5 – 07:00 T7; Đơn của tôi ở tab Tôi; **chưa thử điện thoại thật** |
 | Đơn từ (lịch sử đơn cho quản lý) | Code xong `/app/don-tu`, `GET /requests`, `lib/services/request-history.ts`; đã thử Chrome 375 và 1440 px |
 | Pass ca (thay Đổi ca) | Code xong `lib/services/shift-pass.ts`, ô Làm thay được ở Vị trí & ca, Pass ca gửi tới bạn ở tab Tôi; **cần áp migration `0007_shift_pass` trước khi deploy, chưa thử điện thoại thật** |
+| Kiểm kê (ngoài danh sách SH) | Code xong `/app/kiem-ke` (Báo cáo, Phiếu, Danh mục vật dụng/nguyên liệu), `lib/services/inventory.ts`; phiếu chọn nhiều vị trí, lấy món từ danh mục, số hiện có chung của món; nhân viên trong ca mở phiếu ở ô Kiểm kê trong Tạo đơn, thẻ ở màn Chấm công, Kiểm kê của tôi ở tab Tôi; lệch thì đỏ và bắt buộc lý do, sửa/xoá 10 phút, duyệt thì số đếm thành số hiện có; đã thử Chrome 375 và 1440 px; **0009 đã áp lên Supabase, cần áp thêm `0010_inventory_sheets` trước khi deploy; chưa thử điện thoại thật** |
+| Phạt sẹo / tiền (ngoài danh sách SH) | Code xong `/app/phat` (Phiếu phạt, Quy định), `lib/services/penalties.ts`; quy định sẹo, tiền hoặc cả hai, mục Khác, bằng chứng bắt buộc; sẹo đếm theo kỳ lương, ngưỡng cảnh báo ở Cài đặt; tiền chỉ ghi nhận, không trừ lương; huỷ có lý do, giữ phiếu; phiếu gắn được lỗi chấm công (muộn, về sớm, quên chấm vào/ra), server chụp bằng chứng vào `penalties.evidence`, mục Lỗi chấm công chưa xử lý có Phạt / Bỏ qua; drawer ngày ở Bảng công có nút Phạt mỗi ca và Phiếu phạt ngày này, ô Theo tuần có nhãn Đã phạt; thẻ Phạt ở tab Tôi; đã thử Chrome 375 và 1440 px; **0011 đã áp lên Supabase staging, cần áp thêm `0012_penalty_evidence` trước khi deploy; chưa có ảnh bằng chứng, chưa thử điện thoại thật** |
 | Xoá nhân viên (ngoài danh sách SH) | Code xong `DELETE /employees/:id`, chỉ Quản trị viên, gõ lại email; xoá dữ liệu của người đó, giữ quyết định họ đã đưa cho người khác và bỏ tên |
 
 ## Lệnh
@@ -176,6 +178,7 @@ npm run company:create -- --ma=QUANA --ten="Cà phê A" --admin-ten="Nguyễn V�
 - Gắn thiết bị dùng cookie httpOnly `cc_device`, không dùng localStorage, không xoá khi đăng xuất; `device_hash` không bao giờ ra API hay `audit_logs`
 - Thêm bảng có `employee_id` thì thêm vào `deleteEmployee` (`lib/services/employees.ts`) và `TABLES` của `tests/api/employee-delete.test.ts`
 - Thêm endpoint mới thì thêm dòng vào `MATRIX` của `tests/api/permissions.test.ts`
+- Kiểm kê gắn với lần VÀO CA đang mở và phiếu (`inventory_reports.punch_in_id`, `sheet_id`); `inventory_items.position_id` là cột cũ của 0009, luôn NULL; so số qua `isMismatch` (`lib/domain/inventory.ts`), lý do lệch kiểm bằng `missingReasons` ở cả form và service
 - Hạn sửa đơn và giờ mở đăng ký ca tính bằng `editableUntil`, `registrationWindow` (`lib/domain/request-window.ts`); service đọc đợt qua `currentRegistrationWindow`. Test API cần `REGISTRATION_ALWAYS_OPEN=1`
 - Form drawer dùng `useCrudDrawer`; trường không có ô nhập phải `useWatch` với `preserve: true`
 - Validation dùng zod, chung cho form và API (`lib/validation/`)

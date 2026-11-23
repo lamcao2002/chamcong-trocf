@@ -10,6 +10,8 @@ import { vietnamToday } from '@/lib/domain/date';
 import { formatClock, formatDate } from '@/lib/format';
 import type { MyRequestView } from '@/lib/services/requests';
 import type { IncomingPass } from '@/lib/services/shift-pass';
+import { InventoryHistory } from './InventoryCard';
+import { PenaltyCard } from './PenaltyCard';
 import styles from './EmployeeScreen.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,13 +49,14 @@ function deadlineText(until: string, now: number, registering: boolean) {
 }
 
 type ProfileTabProps = {
+  brandColor: string | null;
   reloadKey: number;
   onEdit: (request: MyRequestView) => void;
   onChanged: () => void;
 };
 
-/** Tab Tôi: hiện có Đơn của tôi; thông tin cá nhân và cài đặt bổ sung sau. */
-export function ProfileTab({ reloadKey, onEdit, onChanged }: ProfileTabProps) {
+/** Tab Tôi: Phạt, Pass ca, Đơn của tôi, Kiểm kê; thông tin cá nhân và cài đặt bổ sung sau. */
+export function ProfileTab({ brandColor, reloadKey, onEdit, onChanged }: ProfileTabProps) {
   const toast = useToast();
   const confirm = useConfirmDiscard();
   const [rows, setRows] = useState<MyRequestView[] | null>(null);
@@ -122,6 +125,8 @@ export function ProfileTab({ reloadKey, onEdit, onChanged }: ProfileTabProps) {
         <h1 className={styles.title}>Tôi</h1>
         <p className={styles.muted}>Thông tin cá nhân sẽ được bổ sung sau.</p>
       </div>
+
+      <PenaltyCard reloadKey={reloadKey} />
 
       {incoming.length > 0 ? (
         <section className={`${styles.card} ${styles.followCard}`} aria-label="Pass ca gửi tới bạn">
@@ -210,6 +215,8 @@ export function ProfileTab({ reloadKey, onEdit, onChanged }: ProfileTabProps) {
           })}
         </ul>
       </div>
+
+      <InventoryHistory brandColor={brandColor} reloadKey={reloadKey} />
     </main>
   );
 }

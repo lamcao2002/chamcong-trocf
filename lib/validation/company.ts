@@ -13,6 +13,8 @@ export const companySchema = z.object({
   /** null = kỳ lương tròn tháng. */
   cutoffDay: z.number().int().min(1).max(31).nullable(),
   deviceBinding: z.boolean(),
+  /** Đủ số sẹo này trong một kỳ lương thì cảnh báo; null = tắt. */
+  scarThreshold: z.number().int().min(1).max(99).nullable(),
 });
 
 export const companyPatchSchema = companySchema.partial();

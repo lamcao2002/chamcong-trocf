@@ -383,6 +383,32 @@ describe('đăng ký ca (EMP-12, SCH-11, SCH-12)', () => {
     expect(await status(ids[0])).toBe('pending');
   });
 
+  it('huỷ nhận: gỡ ca khỏi nháp, đơn quay về chờ nhận; đơn chưa vào nháp bị bỏ qua', async () => {
+    const person = await newPerson();
+    await schedule(person.id, nextMonday, [shifts.SANG.id]);
+    await register(person, [
+      { date: nextMonday, shiftId: shifts.TOI.id },
+      { date: addDays(nextMonday, 1), shiftId: shifts.TOI.id },
+    ]);
+    const [first, second] = (await week(nextMonday)).registrations
+      .filter(({ employeeId }: any) => employeeId === person.id)
+      .map(({ id }: any) => id);
+    await decideMany([first], 'approve');
+    expect(await draftOf(person.id, nextMonday)).toMatchObject({
+      shift_ids: [shifts.SANG.id, shifts.TOI.id],
+    });
+
+    const undone = await decideMany([first, second], 'undo');
+    expect(undone.body.result).toEqual({ decided: 0, drafted: 0, undone: 1, skipped: 1 });
+    // Ca đã xếp từ trước vẫn giữ; nháp giống lịch đã công bố thì nháp mất
+    expect(await draftOf(person.id, nextMonday)).toBeUndefined();
+    const view = (await week(nextMonday)).registrations.filter(
+      ({ employeeId }: any) => employeeId === person.id,
+    );
+    expect(view.map(({ inDraft }: any) => inDraft)).toEqual([false, false]);
+    expect([await status(first), await status(second)]).toEqual(['pending', 'pending']);
+  });
+
   it('nhận người làm nhiều vị trí: chọn vị trí phụ, mặc định là vị trí chính', async () => {
     const person = await newPerson('Phục vụ', ['Pha chế']);
     await register(person, [

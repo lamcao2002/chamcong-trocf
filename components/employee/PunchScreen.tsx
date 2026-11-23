@@ -8,6 +8,7 @@ import { apiRequest } from '@/lib/api/client';
 import { nearestZone, type GeoSample } from '@/lib/domain/geo';
 import { formatClock } from '@/lib/format';
 import type { AppHome, PunchResult } from '@/lib/services/attendance';
+import { InventoryCard } from './InventoryCard';
 import { locateOnce, useGeoWatch, type GeoState } from './useGeoWatch';
 import styles from './EmployeeScreen.module.css';
 
@@ -83,7 +84,9 @@ function resultLines({ type, inZone, distanceM, record }: PunchResult): string[]
 }
 
 /** Màn M2: ca hôm nay, trạng thái GPS, nút VÀO/RA CA, kết quả và dòng thời gian (US17–US20). */
-export function PunchScreen({ home }: { home: AppHome }) {
+type PunchScreenProps = { home: AppHome; brandColor: string | null; reloadKey: number };
+
+export function PunchScreen({ home, brandColor, reloadKey }: PunchScreenProps) {
   const router = useRouter();
   const toast = useToast();
   const { modal } = App.useApp();
@@ -217,6 +220,15 @@ export function PunchScreen({ home }: { home: AppHome }) {
             </p>
           ))}
         </div>
+      ) : null}
+
+      {/* Trong ca mới kiểm kê được; vào ca mới thì tải lại theo ca đó */}
+      {action === 'out' ? (
+        <InventoryCard
+          key={home.timeline.at(-1)?.id ?? 'none'}
+          brandColor={brandColor}
+          reloadKey={reloadKey}
+        />
       ) : null}
 
       {home.timeline.length > 0 ? (
