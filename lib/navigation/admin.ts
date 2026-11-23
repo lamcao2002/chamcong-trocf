@@ -7,6 +7,7 @@ export type AdminNavKey =
   | 'payroll'
   | 'requests'
   | 'inventory'
+  | 'penalties'
   | 'staff'
   | 'positions'
   | 'locations'
@@ -28,6 +29,7 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
   { key: 'payroll', label: 'Lương', href: '/app/luong', group: 'main', roles: HR_UP },
   { key: 'requests', label: 'Đơn từ', href: '/app/don-tu', group: 'main', roles: MANAGERS },
   { key: 'inventory', label: 'Kiểm kê', href: '/app/kiem-ke', group: 'main', roles: MANAGERS },
+  { key: 'penalties', label: 'Phạt', href: '/app/phat', group: 'main', roles: MANAGERS },
   { key: 'staff', label: 'Nhân sự', href: '/app/nhan-su', group: 'setup', roles: HR_UP },
   { key: 'positions', label: 'Vị trí & ca', href: '/app/vi-tri', group: 'setup', roles: HR_UP },
   { key: 'locations', label: 'Địa điểm', href: '/app/dia-diem', group: 'setup', roles: ADMIN_ONLY },

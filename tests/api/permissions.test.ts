@@ -68,6 +68,17 @@ const MATRIX: { method: string; path: string; allowed: Role[]; body?: unknown }[
   { method: 'GET', path: '/inventory/reports', allowed: ['manager', 'hr', 'admin'] },
   { method: 'GET', path: `/inventory/reports/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
   { method: 'POST', path: `/inventory/reports/${NIL}/decide`, allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'GET', path: '/penalty-rules', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'POST', path: '/penalty-rules', allowed: ['admin'], body: {} },
+  { method: 'PATCH', path: `/penalty-rules/${NIL}`, allowed: ['admin'], body: {} },
+  { method: 'DELETE', path: `/penalty-rules/${NIL}`, allowed: ['admin'] },
+  { method: 'GET', path: '/penalties', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'POST', path: '/penalties', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'POST', path: `/penalties/${NIL}/cancel`, allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'GET', path: '/penalties/attendance', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'GET', path: '/penalties/day', allowed: ['manager', 'hr', 'admin'] },
+  { method: 'POST', path: '/penalty-dismissals', allowed: ['manager', 'hr', 'admin'], body: {} },
+  { method: 'DELETE', path: `/penalty-dismissals/${NIL}`, allowed: ['manager', 'hr', 'admin'] },
 ];
 
 let cookies: Record<Exclude<Role, 'none'>, string>;

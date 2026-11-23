@@ -13,7 +13,7 @@ import { positionOfShift, positionShort, sameScheduleCell } from '@/lib/domain/s
 import { addDays } from '@/lib/engine/time';
 import { formatDate, formatDayLabel } from '@/lib/format';
 import type { ScheduleView } from '@/lib/services/schedule';
-import { ScheduleByShift } from './ScheduleByShift';
+import { ScheduleByShift, type RegistrationDecision } from './ScheduleByShift';
 import { ScheduleDrawer, type CellValue } from './ScheduleDrawer';
 import styles from './schedule.module.css';
 
@@ -105,20 +105,19 @@ export function SchedulePanel({ schedule, today }: SchedulePanelProps) {
     refresh();
   };
 
-  const decide = async (ids: string[], decision: 'approve' | 'reject', positionId?: string | null) => {
+  const decide = async (ids: string[], decision: RegistrationDecision, positionId?: string | null) => {
     setPosting(true);
-    const result = await apiRequest<{ result: { decided: number; drafted: number; skipped: number } }>(
-      '/api/v1/schedule/registrations',
-      'POST',
-      { ids, decision, ...(positionId ? { positionId } : {}) },
-    );
+    const result = await apiRequest<{
+      result: { decided: number; drafted: number; undone?: number; skipped: number };
+    }>('/api/v1/schedule/registrations', 'POST', { ids, decision, ...(positionId ? { positionId } : {}) });
     setPosting(false);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    const { decided, drafted } = result.result;
-    if (decision === 'reject') toast.success(`Đã từ chối ${decided} đăng ký`);
+    const { decided, drafted, undone = 0 } = result.result;
+    if (decision === 'undo') toast.success(`Đã huỷ nhận ${undone} đăng ký, quay về chờ nhận`);
+    else if (decision === 'reject') toast.success(`Đã từ chối ${decided} đăng ký`);
     else if (drafted > 0) toast.success(`Đã nhận ${drafted + decided} đăng ký vào nháp`);
     else toast.success(`Đã nhận ${decided} đăng ký`);
     refresh();

@@ -1,9 +1,17 @@
 import 'server-only';
-import { and, between, eq } from 'drizzle-orm';
+import { and, between, count, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound } from '@/lib/api/errors';
 import { scopeToCompany, scopeToStaff, type AuthContext } from '@/lib/auth/policy';
 import { getDb } from '@/lib/db/client';
-import { companies, employees, explanations, holidays, scheduleCells, shifts } from '@/lib/db/schema';
+import {
+  companies,
+  employees,
+  explanations,
+  holidays,
+  penalties,
+  scheduleCells,
+  shifts,
+} from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
 import { nextPeriod, periodByKey, periodOf, previousPeriod } from '@/lib/domain/period';
 import { shiftSpanMinutes, toMinutes } from '@/lib/domain/shift';
@@ -149,6 +157,26 @@ export async function getTimesheet(ctx: AuthContext, query: TimesheetQuery = {},
         .from(shifts)
         .where(scopeToCompany(ctx, shifts.companyId))
     : [];
+  // Ô Theo tuần đánh dấu ngày có phiếu phạt còn hiệu lực
+  const penalized =
+    isWeek && staff.length > 0
+      ? await db
+          .select({ employeeId: penalties.employeeId, date: penalties.date, count: count() })
+          .from(penalties)
+          .where(
+            and(
+              eq(penalties.companyId, ctx.company.id),
+              inArray(
+                penalties.employeeId,
+                staff.map(({ id }) => id),
+              ),
+              between(penalties.date, week.from, week.to),
+              isNull(penalties.cancelledAt),
+            ),
+          )
+          .groupBy(penalties.employeeId, penalties.date)
+      : [];
+  const penaltyCount = new Map(penalized.map((row) => [`${row.employeeId}|${row.date}`, row.count]));
 
   return {
     ...range,
@@ -177,7 +205,11 @@ export async function getTimesheet(ctx: AuthContext, query: TimesheetQuery = {},
         weekDays: isWeek
           ? [...days]
               .filter(([date]) => date >= week.from && date <= week.to)
-              .map(([date, rows]) => ({ date, rows: rows.map((row) => weekRow(row, library)) }))
+              .map(([date, rows]) => ({
+                date,
+                rows: rows.map((row) => weekRow(row, library)),
+                penalties: penaltyCount.get(`${id}|${date}`) ?? 0,
+              }))
           : [],
       };
     }),

@@ -32,3 +32,13 @@ export function isUniqueViolation(error: unknown): boolean {
   const code = (value: unknown) => (value as { code?: string } | undefined)?.code;
   return code(error) === '23505' || code((error as { cause?: unknown } | undefined)?.cause) === '23505';
 }
+
+const PERIOD_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** `?period=YYYY-MM`; bỏ trống là kỳ hiện tại của service. */
+export function periodParam(request: Request): string | undefined {
+  const period = new URL(request.url).searchParams.get('period');
+  if (period === null) return undefined;
+  if (!PERIOD_KEY.test(period)) throw new ApiError(400, 'Kỳ không hợp lệ');
+  return period;
+}

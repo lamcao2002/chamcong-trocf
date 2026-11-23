@@ -30,6 +30,8 @@ import {
   notifications,
   payrollPeriods,
   payslips,
+  penalties,
+  penaltyDismissals,
   positions,
   requests,
   scheduleCells,
@@ -459,6 +461,8 @@ export async function deleteEmployee(ctx: AuthContext, id: string, { email }: Em
       approvals,
       dayRecords,
       adjustments,
+      penalties,
+      penaltyDismissals,
       payslips,
       scheduleCells,
       scheduleDrafts,
@@ -474,6 +478,9 @@ export async function deleteEmployee(ctx: AuthContext, id: string, { email }: Em
     await tx.update(approvals).set({ by: null }).where(eq(approvals.by, id));
     await tx.update(adjustments).set({ by: null }).where(eq(adjustments.by, id));
     await tx.update(inventoryReports).set({ decidedBy: null }).where(eq(inventoryReports.decidedBy, id));
+    await tx.update(penalties).set({ by: null }).where(eq(penalties.by, id));
+    await tx.update(penalties).set({ cancelledBy: null }).where(eq(penalties.cancelledBy, id));
+    await tx.update(penaltyDismissals).set({ by: null }).where(eq(penaltyDismissals.by, id));
     await tx.update(payrollPeriods).set({ publishedBy: null }).where(eq(payrollPeriods.publishedBy, id));
     await tx.update(auditLogs).set({ actorId: null }).where(eq(auditLogs.actorId, id));
 

@@ -15,7 +15,7 @@ import { notify } from './notifications';
 import { loadEmployeeRules, lockEmployees, recomputeDays } from './recompute';
 import { applyDecision } from './requests';
 import { allowedShiftIds, expectedShiftIds, firstDraftDate } from './schedule';
-import { acceptIntoDraft } from './schedule-drafts';
+import { acceptIntoDraft, draftedRegistrationIds, removeRegistrationFromDraft } from './schedule-drafts';
 import { currentRegistrationWindow } from './registration-window';
 
 const WEEK_DAYS = 7;
@@ -207,6 +207,21 @@ export async function decideRegistrations(
     const employeeIds = [...new Set(rows.map(({ employeeId }) => employeeId))];
     await lockEmployees(tx, employeeIds);
     for (const employeeId of employeeIds) await assertCanDecide(tx, ctx, employeeId);
+
+    // Nhận vào nháp chưa báo nhân viên nên huỷ nhận cũng không báo; đơn chưa vào nháp được bỏ qua
+    if (decision === 'undo') {
+      const drafted = await draftedRegistrationIds(tx, companyId);
+      const undone = rows.filter(({ id }) => drafted.has(id));
+      for (const request of undone) {
+        await removeRegistrationFromDraft(tx, ctx, request);
+        await writeAudit(tx, actorOf(ctx), {
+          action: 'request.draft_undo',
+          entity: 'request',
+          entityId: request.id,
+        });
+      }
+      return { decided: 0, drafted: 0, undone: undone.length, skipped: ids.length - undone.length };
+    }
 
     const approve = decision === 'approve';
     const toDraft = approve ? rows.filter(({ fromDate }) => fromDate >= firstDraft) : [];

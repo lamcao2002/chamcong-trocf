@@ -36,6 +36,7 @@ import {
   uuid,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import type { PenaltyEvidence, PenaltyIssue } from '../domain/penalties';
 
 export const graceModeEnum = pgEnum('grace_mode', ['toan_bo', 'phan_vuot']);
 export const shiftCalcEnum = pgEnum('shift_calc', ['block', 'actual', 'actual_strict']);
@@ -124,9 +125,14 @@ export const companies = pgTable(
     cutoffDay: integer('cutoff_day'),
     /** Bật thì mỗi tài khoản chỉ chấm công được trên một điện thoại. */
     deviceBinding: boolean('device_binding').notNull().default(false),
+    /** Số sẹo trong một kỳ lương thì cảnh báo; NULL = tắt. */
+    scarThreshold: integer('scar_threshold'),
     createdAt: createdAt(),
   },
-  (t) => [check('companies_cutoff_day_range', sql`${t.cutoffDay} between 1 and 31`)],
+  (t) => [
+    check('companies_cutoff_day_range', sql`${t.cutoffDay} between 1 and 31`),
+    check('companies_scar_threshold_range', sql`${t.scarThreshold} between 1 and 99`),
+  ],
 ).enableRLS();
 
 export const locations = pgTable(
@@ -742,4 +748,96 @@ export const inventoryReportLines = pgTable(
     sortOrder: integer('sort_order').notNull().default(0),
   },
   (t) => [index('inventory_report_lines_report_idx').on(t.reportId)],
+).enableRLS();
+
+/** Quy định phạt của quán: mỗi lần vi phạm quy ra số sẹo, số tiền hoặc cả hai. */
+export const penaltyRules = pgTable(
+  'penalty_rules',
+  {
+    id: id(),
+    companyId: companyId(),
+    name: text('name').notNull(),
+    scars: integer('scars').notNull().default(0),
+    amount: money('amount').notNull().default(0),
+    note: text('note'),
+    /** Quy định đã có phiếu phạt thì không xoá hẳn, chỉ ẩn khỏi danh sách chọn. */
+    archived: boolean('archived').notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('penalty_rules_company_idx').on(t.companyId),
+    check(
+      'penalty_rules_value',
+      sql`${t.scars} >= 0 and ${t.amount} >= 0 and (${t.scars} > 0 or ${t.amount} > 0)`,
+    ),
+  ],
+).enableRLS();
+
+/**
+ * Một lần phạt. Tên quy định chụp lại lúc phạt; tiền chỉ ghi nhận, không tự trừ lương. Huỷ thì giữ
+ * phiếu kèm lý do, không tính sẹo và tiền.
+ */
+export const penalties = pgTable(
+  'penalties',
+  {
+    id: id(),
+    companyId: companyId(),
+    employeeId: employeeId(),
+    ruleId: uuid('rule_id').references(() => penaltyRules.id, { onDelete: 'set null' }),
+    ruleName: text('rule_name').notNull(),
+    /** Ngày vi phạm; `period_key` là kỳ lương chứa ngày đó, sẹo đếm theo kỳ. */
+    date: date('date').notNull(),
+    periodKey: text('period_key').notNull(),
+    scars: integer('scars').notNull().default(0),
+    amount: money('amount').notNull().default(0),
+    /** Bằng chứng, chú thích của người phạt; bắt buộc. */
+    note: text('note').notNull(),
+    /** Lỗi chấm công gắn với phiếu: ca và loại lỗi cùng có hoặc cùng không. */
+    shiftId: uuid('shift_id').references(() => shifts.id, { onDelete: 'set null' }),
+    issue: text('issue').$type<PenaltyIssue>(),
+    /** Bản chụp chấm công do server ghi lúc phạt. */
+    evidence: jsonb('evidence').$type<PenaltyEvidence>(),
+    /** NULL khi người phạt đã bị xoá. */
+    by: uuid('by').references(() => employees.id),
+    createdAt: createdAt(),
+    cancelledAt: timestamptz('cancelled_at'),
+    cancelledBy: uuid('cancelled_by').references(() => employees.id),
+    cancelReason: text('cancel_reason'),
+  },
+  (t) => [
+    index('penalties_company_period_idx').on(t.companyId, t.periodKey),
+    index('penalties_employee_period_idx').on(t.employeeId, t.periodKey),
+    check(
+      'penalties_value',
+      sql`${t.scars} >= 0 and ${t.amount} >= 0 and (${t.scars} > 0 or ${t.amount} > 0)`,
+    ),
+    check('penalties_issue_kind', sql`${t.issue} in ('muon', 've_som', 'quen_vao', 'quen_ra')`),
+    check('penalties_issue_evidence', sql`(${t.issue} is null) = (${t.evidence} is null)`),
+    // Một lỗi chấm công chỉ một phiếu còn hiệu lực
+    uniqueIndex('penalties_issue_active_unique')
+      .on(t.employeeId, t.date, t.shiftId, t.issue)
+      .where(sql`${t.issue} is not null and ${t.cancelledAt} is null`),
+  ],
+).enableRLS();
+
+/** Lỗi chấm công quản lý đã Bỏ qua, không hiện trong gợi ý phạt nữa; Khôi phục là xoá dòng. */
+export const penaltyDismissals = pgTable(
+  'penalty_dismissals',
+  {
+    id: id(),
+    companyId: companyId(),
+    employeeId: employeeId(),
+    date: date('date').notNull(),
+    shiftId: uuid('shift_id')
+      .notNull()
+      .references(() => shifts.id, { onDelete: 'cascade' }),
+    issue: text('issue').$type<PenaltyIssue>().notNull(),
+    /** NULL khi người bỏ qua đã bị xoá. */
+    by: uuid('by').references(() => employees.id),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('penalty_dismissals_issue_unique').on(t.employeeId, t.date, t.shiftId, t.issue),
+    index('penalty_dismissals_company_date_idx').on(t.companyId, t.date),
+  ],
 ).enableRLS();

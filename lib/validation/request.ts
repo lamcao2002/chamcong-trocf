@@ -137,7 +137,8 @@ export type RegistrationInput = z.infer<typeof registrationSchema>;
 
 export const registrationDecisionSchema = z.object({
   ids: z.array(uuid).min(1).max(500),
-  decision: z.enum(['approve', 'reject']),
+  /** `undo`: huỷ nhận đơn đang nằm trong nháp, gỡ ca khỏi nháp và đơn quay về chờ nhận. */
+  decision: z.enum(['approve', 'reject', 'undo']),
   note: z.string().trim().max(500).nullable().optional(),
   /** Vị trí cho ca được nhận; bỏ trống là vị trí chính của từng người. */
   positionId: uuid.nullable().optional(),

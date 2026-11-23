@@ -277,3 +277,22 @@ Quyết định đã chốt (06/11/2026, sửa 07/11/2026):
 - Nơi hiện ở app: ô **Kiểm kê** trong sheet Tạo đơn (một phiếu thì mở thẳng, nhiều phiếu thì chọn phiếu; chưa VÀO CA thì nhắc vào ca; vị trí chưa có phiếu thì báo hỏi quản lý), thẻ **Kiểm kê trong ca** ở màn Chấm công, **Kiểm kê của tôi** ở tab Tôi (20 lần gần nhất). Màn quản lý hiện mọi báo cáo chờ và 100 báo cáo đã xử lý gần nhất.
 - [Đề xuất, để mặc định] Chưa có: thông báo cho quản lý khi có báo cáo mới, kiểm kê ngoài ca, duyệt từng dòng, xuất Excel, lịch sử số hiện có theo thời gian.
 - Migration: `0009_inventory` (bản đầu, mỗi vị trí một danh sách) và `0010_inventory_sheets` (danh mục + phiếu). 0010 chuyển dữ liệu cũ: mỗi vị trí có món thành phiếu "Kiểm kê <vị trí>", món cũ thành Vật dụng trong danh mục (quản lý đổi loại nếu là nguyên liệu), báo cáo cũ gắn sang phiếu đó.
+
+## Nhóm 21 — Phạt nhân viên (sẹo / tiền)
+
+Quyết định đã chốt (21/11/2026):
+
+- **Quy định** (`/app/phat` tab Quy định, chỉ Quản trị viên sửa): mỗi quy định quy ra **số sẹo, số tiền hoặc cả hai**, ít nhất một số lớn hơn 0. Sửa quy định không đổi phiếu đã phạt. Xoá quy định đã có phiếu thì chỉ ẩn khỏi danh sách chọn (lưu trữ), chưa dùng thì xoá hẳn.
+- **Phạt** (tab Phiếu phạt): Quản lý nhóm phạt người mình quản lý, Nhân sự và Quản trị viên phạt mọi người, không tự phạt mình. Chọn nhân viên, ngày vi phạm (không ở tương lai, tối đa 60 ngày trước), quy định hoặc mục **Khác** (tự ghi lý do). Sẹo và tiền điền sẵn theo quy định, sửa được cho lần đó. **Ghi chú bằng chứng bắt buộc**, ít nhất 10 ký tự; nhân viên đọc được.
+- **Sẹo đếm theo kỳ lương** (theo ngày vi phạm, `cutoff_day`), sang kỳ mới về 0. **Ngưỡng cảnh báo** đặt ở Cài đặt (1–99, để trống là tắt). Lần phạt đưa số sẹo lên đủ ngưỡng thì nhân viên nhận thêm một thông báo cảnh báo; trang Phạt gắn nhãn "Đủ ngưỡng". Không tự sinh hậu quả.
+- **Tiền phạt chỉ ghi nhận**, không tự trừ lương. Muốn trừ thì quản lý thêm ở Lương → Thưởng/phạt.
+- **Huỷ phạt có lý do**: người đã phạt hoặc Quản trị viên. Phiếu giữ lại, gạch ngang kèm lý do, không tính sẹo và tiền. Nhân viên nhận thông báo.
+- Nhân viên: thẻ **Phạt** ở tab Tôi: số sẹo / ngưỡng (đỏ khi đủ), tổng tiền, các phiếu kèm bằng chứng và người phạt; chọn được kỳ cũ. Mỗi lần bị phạt có thông báo ở chuông. Nhân viên chỉ xem, không khiếu nại trong app.
+- **Gắn chấm công** (chốt thêm 21/11/2026): quy định không gắn loại lỗi; **phiếu** gắn được với một lỗi của một ca: **Muộn**, **Về sớm**, **Quên chấm vào**, **Quên chấm ra** (`attendanceIssues`, `lib/domain/penalties.ts`, đọc ngày công qua `readDayRecords`). Form phạt hiện chấm công của người và ngày đã chọn, chọn một lỗi thì server chụp ca, giờ Vào/Ra và lỗi vào `penalties.evidence`; sửa công sau đó không đổi bằng chứng. Ghi chú vẫn bắt buộc, được điền sẵn dòng chấm công.
+  - Muộn/sớm **đã miễn** (đơn Muộn/sớm đã duyệt, quản lý tha muộn) thì không còn lỗi, gắn vào phiếu bị chặn (400).
+  - **Quên chấm đã duyệt công vẫn phạt được**: duyệt công chỉ để trả lương; lỗi đọc từ `missing`, engine đếm trước bước duyệt.
+  - Mỗi lỗi chỉ một phiếu còn hiệu lực (409); huỷ phiếu thì lỗi hiện lại.
+  - Tab Phiếu phạt có mục **Lỗi chấm công chưa xử lý** (kỳ đang xem, tới hôm nay): **Phạt** mở form đã điền sẵn, **Bỏ qua** ẩn lỗi (`penalty_dismissals`), có **Khôi phục**. Không tự phạt. Mỗi quy định một mức, không chia theo số phút.
+- **Phạt từ Bảng công** (chốt 22/11/2026): drawer ngày (mở từ ô Theo tuần hoặc Lưới cả kỳ) có nút **Phạt** ở mọi ca, ngày không có ca cũng có một nút. Form Phạt nhân viên dùng chung (`usePenaltyForm`, `components/admin/penalties/PenaltyForm.tsx`), điền sẵn người, ngày và chọn sẵn lỗi chấm công đầu tiên của ca nếu còn phạt được. Drawer liệt kê **Phiếu phạt ngày này** (`GET /penalties/day`), bấm để xem hoặc huỷ. Ô Theo tuần có nhãn **Đã phạt** (×N) khi ngày có phiếu còn hiệu lực. Người không phạt được (chính mình) không thấy nút.
+- [Đề xuất, để mặc định] Chưa có: ảnh bằng chứng (cần chỗ lưu file, vd Supabase Storage), xuất Excel, mức phạt tăng theo lần vi phạm, phạt Vắng không phép từ chấm công.
+- Migration: `0011_penalties` (bảng `penalty_rules`, `penalties`, cột `companies.scar_threshold`), `0012_penalty_evidence` (cột `penalties.shift_id`, `issue`, `evidence`, bảng `penalty_dismissals`).

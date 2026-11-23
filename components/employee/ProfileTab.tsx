@@ -11,6 +11,7 @@ import { formatClock, formatDate } from '@/lib/format';
 import type { MyRequestView } from '@/lib/services/requests';
 import type { IncomingPass } from '@/lib/services/shift-pass';
 import { InventoryHistory } from './InventoryCard';
+import { PenaltyCard } from './PenaltyCard';
 import styles from './EmployeeScreen.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -54,7 +55,7 @@ type ProfileTabProps = {
   onChanged: () => void;
 };
 
-/** Tab Tôi: hiện có Đơn của tôi; thông tin cá nhân và cài đặt bổ sung sau. */
+/** Tab Tôi: Phạt, Pass ca, Đơn của tôi, Kiểm kê; thông tin cá nhân và cài đặt bổ sung sau. */
 export function ProfileTab({ brandColor, reloadKey, onEdit, onChanged }: ProfileTabProps) {
   const toast = useToast();
   const confirm = useConfirmDiscard();
@@ -124,6 +125,8 @@ export function ProfileTab({ brandColor, reloadKey, onEdit, onChanged }: Profile
         <h1 className={styles.title}>Tôi</h1>
         <p className={styles.muted}>Thông tin cá nhân sẽ được bổ sung sau.</p>
       </div>
+
+      <PenaltyCard reloadKey={reloadKey} />
 
       {incoming.length > 0 ? (
         <section className={`${styles.card} ${styles.followCard}`} aria-label="Pass ca gửi tới bạn">

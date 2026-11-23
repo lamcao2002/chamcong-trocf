@@ -311,6 +311,19 @@ test('nhân viên đăng ký ca tuần sau, quản lý nhận ở kiểu Theo ca
   await admin.getByRole('dialog').getByRole('button', { name: /Nhận$/ }).click();
   await expect(admin.getByText('Đã nhận 1 đăng ký vào nháp')).toBeVisible();
   await expect(admin.getByRole('dialog').getByText(staff.name)).toBeVisible();
+
+  // Nhận nhầm thì Huỷ nhận: ca rời nháp, đăng ký quay về chờ nhận rồi nhận lại được
+  await admin
+    .getByRole('dialog')
+    .getByRole('button', { name: `Huỷ nhận ${staff.name}` })
+    .click();
+  await expect(admin.getByText('Đã huỷ nhận 1 đăng ký, quay về chờ nhận')).toBeVisible();
+  await expect(admin.getByRole('dialog').getByText('Đăng ký chờ nhận (1)')).toBeVisible();
+  await admin.getByRole('dialog').getByRole('button', { name: /Nhận$/ }).click();
+  await expect(admin.getByRole('dialog').getByText('Đăng ký chờ nhận (1)')).toBeHidden();
+  await expect(
+    admin.getByRole('dialog').getByRole('button', { name: `Huỷ nhận ${staff.name}` }),
+  ).toBeVisible();
   await admin.getByRole('dialog').getByRole('button', { name: 'Xong' }).click();
 
   await admin.getByRole('button', { name: /Công bố \(\d+\)/ }).click();
@@ -571,4 +584,132 @@ test('quản lý thêm món vào danh mục, tạo phiếu cho Phục vụ; nhâ
   await expect(admin.getByText('Đã duyệt, số hiện có đã cập nhật')).toBeVisible();
   await admin.goto('/app/kiem-ke?tab=danh-muc');
   await expect(admin.getByRole('button', { name: `Sửa ${item}` })).toContainText('10');
+});
+
+test('Quản trị viên thêm quy định rồi phạt kèm bằng chứng; nhân viên thấy sẹo ở tab Tôi; huỷ thì gạch ngang', async ({
+  browser,
+}) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  const rule = `Đi trễ không báo ${staff.tag}`;
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/phat?tab=quy-dinh');
+  await admin.getByRole('button', { name: 'Thêm quy định' }).click();
+  const drawer = admin.locator('.ant-drawer-open');
+  await drawer.getByLabel('Vi phạm').fill(rule);
+  await drawer.getByLabel('Số sẹo').fill('2');
+  await drawer.getByLabel('Tiền phạt').fill('20000');
+  await drawer.getByRole('button', { name: 'Lưu quy định' }).click();
+  await expect(admin.getByText('Đã lưu quy định.')).toBeVisible();
+
+  await admin.getByRole('tab', { name: /Phiếu phạt/ }).click();
+  await admin.getByRole('button', { name: /Phạt nhân viên$/ }).click();
+  const form = admin.getByRole('dialog', { name: 'Phạt nhân viên' });
+  await form.getByLabel('Nhân viên').fill(staff.name);
+  await admin.locator('.ant-select-item-option', { hasText: staff.name }).click();
+  await form.getByLabel('Quy định').fill(rule);
+  await admin.locator('.ant-select-item-option', { hasText: rule }).click();
+  await expect(form.getByLabel('Số sẹo')).toHaveValue('2');
+  await form.getByRole('button', { name: 'Ghi phiếu phạt' }).click();
+  await expect(form.getByText(/Ghi rõ bằng chứng/)).toBeVisible();
+  await form.getByLabel('Bằng chứng / chú thích').fill('Vào ca 7:25, không nhắn trước trong nhóm');
+  await form.getByRole('button', { name: 'Ghi phiếu phạt' }).click();
+  await expect(admin.getByText('Đã lưu phiếu phạt.')).toBeVisible();
+
+  const phone = await staffPage(browser, staff);
+  await phone.goto('/m#/toi');
+  const card = phone.getByRole('region', { name: 'Phạt' });
+  await expect(card.getByText(rule)).toBeVisible();
+  await expect(card.getByText('Vào ca 7:25, không nhắn trước trong nhóm', { exact: false })).toBeVisible();
+  await expect(card.getByText('20.000đ').first()).toBeVisible();
+
+  await admin.getByRole('button', { name: `Phiếu phạt ${staff.name} ${rule}` }).click();
+  await admin.getByLabel('Lý do huỷ').fill('Đã báo trước qua điện thoại');
+  await admin.getByRole('button', { name: 'Huỷ phạt' }).click();
+  await expect(admin.getByText('Đã huỷ phiếu phạt')).toBeVisible();
+
+  await phone.reload();
+  await expect(card.getByText('Đã huỷ')).toBeVisible();
+  await expect(card.getByText('Lý do huỷ: Đã báo trước qua điện thoại')).toBeVisible();
+  await expect(card.getByText('0đ', { exact: true })).toBeVisible();
+});
+
+/** Nhãn mục Khác trong ô Quy định, khớp `OTHER_RULE`. */
+const OTHER = 'Khác';
+
+test('lỗi đi muộn hiện ở Phiếu phạt; phạt từ gợi ý lưu giờ chấm công làm bằng chứng', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  // Ca của test bắt đầu 00:00: bật kiểm tra muộn thì vào ca lúc nào cũng thành muộn
+  const shifts = (await (await api.get('/api/v1/shifts')).json()).shifts;
+  const shift = shifts.find(({ id }: { id: string }) => id === staff.shiftId);
+  const patched = await api.patch(`/api/v1/shifts/${staff.shiftId}`, {
+    data: { ...shift, noLateCheck: false },
+  });
+  expect(patched.status()).toBe(200);
+  await scheduleToday(api, staff);
+  const phone = await staffPage(browser, staff);
+  const punched = await phone.context().request.post('/api/v1/app/punch', {
+    data: { type: 'in', lat: 21.1, lng: 105.9, accuracy: 10, chosenShiftId: staff.shiftId },
+  });
+  expect(punched.status()).toBe(201);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/phat');
+  const issues = admin.getByRole('region', { name: 'Lỗi chấm công chưa xử lý' });
+  await issues.getByRole('button', { name: new RegExp(`^Phạt ${staff.name} Muộn`) }).click();
+  const form = admin.getByRole('dialog', { name: 'Phạt nhân viên' });
+  await expect(form.getByRole('radio', { name: /Muộn \d+ phút/ })).toBeChecked();
+  await expect(form.getByLabel('Bằng chứng / chú thích')).toHaveValue(
+    /^Ca E.+ \(00:00–23:59\): Vào \d\d:\d\d/,
+  );
+  await form.getByLabel('Quy định').fill(OTHER);
+  await admin.locator('.ant-select-item-option', { hasText: `${OTHER} (tự ghi lý do)` }).click();
+  await form.getByLabel('Lý do phạt').fill('Đi muộn');
+  await form.getByRole('button', { name: 'Ghi phiếu phạt' }).click();
+  await expect(admin.getByText('Đã lưu phiếu phạt.')).toBeVisible();
+  await expect(issues.getByRole('button', { name: new RegExp(`^Phạt ${staff.name}`) })).toHaveCount(0);
+
+  await admin.getByRole('button', { name: `Phiếu phạt ${staff.name} ${OTHER}: Đi muộn` }).click();
+  await expect(
+    admin.getByRole('definition').filter({ hasText: /^Ca E.+: Vào \d\d:\d\d, Ra — · Muộn/ }),
+  ).toBeVisible();
+
+  await phone.goto('/m#/toi');
+  await expect(phone.getByRole('region', { name: 'Phạt' }).getByText(/^Chấm công: Ca E/)).toBeVisible();
+});
+
+test('Bảng công Theo tuần: bấm ô, Phạt ca muộn từ drawer ngày, ô hiện Đã phạt', async ({ browser }) => {
+  const api = await adminApi();
+  const staff = await newStaff(api);
+  const shifts = (await (await api.get('/api/v1/shifts')).json()).shifts;
+  const shift = shifts.find(({ id }: { id: string }) => id === staff.shiftId);
+  await api.patch(`/api/v1/shifts/${staff.shiftId}`, { data: { ...shift, noLateCheck: false } });
+  await scheduleToday(api, staff);
+  const phone = await staffPage(browser, staff);
+  const punched = await phone.context().request.post('/api/v1/app/punch', {
+    data: { type: 'in', lat: 21.1, lng: 105.9, accuracy: 10, chosenShiftId: staff.shiftId },
+  });
+  expect(punched.status()).toBe(201);
+
+  const admin = await adminPage(browser);
+  await admin.goto('/app/bang-cong?view=week');
+  const cell = admin.getByRole('button', { name: new RegExp(`^${staff.name}, `) });
+  await cell.click();
+  const day = admin.locator('.ant-drawer-open').filter({ hasText: staff.name });
+  await day.getByRole('button', { name: /^Phạt / }).click();
+  const form = admin.getByRole('dialog', { name: 'Phạt nhân viên' });
+  await expect(form.getByRole('radio', { name: /Muộn \d+ phút/ })).toBeChecked();
+  await expect(form.getByLabel('Bằng chứng / chú thích')).toHaveValue(/Muộn \d+ phút$/);
+  await form.getByLabel('Quy định').fill(OTHER);
+  await admin.locator('.ant-select-item-option', { hasText: `${OTHER} (tự ghi lý do)` }).click();
+  await form.getByLabel('Lý do phạt').fill('Đi muộn');
+  await form.getByRole('button', { name: 'Ghi phiếu phạt' }).click();
+  await expect(admin.getByText('Đã lưu phiếu phạt.')).toBeVisible();
+  await expect(day.getByText('Phiếu phạt ngày này')).toBeVisible();
+  await expect(day.getByRole('button', { name: /Khác: Đi muộn/ })).toBeVisible();
+
+  await admin.keyboard.press('Escape');
+  await expect(cell.getByText('Đã phạt')).toBeVisible();
 });
