@@ -619,3 +619,18 @@ describe('phiếu in', () => {
     expect(html).not.toContain('Lương theo giờ');
   });
 });
+
+describe('lương giờ theo giờ chấm (P26, P28)', () => {
+  it('giờ chấm kẹp trong ca, làm tròn xuống giờ chẵn; quên chấm ra chưa duyệt 0đ', async () => {
+    const { id } = await newEmployee();
+    await punch(id, yesterday, 'in', '17:14');
+    await punch(id, yesterday, 'out', '22:30');
+    await schedule(id, yesterday, [shifts.TOI.id]);
+    expect((await statement(id)).lines[0]).toMatchObject({ amount: 100_000, how: '1 ca · 4 giờ × 25.000đ' });
+
+    const forgot = await newEmployee();
+    await punch(forgot.id, yesterday, 'in', '17:14');
+    await schedule(forgot.id, yesterday, [shifts.TOI.id]);
+    expect((await statement(forgot.id)).net).toBe(0);
+  });
+});

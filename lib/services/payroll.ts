@@ -18,6 +18,8 @@ import {
   shifts,
 } from '@/lib/db/schema';
 import { vietnamToday } from '@/lib/domain/date';
+import { shiftSpanMinutes, toMinutes } from '@/lib/domain/shift';
+import { atMinute } from '@/lib/engine/time';
 import { daySymbol } from '@/lib/domain/symbols';
 import { periodByKey } from '@/lib/domain/period';
 import { formatDate } from '@/lib/format';
@@ -146,7 +148,12 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
       loadProfiles(ids),
       readDayRecords(db, ctx.company.id, ids, from, to < today ? to : today),
       db
-        .select({ id: shifts.id, stdHours: shifts.stdHours })
+        .select({
+          id: shifts.id,
+          stdHours: shifts.stdHours,
+          startTime: shifts.startTime,
+          endTime: shifts.endTime,
+        })
         .from(shifts)
         .where(scopeToCompany(ctx, shifts.companyId)),
       db
@@ -200,6 +207,13 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
     ]);
 
   const hoursOf = (shiftId: string | null) => library.find(({ id }) => id === shiftId)?.stdHours ?? null;
+  // Khung giờ ca để lương giờ kẹp giờ chấm; ca qua đêm kết thúc sang hôm sau
+  const windowOf = (shiftId: string | null, date: string) => {
+    const shift = library.find(({ id }) => id === shiftId);
+    if (!shift) return null;
+    const start = toMinutes(shift.startTime);
+    return { from: atMinute(date, start), to: atMinute(date, start + shiftSpanMinutes(shift)) };
+  };
   // Ca nhận từ pass ca có thể ở vị trí người đó không có (người Pha chế làm thay ca Phục vụ): trả theo mức vị trí của ca
   const referenced = [...new Set(cells.flatMap(({ positions: map }) => Object.values(map)))];
   const covered =
@@ -225,6 +239,7 @@ async function computePeriod(ctx: AuthContext, staff: Staff[], from: string, to:
     const days: PayDay[] = own.map((record) => ({
       ...record,
       stdHours: hoursOf(record.shiftId) ?? hoursOf(profile.fixedShiftId),
+      window: windowOf(record.shiftId, record.date),
       roleId: roleOf(record),
     }));
     const manual = adjustmentRows.filter(({ employeeId }) => employeeId === person.id);
