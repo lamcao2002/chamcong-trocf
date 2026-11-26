@@ -5,6 +5,9 @@ import { formatDate, formatDecimal, formatMoney } from '@/lib/format';
 /** Dòng ngày nghỉ tuần không gắn ca và người không có ca cố định: chưa có giờ chuẩn nào để dùng (D3). */
 const DEFAULT_STD_HOURS = 8;
 const ROUND_HOURS = 100;
+const MINUTE_MS = 60_000;
+/** Lương giờ: phần lẻ từ 50 phút trở lên làm tròn lên một giờ, dưới 50 phút bỏ (chốt 26/11/2026). */
+const ROUND_UP_FROM_MIN = 50;
 
 export type PayProfile = {
   payType: 'month' | 'hour' | 'unit';
@@ -35,6 +38,11 @@ export type PayDay = Pick<
 > & {
   /** Giờ chuẩn của ca trên dòng; NULL thì dùng mặc định. */
   stdHours: number | null;
+  /** Lần chấm của ca; lương giờ tính giờ được trả từ đây khi dòng có `window`. */
+  inAt?: Date | string | null;
+  outAt?: Date | string | null;
+  /** Giờ đầu và cuối ca; trống là dòng không gắn ca, lương giờ tính theo giờ chuẩn × công. */
+  window?: { from: Date | string; to: Date | string } | null;
   /** Vị trí phụ của ca trên dòng; trống là vị trí chính. */
   roleId?: string | null;
 };
@@ -137,12 +145,25 @@ function baseLines(profile: PayProfile, days: readonly PayDay[]): PayLine[] {
   ];
 }
 
+const msOf = (at: Date | string) => new Date(at).getTime();
+
 /**
- * Giờ được trả của một ca lương giờ: giờ chuẩn của ca × công, không theo phút chấm, nên phép, lễ và
- * thiếu giờ được duyệt cũng có tiền (Q3). Ngày nghỉ tuần chỉ trả qua OT đã duyệt, tránh trả hai lần (D5).
+ * Giờ được trả của một ca lương giờ (chốt 26/11/2026): giờ chấm ra − giờ chấm vào, kẹp trong khung ca,
+ * làm tròn xuống tới giờ chẵn, riêng phần lẻ 50–59 phút làm tròn lên (4 giờ 51 → 5 giờ). Thiếu giờ vào
+ * lấy đầu ca, thiếu giờ ra lấy cuối ca, nên phép, lễ và
+ * thiếu chấm đã duyệt được đủ ca. Công 0 (vắng, quên chấm chưa duyệt, xác nhận vắng) là 0 giờ.
+ * Dòng không gắn ca giữ giờ chuẩn × công; ngày nghỉ tuần chỉ trả qua OT đã duyệt, tránh trả hai lần (D5).
  */
 function shiftHours(day: PayDay): number {
-  return day.offDay ? 0 : stdHoursOf(day) * day.cong;
+  if (day.offDay) return 0;
+  if (!day.window) return stdHoursOf(day) * day.cong;
+  if (day.cong === 0) return 0;
+  const start = msOf(day.window.from);
+  const end = msOf(day.window.to);
+  const from = Math.max(day.inAt ? msOf(day.inAt) : start, start);
+  const to = Math.min(day.outAt ? msOf(day.outAt) : end, end);
+  const minutes = Math.max(0, Math.floor((to - from) / MINUTE_MS));
+  return Math.floor(minutes / 60) + (minutes % 60 >= ROUND_UP_FROM_MIN ? 1 : 0);
 }
 
 /** Lương giờ × giờ ca × hệ số, làm tròn từng ca để tổng các dòng khớp tiền từng ngày trên sao kê. */

@@ -61,7 +61,7 @@ Quan sát từ bản gốc trong `docs/website-analysis/04-feature-specification
 | Khoản | Công thức | Ví dụ |
 | --- | --- | --- |
 | Lương tháng | mức ÷ công chuẩn × công | 11.000.000 ÷ 26 × 26 = 11.000.000đ |
-| Lương giờ, mỗi ca | đơn giá giờ × (giờ chuẩn ca × công + giờ OT đã duyệt) × hệ số ca | 25.000 × (5 × 1 + 1) × 1,5 = 225.000đ |
+| Lương giờ, mỗi ca | đơn giá giờ × (giờ chấm trong ca, lẻ dưới 50 phút bỏ, từ 50 phút làm tròn lên + giờ OT đã duyệt) × hệ số ca | Ca 17:00–22:00, vào 17:14, ra 22:00, OT 1 giờ, hệ số 1,5: 25.000 × (4 + 1) × 1,5 = 187.500đ |
 | Lương công | đơn giá × công | 60.000 × 27 = 1.620.000đ |
 | Đơn giá giờ của lương tháng | mức ÷ công chuẩn ÷ giờ chuẩn ca | 10.000.000 ÷ 26 ÷ 7,5 = 51.282đ |
 | OT của lương tháng, lương công | phút ÷ 60 × đơn giá giờ × % OT | 90 phút × 51.282 × 150% = 115.385đ |
@@ -69,9 +69,13 @@ Quan sát từ bản gốc trong `docs/website-analysis/04-feature-specification
 
 % OT lấy theo `is_holiday`, `off_day` và thứ của ngày, vì `day_records` không lưu %; ghi đè trong `pay_override` thắng vị trí, như engine đang làm.
 
-**Lương giờ tính theo ca (chốt 04/11/2026, thay công thức theo phút làm):**
+**Lương giờ tính theo giờ chấm (chốt 26/11/2026, thay giờ chuẩn ca × công của 04/11):**
 
-- Giờ ca là giờ chuẩn của ca × công, không theo phút chấm: đi muộn vài phút không bị trừ tiền; phép, lễ, thiếu giờ được duyệt có tiền vì đã có công (Q3). Ngày nghỉ tuần không có giờ ca, chỉ trả qua OT (D5).
+- Giờ được trả của ca = giờ chấm ra − giờ chấm vào, **làm tròn xuống tới giờ chẵn; phần lẻ 50–59 phút làm tròn lên** (4 giờ 49 → 4 giờ, 4 giờ 51 → 5 giờ, 3 giờ 55 → 4 giờ). Chấm vào trước đầu ca thì lấy đầu ca, chấm ra sau cuối ca thì lấy cuối ca; phần ngoài ca chỉ trả qua OT đã duyệt. Ca không có giờ nghỉ giữa ca.
+- Thiếu giờ vào lấy đầu ca, thiếu giờ ra lấy cuối ca, nhưng chỉ khi ca có công: quên chấm chưa duyệt có công 0 nên **0đ tới khi quản lý duyệt**.
+- **Công 0 là 0đ**: vắng, quên chấm chưa duyệt, Xác nhận vắng 0 công. Công khác 0 (0,5 hay 1) không nhân vào giờ, chỉ mở tiền ca.
+- Không chấm lần nào mà có công (phép năm, lễ, Cho đủ công) thì được đủ ca: đầu ca → cuối ca, làm tròn xuống (Q3).
+- Dòng không gắn ca vẫn tính giờ chuẩn × công; ngày nghỉ tuần không có giờ ca, chỉ trả qua OT (D5).
 - OT của lương giờ dùng cùng đơn giá, **không nhân %** theo loại ngày; muốn trả cao hơn thì đặt hệ số.
 - Hệ số ca đặt ở Điều chỉnh khác khi duyệt công (`approvals.pay_factor`, chép sang `day_records.pay_factor`), mặc định 1, từ 0 tới 10. Hệ số tách riêng với công: đổi hệ số không đổi số công trên Bảng công, cũng không đóng việc cần duyệt.
 - Hệ số chỉ áp cho ca trả theo giờ; lương tháng, lương công giữ công thức và % OT như cũ.
@@ -103,6 +107,12 @@ Quan sát từ bản gốc trong `docs/website-analysis/04-feature-specification
 | P23 | OT ngày lễ, lương giờ | 25.000đ/giờ, ca 8 giờ, OT 120 phút ngày lễ | 250.000đ, không nhân 300% | Đề xuất (04/11) |
 | P24 | Hệ số với lương tháng, công | Lương tháng 26 công hệ số 2 | 11.000.000đ, bỏ qua hệ số | Đề xuất (04/11) |
 | P25 | Giờ OT âm, lương giờ | 25.000đ/giờ, ca 5 giờ, OT −1,5 giờ | 87.500đ, dòng "Trừ giờ" −37.500đ | Đề xuất (05/11) |
+| P26 | Giờ chấm, lương giờ | 25.000đ/giờ, ca 17:00–22:00, vào 17:14, ra 22:00 | 4 giờ = 100.000đ | Chốt 26/11 |
+| P27 | Vào sớm, ra trễ, lương giờ | Vào 16:40, ra 22:30; lần hai có OT duyệt 30 phút | 125.000đ; 137.500đ | Chốt 26/11 |
+| P28 | Quên chấm, lương giờ | Vào 17:14, không có giờ ra: công 0 / đã duyệt 1 công; không có giờ vào, ra 21:20 | 0đ / 100.000đ; 100.000đ | Chốt 26/11 |
+| P29 | Không chấm lần nào, lương giờ | Công 0; công 1 (phép, lễ); Xác nhận vắng dù có giờ chấm | 0đ; 125.000đ; 0đ | Chốt 26/11 |
+| P30 | Giờ chấm, OT, hệ số | Vào 17:00, ra 21:49, OT 1 giờ, hệ số 1,5 | 25.000 × (4 + 1) × 1,5 = 187.500đ | Chốt 26/11 |
+| P31 | Làm tròn lên từ 50 phút | 4 giờ 49; 4 giờ 50; 4 giờ 50 (17:09–21:59); 3 giờ 55; 3 giờ 45 | 4; 5; 5; 4; 3 giờ | Chốt 26/11 |
 
 P19–P21 (nhiều vị trí) ở `08-should-have.md`; P19, P20 đã đổi số theo công thức theo ca.
 
