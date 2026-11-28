@@ -189,6 +189,12 @@ describe('POST /app/punch (US18, US19)', () => {
 
     const rows = await sql`select date::text, status, worked_min from day_records where employee_id = ${id}`;
     expect(rows).toEqual([{ date: yesterday, status: 'du', worked_min: 480 }]);
+    // Drawer ngày hôm qua vẫn hiện lần ra sáng nay, kèm ngày của nó
+    const { day } = (await api('GET', `/day/${id}/${yesterday}`, { cookie: admin })).body;
+    expect(day.punches.map(({ type, day: on }: any) => `${type} ${on}`)).toEqual([
+      `in ${yesterday}`,
+      `out ${vietnamToday()}`,
+    ]);
   });
 
   it('từ chối dữ liệu sai và ca không được làm', async () => {
@@ -218,6 +224,28 @@ describe('GET /day/:employeeId/:date (US22)', () => {
     expect(result.status).toBe(200);
     expect(result.body.day.punches).toHaveLength(1);
     expect(result.body.day.records.some(({ shiftId }: any) => shiftId === shifts.SANG.id)).toBe(true);
+  });
+
+  it('không lẫn lần chấm của hôm sau vào ngày đang xem', async () => {
+    const { id } = await newEmployee();
+    const first = addDays(vietnamToday(), -2);
+    const second = addDays(first, 1);
+    const punches: [string, string, 'in' | 'out'][] = [
+      [first, '07:02', 'in'],
+      [first, '12:10', 'out'],
+      [second, '07:18', 'in'],
+      [second, '12:12', 'out'],
+    ];
+    for (const [date, clock, type] of punches) {
+      await sql`insert into attendance_logs (company_id, employee_id, at, type, in_zone)
+        select company_id, id, ${new Date(`${date}T${clock}:00+07:00`)}, ${type}, true from employees where id = ${id}`;
+    }
+
+    const { day } = (await api('GET', `/day/${id}/${first}`, { cookie: admin })).body;
+    expect(day.punches.map(({ type, day: on }: any) => `${type} ${on}`)).toEqual([
+      `in ${first}`,
+      `out ${first}`,
+    ]);
   });
 
   it('Quản lý nhóm không xem được người ngoài phạm vi, ID sai trả 404', async () => {
