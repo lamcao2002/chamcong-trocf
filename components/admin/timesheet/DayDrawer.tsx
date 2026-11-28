@@ -190,9 +190,10 @@ export function DayDrawer({ target, onClose, onChanged }: DayDrawerProps) {
           {detail.punches.length > 0 ? (
             <div>
               <Typography.Text strong>Lần chấm</Typography.Text>
-              {detail.punches.map(({ at, type, inZone, synthetic }) => (
+              {detail.punches.map(({ at, type, inZone, synthetic, day }) => (
                 <Typography.Paragraph key={`${String(at)}${type}`} style={{ margin: '4px 0 0' }}>
                   {type === 'in' ? 'Vào' : 'Ra'} {formatClock(at)}
+                  {day === detail.date ? '' : ` (${formatDate(day).slice(0, 5)})`}
                   {inZone === false ? ' · ngoài vùng' : ''}
                   {synthetic ? ' · từ đơn quên chấm' : ''}
                 </Typography.Paragraph>

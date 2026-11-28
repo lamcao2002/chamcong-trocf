@@ -127,7 +127,16 @@ export async function getDayDetail(ctx: AuthContext, employeeId: string, date: s
     .from(approvals)
     .where(and(eq(approvals.employeeId, employeeId), eq(approvals.date, date), isNull(approvals.revokedAt)));
 
-  return { employee, date, punches, records, approvals: approved, shifts: library };
+  // Khung đọc kéo sang hôm sau cho ca đêm: lần chấm hôm sau chỉ hiện khi ngày công này dùng nó
+  const minuteOf = (at: Date | string) => Math.floor(new Date(at).getTime() / 60_000);
+  const used = new Set(
+    records.flatMap(({ inAt, outAt }) => [inAt, outAt]).flatMap((at) => (at ? [minuteOf(at)] : [])),
+  );
+  const shown = punches
+    .map((row) => ({ ...row, day: vietnamToday(row.at) }))
+    .filter(({ at, day }) => day === date || used.has(minuteOf(at)));
+
+  return { employee, date, punches: shown, records, approvals: approved, shifts: library };
 }
 
 export type DayDetail = Awaited<ReturnType<typeof getDayDetail>>;
